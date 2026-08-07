@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Ruff lint
+        run: ruff check .
+
+      - name: Check Ruff formatting
+        run: ruff format --check .
+
+
+  tests:
+    name: Tests and coverage
+    runs-on: ubuntu-latest
+
+    env:
+      POSTGRES_DB: vending_ci
+      POSTGRES_USER: vending_user
+      POSTGRES_PASSWORD: vending_password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+
+      DJANGO_SECRET_KEY: ci-test-secret-key
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+
+    services:
+      postgres:
+        image: postgres:17
+
+        env:
+          POSTGRES_DB: vending_ci
+          POSTGRES_USER: vending_user
+          POSTGRES_PASSWORD: vending_password
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U vending_user -d vending_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Django checks
+        run: python manage.py check
+
+      - name: Check missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run tests with coverage
+        run: python -m coverage run manage.py test
+
+      - name: Show coverage
+        run: python -m coverage report -m
+
+      - name: Generate coverage report
+        run: python -m coverage xml
