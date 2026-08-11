@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo producto | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+    <div class="page-breadcrumb">
+        Inventario /
+        <a href="{% url 'inventory:product_list' %}">
+            Productos
+        </a>
+        /
+        Nuevo producto
+    </div>
+
+    <h1 class="page-title">
+        Nuevo producto
+    </h1>
+
+    <p class="page-description">
+        Registra un nuevo producto en el catálogo.
+    </p>
+
+    <div class="page-title-accent"></div>
+</header>
+
+
+<section class="product-form-container">
+
+    <form method="post" class="product-form" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-card">
+
+            <div class="form-card-header">
+                <h2>Información del producto</h2>
+            </div>
+
+            <div class="form-card-body">
+
+                <div class="mb-4 {% if form.name.errors %}field-error{% endif %}">
+                    <label for="{{ form.name.id_for_label }}" class="form-label">
+                        {{ form.name.label }}
+                    </label>
+
+                    {{ form.name }}
+
+                    {% for error in form.name.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+
+                <div class="mb-4 {% if form.category.errors %}field-error{% endif %}">
+                    <label for="{{ form.category.id_for_label }}" class="form-label">
+                        {{ form.category.label }}
+                    </label>
+
+                    {{ form.category }}
+
+                    {% for error in form.category.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+
+                <div class="mb-4 {% if form.format_unit.errors %}field-error{% endif %}">
+                    <label for="{{ form.format_unit.id_for_label }}" class="form-label">
+                        {{ form.format_unit.label }}
+                    </label>
+
+                    {{ form.format_unit }}
+
+                    {% for error in form.format_unit.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+
+                <div class="mb-4 {% if form.vat_rate.errors %}field-error{% endif %}">
+                    <label for="{{ form.vat_rate.id_for_label }}" class="form-label">
+                        {{ form.vat_rate.label }}
+                    </label>
+
+                    {{ form.vat_rate }}
+
+                    <div class="form-text">
+                        Si se deja vacío, se utilizará el IVA por defecto de la categoría.
+                    </div>
+
+                    {% for error in form.vat_rate.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+
+                <div class="mb-4 {% if form.default_sale_price.errors %}field-error{% endif %}">
+
+                    <label
+                        for="{{ form.default_sale_price.id_for_label }}"
+                        class="form-label"
+                    >
+                        {{ form.default_sale_price.label }}
+                    </label>
+
+                    {{ form.default_sale_price }}
+
+                    {% for error in form.default_sale_price.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="product-form-actions">
+            <a
+                href="{% url 'inventory:product_list' %}"
+                class="btn btn-outline-secondary"
+            >
+                Cancelar
+            </a>
+
+            <button type="submit" class="btn btn-primary">
+                Guardar producto
+            </button>
+        </div>
+
+    </form>
+
+</section>
+
+{{ category_vat_rates|json_script:"category-vat-rates" }}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const categorySelect = document.getElementById("id_category");
+        const vatInput = document.getElementById("id_vat_rate");
+        const vatRatesElement = document.getElementById("category-vat-rates");
+
+        if (!categorySelect || !vatInput || !vatRatesElement) {
+            return;
+        }
+
+        const categoryVatRates = JSON.parse(
+            vatRatesElement.textContent
+        );
+
+        categorySelect.addEventListener("change", function () {
+            const selectedCategoryId = categorySelect.value;
+
+            if (selectedCategoryId) {
+                vatInput.value = categoryVatRates[selectedCategoryId] ?? "";
+            } else {
+                vatInput.value = "";
+            }
+        });
+    });
+</script>
+
+{% endblock %}

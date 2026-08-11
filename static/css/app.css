@@ -301,3 +301,71 @@ body {
     color: var(--app-primary);
 }
 
+.product-form-container {
+    max-width: 850px;
+}
+
+.form-card {
+    overflow: hidden;
+
+    background-color: var(--app-white);
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+}
+
+.form-card-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.form-card-header h2 {
+    margin: 0;
+
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.form-card-body {
+    padding: 24px;
+}
+
+.form-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--app-primary);
+
+    box-shadow: 0 0 0 0.2rem rgba(47, 54, 230, 0.12);
+}
+
+.product-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    margin-top: 24px;
+}
+
+.btn-primary {
+    background-color: var(--app-primary);
+    border-color: var(--app-primary);
+}
+
+.btn-primary:hover {
+    background-color: #272dca;
+    border-color: #272dca;
+}
+
+.field-error .form-control,
+.field-error .form-select {
+    border-color: #dc3545;
+}
+
+.field-error .form-control:focus,
+.field-error .form-select:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.12);
+}
