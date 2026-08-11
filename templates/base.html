@@ -1,0 +1,145 @@
+{% load static %}
+
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{% block title %}Vimach{% endblock %}</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+        crossorigin="anonymous"
+    >
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+
+<body>
+
+
+    <div class="app-layout">
+
+        <aside class="app-sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-highlight">Vi</span>mach
+            </div>
+
+            <nav class="nav flex-column">
+
+                <a class="sidebar-link" href="#">
+                    Resumen
+                </a>
+
+                <div class="sidebar-section">
+                    <button
+                        class="sidebar-group"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#inventoryMenu"
+                        aria-expanded="true"
+                        aria-controls="inventoryMenu"
+                    >
+                        Inventario
+                        <span>⌄</span>
+                    </button>
+
+                    <div class="collapse show" id="inventoryMenu">
+                        <div class="sidebar-submenu">
+
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'product_detail' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'inventory:product_list' %}"
+                            >
+                                Productos
+                            </a>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Stock
+                            </span>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Categorías
+                            </span>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <button
+                        class="sidebar-group collapsed"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#operationsMenu"
+                        aria-expanded="false"
+                        aria-controls="operationsMenu"
+                    >
+                        Operaciones
+                        <span>⌄</span>
+                    </button>
+
+                    <div class="collapse" id="operationsMenu">
+                        <div class="sidebar-submenu">
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Compras
+                            </span>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Ventas
+                            </span>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Reposiciones
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <span class="sidebar-link disabled-link">
+                    Máquinas
+                </span>
+
+                <span class="sidebar-link disabled-link">
+                    Proyección de ventas
+                </span>
+
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    Administrador
+                </div>
+                <span>Cerrar sesión</span>
+            </div>
+
+        </aside>
+
+        <main class="app-content">
+            {% block content %}
+            {% endblock %}
+        </main>
+
+    </div>
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"
+    ></script>
+
+</body>
+</html>

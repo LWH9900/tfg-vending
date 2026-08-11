@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+    <div class="page-breadcrumb">
+        Inventario /
+        <a href="{% url 'inventory:product_list' %}">
+            Productos
+        </a>
+        /
+        {{ product.name }}
+    </div>
+
+    <h1 class="page-title">
+        {{ product.name }}
+    </h1>
+
+    <p class="page-description">
+        Información general del producto.
+    </p>
+
+    <div class="page-title-accent"></div>
+</header>
+
+<section class="product-detail-layout">
+
+    <div class="product-detail-visual-card">
+        <div class="product-image-placeholder">
+            <div class="product-image-icon">🖼</div>
+            <p>Imagen no disponible</p>
+            <span>Añadir imágenes en el futuro</span>
+        </div>
+    </div>
+
+    <div class="product-detail-info-card">
+        <div class="product-detail-info-header">
+            <h2>Ficha del producto</h2>
+        </div>
+
+        <dl class="product-detail-list">
+
+            <div class="product-detail-row">
+                <dt>Categoría</dt>
+                <dd>{{ product.category.name }}</dd>
+            </div>
+
+            <div class="product-detail-row">
+                <dt>Formato / unidad</dt>
+                <dd>{{ product.format_unit }}</dd>
+            </div>
+
+            <div class="product-detail-row">
+                <dt>IVA</dt>
+                <dd>{{ product.vat_rate }} %</dd>
+            </div>
+
+            <div class="product-detail-row">
+                <dt>Precio por defecto</dt>
+                <dd>{{ product.default_sale_price }} €</dd>
+            </div>
+
+        </dl>
+    </div>
+
+</section>
+
+<div class="product-detail-actions">
+    <a
+        href="{% url 'inventory:product_list' %}"
+        class="product-back-link"
+    >
+        ← Volver a productos
+    </a>
+</div>
+
+{% endblock %}
