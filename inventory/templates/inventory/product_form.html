@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Nuevo producto | Vimach{% endblock %}
+{% block title %}
+    {% if is_editing %}
+        Editar {{ product.name }} | Vimach
+    {% else %}
+        Nuevo producto | Vimach
+    {% endif %}
+{% endblock %}
 
 {% block content %}
 
@@ -11,15 +17,32 @@
             Productos
         </a>
         /
-        Nuevo producto
+
+        {% if is_editing %}
+            <a href="{% url 'inventory:product_detail' product.pk %}">
+                {{ product.name }}
+            </a>
+            /
+            Editar
+        {% else %}
+            Nuevo producto
+        {% endif %}
     </div>
 
     <h1 class="page-title">
-        Nuevo producto
+        {% if is_editing %}
+            Editar producto
+        {% else %}
+            Nuevo producto
+        {% endif %}
     </h1>
 
     <p class="page-description">
-        Registra un nuevo producto en el catálogo.
+        {% if is_editing %}
+            Modifica la información del producto.
+        {% else %}
+            Registra un nuevo producto en el catálogo.
+        {% endif %}
     </p>
 
     <div class="page-title-accent"></div>
@@ -136,14 +159,24 @@
 
         <div class="product-form-actions">
             <a
-                href="{% url 'inventory:product_list' %}"
+                href="
+                    {% if is_editing %}
+                        {% url 'inventory:product_detail' product.pk %}
+                    {% else %}
+                        {% url 'inventory:product_list' %}
+                    {% endif %}
+                "
                 class="btn btn-outline-secondary"
             >
                 Cancelar
             </a>
 
             <button type="submit" class="btn btn-primary">
-                Guardar producto
+                {% if is_editing %}
+                    Guardar cambios
+                {% else %}
+                    Guardar producto
+                {% endif %}
             </button>
         </div>
 
