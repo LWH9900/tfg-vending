@@ -1,7 +1,7 @@
 from django import forms
+from django.core.exceptions import NON_FIELD_ERRORS
 
 from .models import Product
-from django.core.exceptions import NON_FIELD_ERRORS
 
 
 class ProductForm(forms.ModelForm):
