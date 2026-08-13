@@ -5,27 +5,37 @@
 {% block content %}
 
     <header class="page-header">
-        <div class="page-breadcrumb">
-            Inventario / Productos
+
+        <div class="page-header-row">
+
+            <div class="page-header-content">
+
+                <div class="page-breadcrumb">
+                    Inventario / Productos
+                </div>
+
+                <h1 class="page-title">
+                    Productos
+                </h1>
+
+                <p class="page-description">
+                    Consulta los productos registrados en el catálogo.
+                </p>
+
+            </div>
+
+            <div class="page-header-actions">
+                <a
+                    href="{% url 'inventory:product_create' %}"
+                    class="btn btn-primary"
+                >
+                    + Nuevo producto
+                </a>
+            </div>
+
         </div>
 
-        <h1 class="page-title">
-            Productos
-        </h1>
-
-        <p class="page-description">
-            Consulta los productos registrados en el catálogo.
-        </p>
-        
-        <a
-            href="{% url 'inventory:product_create' %}"
-            class="btn btn-primary"
-        >
-            + Nuevo producto
-        </a>
-
-        <div class="page-title-accent"></div>
-    </header>   
+    </header>
 
     {% if products %}
 
@@ -52,7 +62,7 @@
                                 <td>
                                     <a
                                         href="{% url 'inventory:product_detail' product.pk %}"
-                                        class="fw-semibold text-decoration-none"
+                                        class="text-decoration-none product-name-link"
                                     >
                                         {{ product.name }}
                                     </a>

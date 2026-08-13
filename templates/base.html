@@ -26,12 +26,52 @@
 </head>
 
 <body>
+    <div class="mobile-topbar d-md-none">
 
+        <button
+            class="mobile-menu-button"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#appSidebar"
+            aria-controls="appSidebar"
+            aria-label="Abrir menú de navegación"
+        >
+            ☰
+        </button>
+
+        <div class="mobile-brand">
+            <span class="brand-highlight">Vi</span>mach
+        </div>
+
+    </div>
 
     <div class="app-layout">
 
-        <aside class="app-sidebar">
-            <div class="sidebar-brand">
+        <aside
+            class="app-sidebar offcanvas-md offcanvas-start"
+            tabindex="-1"
+            id="appSidebar"
+            aria-labelledby="appSidebarLabel"
+            data-bs-theme="dark"
+        >
+            <div class="sidebar-mobile-header d-md-none">
+
+                <div class="sidebar-brand sidebar-brand-mobile" id="appSidebarLabel">
+                    <span class="brand-highlight">Vi</span>mach
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="offcanvas"
+                    data-bs-target="#appSidebar"
+                    aria-label="Cerrar menú"
+                ></button>
+
+            </div>
+
+
+            <div class="sidebar-brand d-none d-md-block">
                 <span class="brand-highlight">Vi</span>mach
             </div>
 
