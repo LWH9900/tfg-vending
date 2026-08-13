@@ -4,7 +4,10 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
 
     <title>{% block title %}Vimach{% endblock %}</title>
 
@@ -15,14 +18,38 @@
         crossorigin="anonymous"
     >
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
         rel="stylesheet"
     >
 
-    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link
+        rel="stylesheet"
+        href="{% static 'css/app.css' %}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/forms.css' %}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/detail.css' %}"
+    >
+
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body>
@@ -149,9 +176,15 @@
                     </div>
                 </div>
 
-                <span class="sidebar-link disabled-link">
+                <a
+                    class="sidebar-link sidebar-sublink
+                    {% if request.resolver_match.url_name == 'machine_list' or request.resolver_match.url_name == 'machine_detail' %}
+                        active
+                    {% endif %}"
+                    href="{% url 'machines:machine_list' %}"
+                >
                     Máquinas
-                </span>
+                </a>
 
                 <span class="sidebar-link disabled-link">
                     Proyección de ventas

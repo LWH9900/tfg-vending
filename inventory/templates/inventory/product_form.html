@@ -1,4 +1,12 @@
 {% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'inventory/css/inventory.css' %}"
+>
+{% endblock %}
 
 {% block title %}
     {% if is_editing %}
@@ -72,18 +80,18 @@
 
     <section class="product-detail-grid">
 
-        <div class="product-info-card">
+        <div class="detail-card">
 
-            <dl class="product-info-list">
+            <dl class="detail-list">
 
-                <div class="product-info-row {% if form.name.errors %}field-error{% endif %}">
+                <div class="detail-row {% if form.name.errors %}field-error{% endif %}">
                     <dt>
                         <label for="{{ form.name.id_for_label }}">
                             Nombre
                         </label>
                     </dt>
 
-                    <dd class="product-edit-field">
+                    <dd class="detail-edit-field">
                         {{ form.name }}
 
                         {% for error in form.name.errors %}
@@ -95,14 +103,14 @@
                 </div>
 
 
-                <div class="product-info-row {% if form.category.errors %}field-error{% endif %}">
+                <div class="detail-row {% if form.category.errors %}field-error{% endif %}">
                     <dt>
                         <label for="{{ form.category.id_for_label }}">
                             Categoría
                         </label>
                     </dt>
 
-                    <dd class="product-edit-field">
+                    <dd class="detail-edit-field">
                         {{ form.category }}
 
                         {% for error in form.category.errors %}
@@ -114,14 +122,14 @@
                 </div>
 
 
-                <div class="product-info-row {% if form.format_unit.errors %}field-error{% endif %}">
+                <div class="detail-row {% if form.format_unit.errors %}field-error{% endif %}">
                     <dt>
                         <label for="{{ form.format_unit.id_for_label }}">
                             Formato / unidad
                         </label>
                     </dt>
 
-                    <dd class="product-edit-field">
+                    <dd class="detail-edit-field">
                         {{ form.format_unit }}
 
                         {% for error in form.format_unit.errors %}
@@ -133,14 +141,14 @@
                 </div>
 
 
-                <div class="product-info-row {% if form.vat_rate.errors %}field-error{% endif %}">
+                <div class="detail-row {% if form.vat_rate.errors %}field-error{% endif %}">
                     <dt>
                         <label for="{{ form.vat_rate.id_for_label }}">
                             IVA
                         </label>
                     </dt>
 
-                    <dd class="product-edit-field">
+                    <dd class="detail-edit-field">
                         {{ form.vat_rate }}
 
                         {% for error in form.vat_rate.errors %}
@@ -152,14 +160,14 @@
                 </div>
 
 
-                <div class="product-info-row {% if form.default_sale_price.errors %}field-error{% endif %}">
+                <div class="detail-row {% if form.default_sale_price.errors %}field-error{% endif %}">
                     <dt>
                         <label for="{{ form.default_sale_price.id_for_label }}">
                             Precio por defecto
                         </label>
                     </dt>
 
-                    <dd class="product-edit-field">
+                    <dd class="detail-edit-field">
                         {{ form.default_sale_price }}
 
                         {% for error in form.default_sale_price.errors %}
@@ -215,11 +223,11 @@
     </section>
 
 
-    <div class="product-detail-actions">
+    <div class="detail-actions">
 
         <a
             href="{% url 'inventory:product_list' %}"
-            class="product-back-link"
+            class="back-link"
         >
             ← Volver a productos
         </a>
@@ -251,7 +259,7 @@
 </header>
 
 
-<section class="product-form-container">
+<section class="form-container">
 
     <form method="post" class="product-form" novalidate>
         {% csrf_token %}
@@ -382,7 +390,7 @@
         </div>
 
 
-        <div class="product-form-actions">
+        <div class="form-actions">
 
             <a
                 href="{% url 'inventory:product_list' %}"

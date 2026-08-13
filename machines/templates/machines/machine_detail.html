@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+{% block title %}{{ machine.name }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
+                /
+                {{ machine.identifier }}
+            </div>
+
+            <h1 class="page-title">
+                Ficha de la máquina
+            </h1>
+
+            <p class="page-description">
+                Consulta la información general de {{ machine.name }}.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="detail-card">
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Identificador</dt>
+            <dd>{{ machine.identifier }}</dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Nombre</dt>
+            <dd>{{ machine.name }}</dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Número de serie</dt>
+            <dd>{{ machine.serial_number }}</dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Ubicación</dt>
+            <dd>
+                {% if machine.location %}
+                    {{ machine.location }}
+                {% else %}
+                    <span class="text-secondary">
+                        Sin ubicación
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'machines:machine_list' %}"
+        class="back-link"
+    >
+        ← Volver a máquinas
+    </a>
+
+</div>
+
+{% endblock %}

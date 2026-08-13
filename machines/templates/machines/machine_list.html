@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+{% block title %}Máquinas | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Máquinas
+            </div>
+
+            <h1 class="page-title">
+                Máquinas
+            </h1>
+
+            <p class="page-description">
+                Consulta las máquinas expendedoras registradas.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<div class="card border-0">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Identificador</th>
+                    <th>Nombre</th>
+                    <th>Número de serie</th>
+                    <th>Ubicación</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for machine in machines %}
+
+                    <tr>
+
+                        <td>
+                            <a
+                                href="{% url 'machines:machine_detail' machine.pk %}"
+                                class="text-decoration-none machine-link"
+                            >
+                                {{ machine.identifier }}
+                            </a>
+                        </td>
+
+                        <td>
+                            {{ machine.name }}
+                        </td>
+
+                        <td>
+                            {{ machine.serial_number }}
+                        </td>
+
+                        <td>
+                            {% if machine.location %}
+                                {{ machine.location }}
+                            {% else %}
+                                <span class="text-secondary">
+                                    Sin ubicación
+                                </span>
+                            {% endif %}
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td colspan="4" class="text-center py-5 text-secondary">
+                            No hay máquinas registradas.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}
