@@ -23,9 +23,7 @@ class ProductViewTests(TestCase):
         )
 
     def test_product_list_access(self):
-        response = self.client.get(
-            reverse("inventory:product_list")
-        )
+        response = self.client.get(reverse("inventory:product_list"))
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(
@@ -34,9 +32,7 @@ class ProductViewTests(TestCase):
         )
 
     def test_product_appears_in_list(self):
-        response = self.client.get(
-            reverse("inventory:product_list")
-        )
+        response = self.client.get(reverse("inventory:product_list"))
 
         self.assertContains(response, "Coca cola")
         self.assertContains(response, "Bebidas azucaradas")
