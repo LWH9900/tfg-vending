@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+
+{% block title %}
+    {% if is_editing %}
+        {{ machine.name }} | Vimach
+    {% else %}
+        Nueva máquina | Vimach
+    {% endif %}
+{% endblock %}
+
+
+{% block content %}
+
+
+{% if is_editing %}
+
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    <header class="page-header">
+
+        <div class="page-header-row">
+
+            <div class="page-header-content">
+
+                <div class="page-breadcrumb">
+                    <a href="{% url 'machines:machine_list' %}">
+                        Máquinas
+                    </a>
+                    /
+                    {{ machine.identifier }}
+                </div>
+
+                <h1 class="page-title">
+                    Ficha de la máquina
+                </h1>
+
+                <p class="page-description">
+                    Consulta la información general de {{ machine.name }}.
+                </p>
+
+            </div>
+
+
+            <div class="page-header-actions">
+
+                <a
+                    href="{% url 'machines:machine_detail' machine.pk %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Guardar cambios
+                </button>
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+
+    <section class="detail-card">
+
+        <dl class="detail-list">
+
+            <div class="detail-row {% if form.identifier.errors %}field-error{% endif %}">
+
+                <dt>
+                    <label for="{{ form.identifier.id_for_label }}">
+                        Identificador
+                    </label>
+                </dt>
+
+                <dd class="detail-edit-field">
+
+                    {{ form.identifier }}
+
+                    {% for error in form.identifier.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                </dd>
+
+            </div>
+
+
+            <div class="detail-row {% if form.name.errors %}field-error{% endif %}">
+
+                <dt>
+                    <label for="{{ form.name.id_for_label }}">
+                        Nombre
+                    </label>
+                </dt>
+
+                <dd class="detail-edit-field">
+
+                    {{ form.name }}
+
+                    {% for error in form.name.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                </dd>
+
+            </div>
+
+
+            <div class="detail-row {% if form.serial_number.errors %}field-error{% endif %}">
+
+                <dt>
+                    <label for="{{ form.serial_number.id_for_label }}">
+                        Número de serie
+                    </label>
+                </dt>
+
+                <dd class="detail-edit-field">
+
+                    {{ form.serial_number }}
+
+                    {% for error in form.serial_number.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                </dd>
+
+            </div>
+
+
+            <div class="detail-row {% if form.location.errors %}field-error{% endif %}">
+
+                <dt>
+                    <label for="{{ form.location.id_for_label }}">
+                        Ubicación
+                    </label>
+                </dt>
+
+                <dd class="detail-edit-field">
+
+                    {{ form.location }}
+
+                    {% for error in form.location.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                </dd>
+
+            </div>
+
+        </dl>
+
+    </section>
+
+
+    <div class="detail-actions">
+
+        <a
+            href="{% url 'machines:machine_list' %}"
+            class="back-link"
+        >
+            ← Volver a máquinas
+        </a>
+
+    </div>
+
+</form>
+
+
+{% else %}
+
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">
+                    Máquinas
+                </a>
+                /
+                Nueva máquina
+            </div>
+
+            <h1 class="page-title">
+                Nueva máquina
+            </h1>
+
+            <p class="page-description">
+                Registra una nueva máquina expendedora.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="form-container">
+
+    <form method="post" novalidate>
+
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+
+        <div class="form-card">
+
+            <div class="form-card-header">
+                <h2>
+                    Información de la máquina
+                </h2>
+            </div>
+
+            <div class="form-card-body">
+
+                {% include "components/form_field.html" with field=form.identifier %}
+
+                {% include "components/form_field.html" with field=form.name %}
+
+                {% include "components/form_field.html" with field=form.serial_number %}
+
+                {% include "components/form_field.html" with field=form.location %}
+
+            </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+            <a
+                href="{% url 'machines:machine_list' %}"
+                class="btn btn-outline-secondary"
+            >
+                Cancelar
+            </a>
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                Guardar máquina
+            </button>
+
+        </div>
+
+    </form>
+
+</section>
+
+
+{% endif %}
+
+
+{% endblock %}
