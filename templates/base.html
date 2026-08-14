@@ -177,8 +177,8 @@
                 </div>
 
                 <a
-                    class="sidebar-link sidebar-sublink
-                    {% if request.resolver_match.url_name == 'machine_list' or request.resolver_match.url_name == 'machine_detail' %}
+                    class="sidebar-link
+                    {% if request.resolver_match.app_name == 'machines' %}
                         active
                     {% endif %}"
                     href="{% url 'machines:machine_list' %}"
