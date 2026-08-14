@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "inventory.apps.InventoryConfig",
+    "machines.apps.MachinesConfig",
 ]
 
 MIDDLEWARE = [

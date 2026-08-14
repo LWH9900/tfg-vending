@@ -1,0 +1,10 @@
+.machine-link {
+    color: var(--app-primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.machine-link:hover {
+    color: var(--app-primary);
+    text-decoration: underline;
+}
