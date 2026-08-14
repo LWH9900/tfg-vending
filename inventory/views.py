@@ -1,7 +1,7 @@
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Category, Product
 from .forms import ProductForm
+from .models import Category, Product
 
 
 def product_list(request):
