@@ -1,3 +1,5 @@
+from decimal import ROUND_HALF_UP, Decimal
+
 from django.db import transaction
 
 from machines.models import MachinePriceOverride
@@ -34,3 +36,12 @@ def change_machine_pricing_profile(
     machine.save(update_fields=["pricing_profile"])
 
     return None
+
+
+def calculate_adjusted_price(base_price, percentage_adjustment):
+    multiplier = Decimal("1") + (percentage_adjustment / Decimal("100"))
+
+    return (base_price * multiplier).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP,
+    )

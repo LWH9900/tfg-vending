@@ -83,6 +83,107 @@
     </dl>
 
 </section>
+<div class="pricing-section-heading">
+    <h2>Política de precios</h2>
+</div>
+<section class="section-card">
+
+
+
+    {% if machine.pricing_profile %}
+
+        <dl class="detail-list">
+
+            <div class="detail-row">
+                <dt>Tarifa</dt>
+                <dd>{{ machine.pricing_profile.name }}</dd>
+            </div>
+
+            <div class="detail-row">
+                <dt>Ajuste general</dt>
+                <dd>
+                    {{ machine.pricing_profile.percentage_adjustment }} %
+                </dd>
+            </div>
+
+        </dl>
+
+    {% else %}
+
+        <div class="section-card-body">
+            <p class="section-empty-message">
+                Esta máquina no tiene una tarifa asignada.
+                Se utilizan los precios por defecto del catálogo,
+                salvo excepciones específicas.
+            </p>
+        </div>
+
+    {% endif %}
+
+</section>
+
+<div class="pricing-section-heading">
+    <h2>Excepciones de precio</h2>
+</div>
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio por defecto</th>
+                    <th>Ajuste específico</th>
+                    <th>Precio efectivo</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for item in price_overrides %}
+
+                    <tr>
+                        <td>
+                            {{ item.override.product.name }}
+                        </td>
+
+                        <td>
+                            {{ item.override.product.default_sale_price }} €
+                        </td>
+
+                        <td>
+                            {{ item.override.percentage_adjustment }} %
+                        </td>
+
+                        <td>
+                            {{ item.effective_price }} €
+                        </td>
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay excepciones de precio configuradas
+                            para esta máquina.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
 
 
 <div class="detail-actions">

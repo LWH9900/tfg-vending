@@ -56,9 +56,6 @@
     margin-top: 24px;
 }
 
-
-/* Errores */
-
 .field-error .form-control,
 .field-error .form-select {
     border-color: #dc3545;
