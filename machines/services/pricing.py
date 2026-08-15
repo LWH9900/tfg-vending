@@ -1,0 +1,36 @@
+from django.db import transaction
+
+from machines.models import MachinePriceOverride
+
+
+def get_redundant_price_overrides(machine, pricing_profile):
+    if pricing_profile is None:
+        return MachinePriceOverride.objects.none()
+
+    return MachinePriceOverride.objects.filter(
+        machine=machine,
+        percentage_adjustment=pricing_profile.percentage_adjustment,
+    ).select_related("product")
+
+
+@transaction.atomic
+def change_machine_pricing_profile(
+    machine,
+    pricing_profile,
+    remove_redundant_overrides=False,
+):
+    redundant_overrides = get_redundant_price_overrides(
+        machine,
+        pricing_profile,
+    )
+
+    if redundant_overrides.exists() and not remove_redundant_overrides:
+        return redundant_overrides
+
+    if remove_redundant_overrides:
+        redundant_overrides.delete()
+
+    machine.pricing_profile = pricing_profile
+    machine.save(update_fields=["pricing_profile"])
+
+    return None
