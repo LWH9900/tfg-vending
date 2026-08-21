@@ -1,11 +1,10 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class PricingProfile(models.Model):
-    name = models.CharField(
-        max_length=100,
-    )
+    name = models.CharField(max_length=100)
 
     percentage_adjustment = models.DecimalField(
         max_digits=6,
@@ -18,11 +17,12 @@ class PricingProfile(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=[
-                    "name",
-                    "percentage_adjustment",
-                ],
-                name="unique_pricing_profile_name_adjustment",
+                Lower("name"),
+                "percentage_adjustment",
+                name="unique_pricing_profile_name_adjustment_ci",
+                violation_error_message=(
+                    "Ya existe una tarifa con el mismo nombre y la misma variación."
+                ),
             ),
         ]
 

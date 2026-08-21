@@ -163,3 +163,45 @@ class MachinePriceOverrideUpdateForm(forms.ModelForm):
                 }
             ),
         }
+
+
+class PricingProfileForm(forms.ModelForm):
+    class Meta:
+        model = PricingProfile
+
+        fields = [
+            "name",
+            "percentage_adjustment",
+        ]
+
+        labels = {
+            "name": "Nombre",
+            "percentage_adjustment": "Variación (%)",
+        }
+
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                }
+            ),
+            "percentage_adjustment": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "step": "0.01",
+                }
+            ),
+        }
+
+        error_messages = {
+            "name": {
+                "required": "El nombre de la tarifa es obligatorio.",
+                "max_length": (
+                    "El nombre de la tarifa no puede superar los 100 caracteres."
+                ),
+            },
+            "percentage_adjustment": {
+                "required": "La variación porcentual es obligatoria.",
+                "invalid": ("Introduce una variación porcentual válida."),
+            },
+        }

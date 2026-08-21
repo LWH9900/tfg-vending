@@ -29,4 +29,19 @@ urlpatterns = [
         views.machine_price_override_delete,
         name="machine_price_override_delete",
     ),
+    path(
+        "pricing-profiles/",
+        views.pricing_profile_list,
+        name="pricing_profile_list",
+    ),
+    path(
+        "pricing-profiles/new/",
+        views.pricing_profile_create,
+        name="pricing_profile_create",
+    ),
+    path(
+        "pricing-profiles/<int:pk>/delete/",
+        views.pricing_profile_delete,
+        name="pricing_profile_delete",
+    ),
 ]

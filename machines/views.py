@@ -5,8 +5,9 @@ from .forms import (
     MachinePriceOverrideForm,
     MachinePriceOverrideUpdateForm,
     MachinePricingProfileForm,
+    PricingProfileForm,
 )
-from .models import Machine, MachinePriceOverride
+from .models import Machine, MachinePriceOverride, PricingProfile
 from .services.pricing import (
     calculate_adjusted_price,
     change_machine_pricing_profile,
@@ -380,3 +381,63 @@ def machine_price_override_delete(
         "machines:machine_detail",
         pk=machine.pk,
     )
+
+
+def pricing_profile_list(request):
+    pricing_profiles = PricingProfile.objects.prefetch_related("machines").order_by(
+        "name"
+    )
+
+    pricing_profile_form = PricingProfileForm()
+
+    return render(
+        request,
+        "machines/pricing_profile_list.html",
+        {
+            "pricing_profiles": pricing_profiles,
+            "pricing_profile_form": pricing_profile_form,
+        },
+    )
+
+
+def pricing_profile_create(request):
+    if request.method != "POST":
+        return redirect("machines:pricing_profile_list")
+
+    form = PricingProfileForm(request.POST)
+
+    if form.is_valid():
+        form.save()
+
+        return redirect("machines:pricing_profile_list")
+
+    pricing_profiles = PricingProfile.objects.prefetch_related("machines").order_by(
+        "name"
+    )
+
+    return render(
+        request,
+        "machines/pricing_profile_list.html",
+        {
+            "pricing_profiles": pricing_profiles,
+            "pricing_profile_form": form,
+            "open_pricing_profile_create_modal": True,
+        },
+    )
+
+
+def pricing_profile_delete(request, pk):
+    pricing_profile = get_object_or_404(
+        PricingProfile,
+        pk=pk,
+    )
+
+    if request.method != "POST":
+        return redirect("machines:pricing_profile_list")
+
+    if pricing_profile.machines.exists():
+        return redirect("machines:pricing_profile_list")
+
+    pricing_profile.delete()
+
+    return redirect("machines:pricing_profile_list")
