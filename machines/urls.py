@@ -9,4 +9,24 @@ urlpatterns = [
     path("new/", views.machine_create, name="machine_create"),
     path("<int:pk>/", views.machine_detail, name="machine_detail"),
     path("edit/<int:pk>/", views.machine_update, name="machine_update"),
+    path(
+        "<int:pk>/pricing/",
+        views.machine_pricing_profile_update,
+        name="machine_pricing_profile_update",
+    ),
+    path(
+        "<int:pk>/pricing/overrides/new/",
+        views.machine_price_override_create,
+        name="machine_price_override_create",
+    ),
+    path(
+        "<int:machine_pk>/pricing/overrides/<int:override_pk>/edit/",
+        views.machine_price_override_update,
+        name="machine_price_override_update",
+    ),
+    path(
+        "<int:machine_pk>/pricing/overrides/<int:override_pk>/delete/",
+        views.machine_price_override_delete,
+        name="machine_price_override_delete",
+    ),
 ]
