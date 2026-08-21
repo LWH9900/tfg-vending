@@ -45,3 +45,24 @@ def calculate_adjusted_price(base_price, percentage_adjustment):
         Decimal("0.01"),
         rounding=ROUND_HALF_UP,
     )
+
+
+def get_product_price_for_machine(machine, product):
+    override = MachinePriceOverride.objects.filter(
+        machine=machine,
+        product=product,
+    ).first()
+
+    if override:
+        return calculate_adjusted_price(
+            product.default_sale_price,
+            override.percentage_adjustment,
+        )
+
+    if machine.pricing_profile:
+        return calculate_adjusted_price(
+            product.default_sale_price,
+            machine.pricing_profile.percentage_adjustment,
+        )
+
+    return product.default_sale_price
