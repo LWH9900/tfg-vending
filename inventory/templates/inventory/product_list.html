@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'inventory/css/inventory.css' %}"
+>
+{% endblock %}
+
+{% block title %}Productos | Vimach{% endblock %}
+
+{% block content %}
+
+    <header class="page-header">
+
+        <div class="page-header-row">
+
+            <div class="page-header-content">
+
+                <div class="page-breadcrumb">
+                    Inventario / Productos
+                </div>
+
+                <h1 class="page-title">
+                    Productos
+                </h1>
+
+                <p class="page-description">
+                    Consulta los productos registrados en el catálogo.
+                </p>
+
+            </div>
+
+            <div class="page-header-actions">
+                <a
+                    href="{% url 'inventory:product_create' %}"
+                    class="btn btn-primary"
+                >
+                    + Nuevo producto
+                </a>
+            </div>
+
+        </div>
+
+    </header>
+
+    {% if products %}
+
+        <div class="card border-0 shadow-sm">
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Categoría</th>
+                            <th>Formato / unidad</th>
+                            <th>IVA</th>
+                            <th>Precio por defecto</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for product in products %}
+
+                            <tr>
+                                <td>
+                                    <a
+                                        href="{% url 'inventory:product_detail' product.pk %}"
+                                        class="text-decoration-none product-name-link"
+                                    >
+                                        {{ product.name }}
+                                    </a>
+                                </td>
+
+                                <td>
+                                    {{ product.category.name }}
+                                </td>
+
+                                <td>
+                                    {{ product.format_unit }}
+                                </td>
+
+                                <td>
+                                    {{ product.vat_rate }} %
+                                </td>
+
+                                <td>
+                                    {{ product.default_sale_price }} €
+                                </td>
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+            </div>
+
+        </div>
+
+    {% else %}
+
+        <div class="alert alert-light border">
+            No hay productos registrados.
+        </div>
+
+    {% endif %}
+
+{% endblock %}

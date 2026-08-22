@@ -1,0 +1,68 @@
+name: Repository policy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  conventional-commits:
+    name: Conventional commits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF:refs/remotes/origin/$BASE_REF"
+
+      - name: Validate commit messages
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9._/-]+\))?(!)?: .+'
+
+          invalid=0
+
+          while IFS= read -r commit; do
+            echo "Checking: $commit"
+
+            if [[ ! "$commit" =~ $pattern ]]; then
+              echo "::error::Invalid Conventional Commit: $commit"
+              invalid=1
+            fi
+          done < <(
+            git log \
+              --no-merges \
+              --format=%s \
+              "origin/$BASE_REF..HEAD"
+          )
+
+          exit $invalid
+
+
+  main-source:
+    name: Main branch source
+    runs-on: ubuntu-latest
+
+    if: github.base_ref == 'main'
+
+    steps:
+      - name: Ensure main PR comes from develop
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "develop" ]; then
+            echo "::error::Pull requests to main must come from develop."
+            exit 1
+          fi
+
+          echo "Valid source branch: develop"

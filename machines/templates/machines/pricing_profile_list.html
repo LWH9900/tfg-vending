@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+{% block title %}Tarifas | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">
+                    Máquinas
+                </a>
+                /
+                Tarifas
+            </div>
+
+            <h1 class="page-title">
+                Tarifas
+            </h1>
+
+            <p class="page-description">
+                Gestiona las tarifas disponibles para las máquinas.
+            </p>
+
+        </div>
+
+        <div class="page-header-actions">
+
+            <button
+                type="button"
+                class="btn btn-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#createPricingProfileModal"
+            >
+                + Nueva tarifa
+            </button>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Variación (%)</th>
+                    <th>Máquinas asignadas</th>
+                    <th class="price-actions-column"></th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for profile in pricing_profiles %}
+
+                    <tr class="pricing-profile-row">
+
+                        <td>
+                            {{ profile.name }}
+                        </td>
+
+                        <td>
+                            {{ profile.percentage_adjustment }} %
+                        </td>
+
+                        <td>
+                            {{ profile.machines.count }}
+                        </td>
+
+                        <td class="price-actions-column">
+
+                            <div class="pricing-profile-actions">
+
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-danger"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deletePricingProfileModal"
+                                    data-delete-url="{% url 'machines:pricing_profile_delete' profile.pk %}"
+                                    data-profile-name="{{ profile.name }}"
+                                    data-machine-count="{{ profile.machines.count }}"
+                                >
+                                    Eliminar
+                                </button>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'machines:machine_list' %}"
+        class="back-link"
+    >
+        ← Volver a máquinas
+    </a>
+
+</div>
+
+<div
+    class="modal fade"
+    id="createPricingProfileModal"
+    tabindex="-1"
+    aria-labelledby="createPricingProfileModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                id="createPricingProfileForm"
+                method="post"
+                action="{% url 'machines:pricing_profile_create' %}"
+                novalidate
+            >
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="createPricingProfileModalLabel"
+                    >
+                        Nueva tarifa
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+
+                <div class="modal-body">
+
+                    {% if pricing_profile_form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in pricing_profile_form.non_field_errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% include "components/form_field.html" with field=pricing_profile_form.name %}
+
+                    {% include "components/form_field.html" with field=pricing_profile_form.percentage_adjustment %}
+
+                </div>
+
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        Crear tarifa
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+{% if open_pricing_profile_create_modal %}
+<script>
+    document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+            const modalElement = document.getElementById(
+                "createPricingProfileModal"
+            );
+
+            const modal = new bootstrap.Modal(
+                modalElement
+            );
+
+            modal.show();
+        }
+    );
+</script>
+{% endif %}
+
+<div
+    class="modal fade"
+    id="deletePricingProfileModal"
+    tabindex="-1"
+    aria-labelledby="deletePricingProfileModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                id="deletePricingProfileForm"
+                method="post"
+            >
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="deletePricingProfileModalLabel"
+                    >
+                        Eliminar tarifa
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+
+                <div class="modal-body">
+
+                    <div id="deletePricingProfileAllowed">
+
+                        <p>
+                            ¿Seguro que quieres eliminar la tarifa
+                            <strong id="deletePricingProfileName"></strong>?
+                        </p>
+
+                        <p class="text-secondary mb-0">
+                            Esta acción eliminará la tarifa de forma
+                            permanente.
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        id="deletePricingProfileBlocked"
+                        class="d-none"
+                    >
+
+                        <div class="alert alert-warning mb-0">
+
+                            Esta tarifa está asignada a
+                            <strong id="deletePricingProfileMachineCount"></strong>
+                            máquina(s).
+
+                            Debes retirarla o sustituirla en esas
+                            máquinas antes de poder eliminarla.
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-danger"
+                        id="confirmDeletePricingProfile"
+                    >
+                        Eliminar tarifa
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const deleteModal = document.getElementById(
+            "deletePricingProfileModal"
+        );
+        let deleteTriggerButton = null;
+
+        const deleteForm = document.getElementById(
+            "deletePricingProfileForm"
+        );
+
+        const profileName = document.getElementById(
+            "deletePricingProfileName"
+        );
+
+        const machineCount = document.getElementById(
+            "deletePricingProfileMachineCount"
+        );
+
+        const allowedContent = document.getElementById(
+            "deletePricingProfileAllowed"
+        );
+
+        const blockedContent = document.getElementById(
+            "deletePricingProfileBlocked"
+        );
+
+        const confirmButton = document.getElementById(
+            "confirmDeletePricingProfile"
+        );
+
+        deleteModal.addEventListener(
+            "show.bs.modal",
+            function (event) {
+                const button = event.relatedTarget;
+
+                deleteTriggerButton = button;
+
+                const count = Number(
+                    button.dataset.machineCount
+                );
+
+                profileName.textContent =
+                    button.dataset.profileName;
+
+                machineCount.textContent = count;
+
+                deleteForm.action =
+                    button.dataset.deleteUrl;
+
+                if (count > 0) {
+                    allowedContent.classList.add("d-none");
+                    blockedContent.classList.remove("d-none");
+                    confirmButton.classList.add("d-none");
+                } else {
+                    allowedContent.classList.remove("d-none");
+                    blockedContent.classList.add("d-none");
+                    confirmButton.classList.remove("d-none");
+                }
+            }
+        );
+
+        deleteModal.addEventListener(
+            "hide.bs.modal",
+            function () {
+                const activeElement = document.activeElement;
+
+                if (deleteModal.contains(activeElement)) {
+                    activeElement.blur();
+                }
+            }
+        );
+
+        deleteModal.addEventListener(
+            "hidden.bs.modal",
+            function () {
+                if (deleteTriggerButton) {
+                    deleteTriggerButton.focus();
+                }
+            }
+        );
+    });
+</script>
+{% endblock %}

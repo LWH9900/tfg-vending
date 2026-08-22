@@ -1,0 +1,1020 @@
+{% extends "base.html" %}
+{% load static l10n %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+{% block title %}{{ machine.name }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
+                /
+                {{ machine.identifier }}
+            </div>
+
+            <h1 class="page-title">
+                Ficha de la máquina
+            </h1>
+
+            <p class="page-description">
+                Consulta la información general de {{ machine.name }}.
+            </p>
+
+        </div>
+
+        <div class="page-header-actions">
+            <a
+                href="{% url 'machines:machine_update' machine.pk %}"
+                class="btn btn-primary"
+            >
+                Editar máquina
+            </a>
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="detail-card">
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Identificador</dt>
+            <dd>{{ machine.identifier }}</dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Nombre</dt>
+            <dd>{{ machine.name }}</dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Número de serie</dt>
+            <dd>{{ machine.serial_number }}</dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Ubicación</dt>
+            <dd>
+                {% if machine.location %}
+                    {{ machine.location }}
+                {% else %}
+                    <span class="text-secondary">
+                        Sin ubicación
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+<div class="pricing-section-heading">
+
+    <h2>
+        <a
+            href="{% url 'machines:pricing_profile_list' %}"
+            class="pricing-section-link"
+        >
+            Política de precios
+        </a>
+    </h2>
+
+    <div class="pricing-section-line"></div>
+
+    <button
+        type="button"
+        class="btn btn-sm btn-outline-primary"
+        data-bs-toggle="modal"
+        data-bs-target="#pricingProfileModal"
+    >
+        Configurar tarifa
+    </button>
+
+</div>
+<section class="section-card">
+
+
+
+    {% if machine.pricing_profile %}
+
+        <dl class="detail-list">
+
+            <div class="detail-row">
+                <dt>Tarifa</dt>
+                <dd>{{ machine.pricing_profile.name }}</dd>
+            </div>
+
+            <div class="detail-row">
+                <dt>Ajuste general</dt>
+                <dd>
+                    {{ machine.pricing_profile.percentage_adjustment }} %
+                </dd>
+            </div>
+
+        </dl>
+
+    {% else %}
+
+        <div class="section-card-body">
+            <p class="section-empty-message">
+                Esta máquina no tiene una tarifa asignada.
+                Se utilizan los precios por defecto del catálogo,
+                salvo excepciones específicas.
+            </p>
+        </div>
+
+    {% endif %}
+
+</section>
+
+<div class="pricing-section-heading">
+
+    <h2>Excepciones de precio</h2>
+
+    <div class="pricing-section-line"></div>
+
+    <button
+        type="button"
+        class="btn btn-sm btn-outline-primary"
+        data-bs-toggle="modal"
+        data-bs-target="#priceOverrideModal"
+    >
+        + Añadir excepción
+    </button>
+
+</div>
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Formato / Unidad</th>
+                    <th>Precio base</th>
+                    <th>Variación (%)</th>
+                    <th>Precio resultante</th>
+                    <th class="price-actions-column"></th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for item in price_overrides %}
+                    <tr class="price-override-row">
+                            <td>
+                                {{ item.override.product.name }}
+                            </td>
+
+                            <td>
+                                {{ item.override.product.category.name }}
+                            </td>
+
+                            <td>
+                                {{ item.override.product.format_unit }}
+                            </td>
+
+                            <td>
+                                {{ item.override.product.default_sale_price }} €
+                            </td>
+
+                            <td>
+                                {{ item.override.percentage_adjustment }} %
+                            </td>
+
+                            <td>
+                                {{ item.effective_price }} €
+                            </td>
+
+                            <td class="price-actions-column">
+                                <div class="price-override-actions">
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#editPriceOverrideModal"
+                                        data-update-url="{% url 'machines:machine_price_override_update' machine.pk item.override.pk %}"
+                                        data-product-name="{{ item.override.product.name }}"
+                                        data-product-format="{{ item.override.product.format_unit }}"
+                                        data-product-category="{{ item.override.product.category.name }}"
+                                        data-product-price="{{ item.override.product.default_sale_price|unlocalize }}"
+                                        data-adjustment="{{ item.override.percentage_adjustment|unlocalize }}"
+                                    >
+                                        Editar
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#deletePriceOverrideModal"
+                                        data-delete-url="{% url 'machines:machine_price_override_delete' machine.pk item.override.pk %}"
+                                        data-product-name="{{ item.override.product.name }}"
+                                        data-product-format="{{ item.override.product.format_unit }}"
+                                    >
+                                        Eliminar
+                                    </button>
+
+                                </div>
+                            </td>
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="7"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay excepciones de precio configuradas
+                            para esta máquina.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'machines:machine_list' %}"
+        class="back-link"
+    >
+        ← Volver a máquinas
+    </a>
+
+</div>
+
+<div
+    class="modal fade"
+    id="priceOverrideModal"
+    tabindex="-1"
+    aria-labelledby="priceOverrideModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                id="priceOverrideForm"
+                method="post"
+                action="{% url 'machines:machine_price_override_create' machine.pk %}"
+                novalidate
+            >
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+                    <h2
+                        class="modal-title fs-5"
+                        id="priceOverrideModalLabel"
+                    >
+                        Añadir excepción de precio
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+                <div class="modal-body">
+                    <div class="pricing-modal-content">
+
+                        {% include "components/form_field.html" with field=override_form.product %}
+
+                        <div class="pricing-reference">
+                            <div class="pricing-reference-row">
+                                <span>Precio base</span>
+                                <strong id="productDefaultPrice">—</strong>
+                            </div>
+
+                            <div class="pricing-reference-row">
+                                <span>Variación general</span>
+
+                                <strong>
+                                    {% if machine.pricing_profile %}
+                                        {{ machine.pricing_profile.percentage_adjustment }} %
+                                    {% else %}
+                                        Sin tarifa
+                                    {% endif %}
+                                </strong>
+                            </div>
+                        </div>
+
+                        {% include "components/form_field.html" with field=override_form.percentage_adjustment %}
+
+                        <div class="pricing-result-preview">
+                            <span>Precio resultante</span>
+                            <strong id="effectivePricePreview">—</strong>
+                        </div>
+
+                    </div>
+                </div>
+
+                        <div class="modal-footer">
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                            id="priceOverrideSubmit"
+                        >
+                            Guardar excepción
+                        </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+<div
+    class="modal fade"
+    id="pricingProfileModal"
+    tabindex="-1"
+    aria-labelledby="pricingProfileModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                method="post"
+                action="{% url 'machines:machine_pricing_profile_update' machine.pk %}"
+                novalidate
+            >
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="pricingProfileModalLabel"
+                    >
+                        Configurar tarifa
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+
+                <div class="modal-body">
+
+                    {% include "components/form_field.html" with field=pricing_profile_form.pricing_profile %}
+
+                    <p class="form-text mb-0">
+                        Si seleccionas "Sin tarifa", los productos
+                        utilizarán sus precios por defecto salvo que
+                        tengan una excepción específica.
+                    </p>
+
+                </div>
+                {% if redundant_overrides %}
+
+                    <div class="alert alert-warning mt-3 mb-0">
+
+                        <strong>Hay excepciones redundantes.</strong>
+
+                        <p class="mb-2 mt-1">
+                            Los siguientes productos tienen el mismo porcentaje
+                            que la tarifa seleccionada:
+                        </p>
+
+                        <ul class="mb-2">
+                            {% for override in redundant_overrides %}
+                                <li>
+                                    {{ override.product.name }}
+                                    · {{ override.product.format_unit }}
+                                    · {{ override.product.category.name }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <p class="mb-0">
+                            Si continúas, estas excepciones se eliminarán
+                            y los productos utilizarán la tarifa general.
+                        </p>
+
+                    </div>
+
+                    <input
+                        type="hidden"
+                        name="confirm_redundant_overrides"
+                        value="1"
+                    >
+
+                {% endif %}
+
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        {% if redundant_overrides %}
+                            Aplicar tarifa y eliminar excepciones
+                        {% else %}
+                            Guardar tarifa
+                        {% endif %}
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+<div
+    class="modal fade"
+    id="editPriceOverrideModal"
+    tabindex="-1"
+    aria-labelledby="editPriceOverrideModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                id="editPriceOverrideForm"
+                method="post"
+
+                {% if edit_override %}
+                    action="{% url 'machines:machine_price_override_update' machine.pk edit_override.pk %}"
+                {% endif %}
+
+                novalidate
+            >
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="editPriceOverrideModalLabel"
+                    >
+                        Editar excepción de precio
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="pricing-modal-content">
+
+                        <div class="form-field">
+
+                            <label class="form-label">
+                                Producto
+                            </label>
+
+                            <div
+                                class="form-control bg-light"
+                                id="editProductName"
+                            >
+                                {% if edit_override %}
+                                    {{ edit_override.product.name }}
+                                    · {{ edit_override.product.format_unit }}
+                                    · {{ edit_override.product.category.name }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </div>
+
+                        </div>
+
+                        <div class="pricing-reference">
+
+                            <div class="pricing-reference-row">
+
+                                <span>Precio base</span>
+
+                                <strong id="editProductBasePrice">
+                                    {% if edit_override %}
+                                        {{ edit_override.product.default_sale_price }} €
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </strong>
+
+                            </div>
+
+                            <div class="pricing-reference-row">
+
+                                <span>Variación general</span>
+
+                                <strong>
+                                    {% if machine.pricing_profile %}
+                                        {{ machine.pricing_profile.percentage_adjustment }} %
+                                    {% else %}
+                                        Sin tarifa
+                                    {% endif %}
+                                </strong>
+
+                            </div>
+
+                        </div>
+
+                        <div class="form-field">
+
+                            <label
+                                for="editPercentageAdjustment"
+                                class="form-label"
+                            >
+                                Variación específica (%)
+                            </label>
+
+                            <input
+                                type="number"
+                                name="percentage_adjustment"
+                                id="editPercentageAdjustment"
+                                class="form-control"
+                                step="0.01"
+
+                                {% if edit_override_form %}
+                                    value="{{ edit_override_form.percentage_adjustment.value }}"
+                                {% endif %}
+                            >
+
+                            {% if edit_override_form %}
+                                {% for error in edit_override_form.percentage_adjustment.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ error }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+
+                        </div>
+
+                        <div class="pricing-result-preview">
+
+                            <span>Precio resultante</span>
+
+                            <strong id="editEffectivePrice">
+                                —
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        Guardar cambios
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+<div
+    class="modal fade"
+    id="deletePriceOverrideModal"
+    tabindex="-1"
+    aria-labelledby="deletePriceOverrideModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                id="deletePriceOverrideForm"
+                method="post"
+            >
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="deletePriceOverrideModalLabel"
+                    >
+                        Eliminar excepción de precio
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <p>
+                        ¿Seguro que quieres eliminar la excepción
+                        de precio de
+                        <strong id="deleteOverrideProduct">
+                            este producto
+                        </strong>?
+                    </p>
+
+                    <p class="text-secondary mb-0">
+                        El producto volverá a utilizar la tarifa
+                        general de la máquina o, si no existe,
+                        su precio base.
+                    </p>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-danger"
+                    >
+                        Eliminar excepción
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+{{ product_prices|json_script:"product-prices-data" }}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const productSelect = document.getElementById(
+            "id_product"
+        );
+
+        const adjustmentInput = document.getElementById(
+            "id_percentage_adjustment"
+        );
+
+        const defaultPrice = document.getElementById(
+            "productDefaultPrice"
+        );
+
+        const effectivePrice = document.getElementById(
+            "effectivePricePreview"
+        );
+
+        const modalElement = document.getElementById(
+            "priceOverrideModal"
+        );
+
+        const overrideForm = document.getElementById(
+            "priceOverrideForm"
+        );
+        
+        const editModal = document.getElementById(
+            "editPriceOverrideModal"
+        );
+
+        const editForm = document.getElementById(
+            "editPriceOverrideForm"
+        );
+
+        const editProductName = document.getElementById(
+            "editProductName"
+        );
+
+        const editBasePrice = document.getElementById(
+            "editProductBasePrice"
+        );
+
+        const editAdjustment = document.getElementById(
+            "editPercentageAdjustment"
+        );
+
+        const editEffectivePrice = document.getElementById(
+            "editEffectivePrice"
+        );
+
+        const deleteModal = document.getElementById(
+            "deletePriceOverrideModal"
+        );
+
+        const deleteForm = document.getElementById(
+            "deletePriceOverrideForm"
+        );
+
+        const deleteProduct = document.getElementById(
+            "deleteOverrideProduct"
+        );
+        let currentEditBasePrice = null;
+
+        const productPrices = JSON.parse(
+            document.getElementById(
+                "product-prices-data"
+            ).textContent
+        );
+
+        function formatPrice(value) {
+            return new Intl.NumberFormat(
+                "es-ES",
+                {
+                    style: "currency",
+                    currency: "EUR",
+                }
+            ).format(value);
+        }
+
+        function updatePricingPreview() {
+            const productId = productSelect.value;
+            const basePriceValue = productPrices[productId];
+
+            if (!basePriceValue) {
+                defaultPrice.textContent = "—";
+                effectivePrice.textContent = "—";
+                return;
+            }
+
+            const basePrice = Number(basePriceValue);
+
+            defaultPrice.textContent =
+                formatPrice(basePrice);
+
+            if (adjustmentInput.value === "") {
+                effectivePrice.textContent = "—";
+                return;
+            }
+
+            const adjustment = Number(
+                adjustmentInput.value.replace(",", ".")
+            );
+
+            if (!Number.isFinite(adjustment)) {
+                effectivePrice.textContent = "—";
+                return;
+            }
+
+            const result = basePrice * (
+                1 + adjustment / 100
+            );
+
+            effectivePrice.textContent =
+                formatPrice(result);
+        }
+
+        productSelect.addEventListener(
+            "change",
+            updatePricingPreview
+        );
+
+        adjustmentInput.addEventListener(
+            "input",
+            updatePricingPreview
+        );
+
+        modalElement.addEventListener(
+            "hidden.bs.modal",
+            function () {
+                overrideForm.reset();
+
+                productSelect.selectedIndex = 0;
+                adjustmentInput.value = "";
+
+                defaultPrice.textContent = "—";
+                effectivePrice.textContent = "—";
+
+                overrideForm
+                    .querySelectorAll(".text-danger")
+                    .forEach(function (error) {
+                        error.remove();
+                    });
+
+                overrideForm
+                    .querySelectorAll(".field-error")
+                    .forEach(function (field) {
+                        field.classList.remove(
+                            "field-error"
+                        );
+                    });
+
+                overrideForm
+                    .querySelectorAll(".is-invalid")
+                    .forEach(function (field) {
+                        field.classList.remove(
+                            "is-invalid"
+                        );
+                    });
+            }
+        );
+
+        updatePricingPreview();
+
+        editModal.addEventListener(
+            "show.bs.modal",
+            function (event) {
+                const button = event.relatedTarget;
+
+                editForm.action =
+                    button.dataset.updateUrl;
+
+                editProductName.textContent =
+                    `${button.dataset.productName} · ` +
+                    `${button.dataset.productFormat} · ` +
+                    `${button.dataset.productCategory}`;
+
+                currentEditBasePrice = Number(
+                    button.dataset.productPrice
+                );
+
+                editBasePrice.textContent =
+                    formatPrice(currentEditBasePrice);
+
+                editAdjustment.value =
+                    button.dataset.adjustment;
+
+                updateEditPricePreview();
+            }
+        );
+
+        function updateEditPricePreview() {
+            if (
+                currentEditBasePrice === null ||
+                editAdjustment.value === ""
+            ) {
+                editEffectivePrice.textContent = "—";
+                return;
+            }
+
+            const adjustment = Number(
+                editAdjustment.value.replace(",", ".")
+            );
+
+            if (!Number.isFinite(adjustment)) {
+                editEffectivePrice.textContent = "—";
+                return;
+            }
+
+            const result = currentEditBasePrice * (
+                1 + adjustment / 100
+            );
+
+            editEffectivePrice.textContent =
+                formatPrice(result);
+        }
+
+        editAdjustment.addEventListener(
+            "input",
+            updateEditPricePreview
+        )
+        
+        deleteModal.addEventListener(
+            "show.bs.modal",
+            function (event) {
+                const button = event.relatedTarget;
+
+                deleteForm.action =
+                    button.dataset.deleteUrl;
+
+                deleteProduct.textContent =
+                    `${button.dataset.productName} · ` +
+                    `${button.dataset.productFormat}`;
+            }
+        );
+    });
+</script>
+
+
+
+{% if open_override_modal %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const modalElement = document.getElementById(
+            "priceOverrideModal"
+        );
+
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    });
+</script>
+{% endif %}
+
+{% if open_pricing_modal %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const modalElement = document.getElementById(
+            "pricingProfileModal"
+        );
+
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    });
+</script>
+{% endif %}
+
+{% if open_edit_override_modal %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const modalElement = document.getElementById(
+            "editPriceOverrideModal"
+        );
+
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    });
+</script>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'inventory/css/inventory.css' %}"
+>
+{% endblock %}
+
+{% block title %}{{ product.name }} | Vimach{% endblock %}
+
+{% block content %}
+
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Inventario /
+                <a href="{% url 'inventory:product_list' %}">Productos</a>
+                /
+                {{ product.name }}
+            </div>
+
+            <h1 class="page-title">
+                Ficha del producto
+            </h1>
+
+            <p class="page-description">
+                Consulta la información general de {{ product.name }}.
+            </p>
+
+        </div>
+
+        <div class="page-header-actions">
+            <a
+                href="{% url 'inventory:product_update' product.pk %}"
+                class="btn btn-primary"
+            >
+                Editar producto
+            </a>
+        </div>
+
+    </div>
+
+
+</header>
+
+
+
+
+<section class="product-detail-grid">
+
+    <div class="detail-card">
+
+        <dl class="detail-list">
+
+            <div class="detail-row">
+                <dt>Nombre</dt>
+                <dd>{{ product.name }}</dd>
+            </div>
+
+            <div class="detail-row">
+                <dt>Categoría</dt>
+                <dd>{{ product.category.name }}</dd>
+            </div>
+
+            <div class="detail-row">
+                <dt>Formato / unidad</dt>
+                <dd>{{ product.format_unit }}</dd>
+            </div>
+
+            <div class="detail-row">
+                <dt>IVA</dt>
+                <dd>{{ product.vat_rate }} %</dd>
+            </div>
+
+            <div class="detail-row">
+                <dt>Precio por defecto</dt>
+                <dd>{{ product.default_sale_price }} €</dd>
+            </div>
+
+        </dl>
+
+    </div>
+
+
+    <div class="product-image-card">
+
+        <div class="product-image-placeholder">
+            <div class="product-image-icon">🖼</div>
+
+            <p>Imagen del producto</p>
+
+            <span>
+                Imagen no disponible
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="product-related-card">
+
+    <div class="product-related-header">
+        <h2>Información relacionada</h2>
+    </div>
+
+    <div class="product-related-content">
+        <p>
+            En esta sección se podrá consultar en el futuro información
+            relacionada con el producto, como stock, ventas, operaciones
+            y estadísticas.
+        </p>
+    </div>
+
+</section>
+
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'inventory:product_list' %}"
+        class="back-link"
+    >
+        ← Volver a productos
+    </a>
+
+</div>
+
+{% endblock %}

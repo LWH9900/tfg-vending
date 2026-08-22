@@ -1,0 +1,218 @@
+{% load static %}
+
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>{% block title %}Vimach{% endblock %}</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+        crossorigin="anonymous"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/app.css' %}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/forms.css' %}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/detail.css' %}"
+    >
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <div class="mobile-topbar d-md-none">
+
+        <button
+            class="mobile-menu-button"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#appSidebar"
+            aria-controls="appSidebar"
+            aria-label="Abrir menú de navegación"
+        >
+            ☰
+        </button>
+
+        <div class="mobile-brand">
+            <span class="brand-highlight">Vi</span>mach
+        </div>
+
+    </div>
+
+    <div class="app-layout">
+
+        <aside
+            class="app-sidebar offcanvas-md offcanvas-start"
+            tabindex="-1"
+            id="appSidebar"
+            aria-labelledby="appSidebarLabel"
+            data-bs-theme="dark"
+        >
+            <div class="sidebar-mobile-header d-md-none">
+
+                <div class="sidebar-brand sidebar-brand-mobile" id="appSidebarLabel">
+                    <span class="brand-highlight">Vi</span>mach
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="offcanvas"
+                    data-bs-target="#appSidebar"
+                    aria-label="Cerrar menú"
+                ></button>
+
+            </div>
+
+
+            <div class="sidebar-brand d-none d-md-block">
+                <span class="brand-highlight">Vi</span>mach
+            </div>
+
+            <nav class="nav flex-column">
+
+                <a class="sidebar-link" href="#">
+                    Resumen
+                </a>
+
+                <div class="sidebar-section">
+                    <button
+                        class="sidebar-group"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#inventoryMenu"
+                        aria-expanded="true"
+                        aria-controls="inventoryMenu"
+                    >
+                        Inventario
+                        <span>⌄</span>
+                    </button>
+
+                    <div class="collapse show" id="inventoryMenu">
+                        <div class="sidebar-submenu">
+
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'product_detail' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'inventory:product_list' %}"
+                            >
+                                Productos
+                            </a>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Stock
+                            </span>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Categorías
+                            </span>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <button
+                        class="sidebar-group collapsed"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#operationsMenu"
+                        aria-expanded="false"
+                        aria-controls="operationsMenu"
+                    >
+                        Operaciones
+                        <span>⌄</span>
+                    </button>
+
+                    <div class="collapse" id="operationsMenu">
+                        <div class="sidebar-submenu">
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Compras
+                            </span>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Ventas
+                            </span>
+
+                            <span class="sidebar-link sidebar-sublink disabled-link">
+                                Reposiciones
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <a
+                    class="sidebar-link
+                    {% if request.resolver_match.app_name == 'machines' %}
+                        active
+                    {% endif %}"
+                    href="{% url 'machines:machine_list' %}"
+                >
+                    Máquinas
+                </a>
+
+                <span class="sidebar-link disabled-link">
+                    Proyección de ventas
+                </span>
+
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    Administrador
+                </div>
+                <span>Cerrar sesión</span>
+            </div>
+
+        </aside>
+
+        <main class="app-content">
+            {% block content %}
+            {% endblock %}
+        </main>
+
+    </div>
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"
+    ></script>
+
+</body>
+</html>

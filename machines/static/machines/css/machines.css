@@ -1,0 +1,219 @@
+.machine-link {
+    color: var(--app-primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.machine-link:hover {
+    color: var(--app-primary);
+    text-decoration: underline;
+}
+
+.pricing-section-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    margin-top: 15px;
+    margin-bottom: 25px;
+}
+
+.pricing-section-heading h2 {
+    margin: 0;
+
+    color: var(--app-primary);
+
+    font-size: 1.2rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pricing-section-line {
+    flex: 1;
+    height: 1px;
+
+    background-color: var(--app-primary);
+    opacity: 0.45;
+}
+
+.product-selector {
+    overflow: hidden;
+
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+}
+
+.product-selector-header,
+.product-selector-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    gap: 16px;
+    align-items: center;
+
+    padding: 10px 14px;
+}
+
+.product-selector-header {
+    color: var(--app-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+
+    background-color: var(--app-background);
+    border-bottom: 1px solid var(--app-border);
+}
+
+.product-selector-row {
+    width: 100%;
+
+    color: var(--app-text);
+    text-align: left;
+
+    background-color: var(--app-white);
+    border: 0;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.product-selector-row:last-child {
+    border-bottom: 0;
+}
+
+.product-selector-row:hover {
+    background-color: var(--app-background);
+}
+
+.product-selector-row.is-selected {
+    background-color: rgba(108, 99, 255, 0.08);
+    outline: 1px solid var(--app-primary);
+    outline-offset: -1px;
+}
+
+.product-selector-empty {
+    padding: 16px;
+
+    color: var(--app-muted);
+    text-align: center;
+}
+.pricing-reference {
+    padding: 14px 16px;
+
+    background-color: var(--app-background);
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+}
+
+.pricing-reference-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.pricing-reference-row + .pricing-reference-row {
+    margin-top: 10px;
+    padding-top: 10px;
+
+    border-top: 1px solid var(--app-border);
+}
+
+.pricing-reference-row span {
+    color: var(--app-muted);
+    font-size: 0.9rem;
+}
+
+.pricing-reference-row strong {
+    color: var(--app-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pricing-result-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+
+    padding: 14px 16px;
+
+    background-color: var(--app-background);
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+}
+
+.pricing-result-preview span {
+    color: var(--app-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pricing-result-preview strong {
+    color: var(--app-primary);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.pricing-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.pricing-modal-content .form-field {
+    margin: 0;
+}
+
+.price-actions-column {
+    width: 90px;
+    text-align: right;
+}
+
+.price-override-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition: opacity 0.15s ease;
+}
+
+.price-override-row:hover .price-override-actions,
+.price-override-row:focus-within .price-override-actions {
+    opacity: 1;
+    visibility: visible;
+}
+
+.pricing-section-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pricing-section-link:hover {
+    color: var(--app-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.pricing-profile-actions {
+    display: flex;
+    justify-content: flex-end;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition: opacity 0.15s ease;
+}
+
+.pricing-profile-row:hover .pricing-profile-actions,
+.pricing-profile-row:focus-within .pricing-profile-actions {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (max-width: 767.98px) {
+    .pricing-profile-actions {
+        opacity: 1;
+        visibility: visible;
+    }
+}
