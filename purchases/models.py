@@ -62,6 +62,10 @@ class PurchaseLine(models.Model):
                 condition=models.Q(unit_price_excl_vat__gte=0),
                 name="purchase_line_price_gte_0",
             ),
+            models.UniqueConstraint(
+                fields=["purchase", "product"],
+                name="unique_product_per_purchase",
+            ),
         ]
 
     @property

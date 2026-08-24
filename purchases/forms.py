@@ -1,5 +1,5 @@
 from django import forms
-from django.forms import inlineformset_factory
+from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
@@ -182,10 +182,49 @@ class PurchaseLineForm(forms.ModelForm):
         }
 
 
+class BasePurchaseLineFormSet(BaseInlineFormSet):
+
+    default_error_messages = {
+        "too_few_forms": "Añade al menos un producto a la compra.",
+    }
+
+    def validate_unique(self):
+        pass
+
+    def clean(self):
+        super().clean()
+
+        products = set()
+
+        for form in self.forms:
+            cleaned_data = getattr(form, "cleaned_data", None)
+
+            if not cleaned_data:
+                continue
+
+            if cleaned_data.get("DELETE"):
+                continue
+
+            product = cleaned_data.get("product")
+
+            if product is None:
+                continue
+
+            if product.pk in products:
+                form.add_error(
+                    "product",
+                    "Este producto ya está incluido en la compra.",
+                )
+                continue
+
+            products.add(product.pk)
+
+
 PurchaseLineFormSet = inlineformset_factory(
     Purchase,
     PurchaseLine,
     form=PurchaseLineForm,
+    formset=BasePurchaseLineFormSet,
     extra=0,
     min_num=1,
     validate_min=True,
