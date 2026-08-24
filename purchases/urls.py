@@ -12,4 +12,9 @@ urlpatterns = [
         views.purchase_create,
         name="purchase_create",
     ),
+    path(
+        "<int:pk>/edit/",
+        views.purchase_edit,
+        name="purchase_edit",
+    ),
 ]

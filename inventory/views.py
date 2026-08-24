@@ -1,7 +1,29 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import ProductForm
 from .models import Category, Product
+
+
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    queryset = Product.objects.select_related(
+        "category",
+    ).filter(
+        is_active=True,
+    )
+
+    if self.instance.pk and self.instance.product_id:
+        queryset = Product.objects.select_related(
+            "category",
+        ).filter(Q(is_active=True) | Q(pk=self.instance.product_id))
+
+    self.fields["product"].queryset = queryset.order_by(
+        "name",
+        "category__name",
+        "format_unit",
+    )
 
 
 def product_list(request):

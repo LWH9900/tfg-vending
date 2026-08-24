@@ -155,3 +155,13 @@
     color: var(--app-muted);
     line-height: 1.6;
 }
+
+.table-form-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.table-form-errors {
+    min-height: 20px;
+    margin-top: 4px;
+}

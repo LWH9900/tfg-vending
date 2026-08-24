@@ -68,6 +68,7 @@ def purchase_detail(request, pk):
         "purchases/purchase_detail.html",
         {
             "purchase": purchase,
+            "is_edit": False,
         },
     )
 
@@ -113,5 +114,50 @@ def purchase_create(request):
         {
             "form": form,
             "formset": formset,
+        },
+    )
+
+
+def purchase_edit(request, pk):
+    purchase = get_object_or_404(
+        Purchase,
+        pk=pk,
+    )
+
+    if request.method == "POST":
+        form = PurchaseForm(
+            request.POST,
+            instance=purchase,
+        )
+        formset = PurchaseLineFormSet(
+            request.POST,
+            instance=purchase,
+        )
+
+        form_is_valid = form.is_valid()
+        formset_is_valid = formset.is_valid()
+
+        if form_is_valid and formset_is_valid:
+            with transaction.atomic():
+                form.save()
+                formset.save()
+
+            return redirect(
+                "purchases:purchase_detail",
+                pk=purchase.pk,
+            )
+
+    else:
+        form = PurchaseForm(instance=purchase)
+        formset = PurchaseLineFormSet(instance=purchase)
+
+    return render(
+        request,
+        "purchases/purchase_detail.html",
+        {
+            "purchase": purchase,
+            "form": form,
+            "formset": formset,
+            "is_edit": True,
         },
     )
