@@ -1,6 +1,11 @@
-from django.shortcuts import get_object_or_404, render
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import PurchaseFilterForm
+from .forms import (
+    PurchaseFilterForm,
+    PurchaseForm,
+    PurchaseLineFormSet,
+)
 from .models import Purchase
 
 
@@ -63,5 +68,50 @@ def purchase_detail(request, pk):
         "purchases/purchase_detail.html",
         {
             "purchase": purchase,
+        },
+    )
+
+
+def purchase_create(request):
+    purchase = Purchase()
+
+    if request.method == "POST":
+        form = PurchaseForm(
+            request.POST,
+            instance=purchase,
+        )
+
+        formset = PurchaseLineFormSet(
+            request.POST,
+            instance=purchase,
+        )
+
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                purchase = form.save()
+
+                formset.instance = purchase
+                formset.save()
+
+            return redirect(
+                "purchases:purchase_detail",
+                pk=purchase.pk,
+            )
+
+    else:
+        form = PurchaseForm(
+            instance=purchase,
+        )
+
+        formset = PurchaseLineFormSet(
+            instance=purchase,
+        )
+
+    return render(
+        request,
+        "purchases/purchase_form.html",
+        {
+            "form": form,
+            "formset": formset,
         },
     )

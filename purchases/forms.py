@@ -1,7 +1,10 @@
 from django import forms
+from django.forms import inlineformset_factory
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
+
+from .models import Purchase, PurchaseLine
 
 
 class PurchaseFilterForm(forms.Form):
@@ -62,3 +65,129 @@ class PurchaseFilterForm(forms.Form):
             )
 
         return cleaned_data
+
+
+class PurchaseForm(forms.ModelForm):
+    class Meta:
+        model = Purchase
+
+        fields = [
+            "purchased_at",
+            "supplier",
+            "document_reference",
+        ]
+
+        labels = {
+            "purchased_at": "Fecha / hora",
+            "supplier": "Proveedor",
+            "document_reference": "N.º factura / albarán",
+        }
+
+        widgets = {
+            "purchased_at": forms.DateTimeInput(
+                attrs={
+                    "class": "form-control",
+                    "type": "datetime-local",
+                },
+                format="%Y-%m-%dT%H:%M",
+            ),
+            "supplier": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                }
+            ),
+            "document_reference": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                }
+            ),
+        }
+
+        error_messages = {
+            "purchased_at": {
+                "required": "Introduce la fecha y hora de la compra.",
+                "invalid": "Introduce una fecha y hora válidas.",
+            },
+            "supplier": {
+                "required": "Introduce el proveedor de la compra.",
+            },
+        }
+
+
+class PurchaseLineForm(forms.ModelForm):
+    product = ProductChoiceField(
+        queryset=Product.objects.none(),
+        label="Producto",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["product"].queryset = (
+            Product.objects.select_related("category")
+            .filter(is_active=True)
+            .order_by("name")
+        )
+
+    class Meta:
+        model = PurchaseLine
+
+        fields = [
+            "product",
+            "quantity",
+            "unit_price_excl_vat",
+        ]
+
+        labels = {
+            "quantity": "Cantidad",
+            "unit_price_excl_vat": "Precio unitario sin IVA",
+        }
+
+        widgets = {
+            "quantity": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                    "step": "1",
+                }
+            ),
+            "unit_price_excl_vat": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "0",
+                    "step": "0.01",
+                }
+            ),
+        }
+
+        error_messages = {
+            "product": {
+                "required": "Selecciona un producto.",
+            },
+            "quantity": {
+                "required": "Introduce la cantidad.",
+                "invalid": "Introduce una cantidad válida.",
+                "min_value": "La cantidad debe ser mayor que cero.",
+            },
+            "unit_price_excl_vat": {
+                "required": "Introduce el precio unitario sin IVA.",
+                "invalid": "Introduce un precio válido.",
+                "min_value": "El precio no puede ser negativo.",
+            },
+        }
+
+
+PurchaseLineFormSet = inlineformset_factory(
+    Purchase,
+    PurchaseLine,
+    form=PurchaseLineForm,
+    extra=0,
+    min_num=1,
+    validate_min=True,
+    can_delete=True,
+)
