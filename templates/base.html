@@ -48,7 +48,10 @@
         rel="stylesheet"
         href="{% static 'css/components/detail.css' %}"
     >
-
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/sections.css' %}"
+    >
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -110,18 +113,18 @@
 
                 <div class="sidebar-section">
                     <button
-                        class="sidebar-group"
+                        class="sidebar-group collapsed"
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#inventoryMenu"
-                        aria-expanded="true"
+                        aria-expanded="false"
                         aria-controls="inventoryMenu"
                     >
                         Inventario
                         <span>⌄</span>
                     </button>
 
-                    <div class="collapse show" id="inventoryMenu">
+                    <div class="collapse" id="inventoryMenu">
                         <div class="sidebar-submenu">
 
                             <a
@@ -147,6 +150,7 @@
                 </div>
 
                 <div class="sidebar-section">
+
                     <button
                         class="sidebar-group collapsed"
                         type="button"
@@ -159,11 +163,21 @@
                         <span>⌄</span>
                     </button>
 
-                    <div class="collapse" id="operationsMenu">
+                    <div
+                        class="collapse"
+                        id="operationsMenu"
+                    >
                         <div class="sidebar-submenu">
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'purchases' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'purchases:purchase_list' %}"
+                            >
                                 Compras
-                            </span>
+                            </a>
 
                             <span class="sidebar-link sidebar-sublink disabled-link">
                                 Ventas
@@ -172,8 +186,10 @@
                             <span class="sidebar-link sidebar-sublink disabled-link">
                                 Reposiciones
                             </span>
+
                         </div>
                     </div>
+
                 </div>
 
                 <a
@@ -213,6 +229,57 @@
         integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
         crossorigin="anonymous"
     ></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const currentApp = "{{ request.resolver_match.app_name|default:''|escapejs }}";
+
+            function setupPersistentMenu(menuId, storageKey, activeByDefault) {
+                const menu = document.getElementById(menuId);
+
+                if (!menu) {
+                    return;
+                }
+
+                const collapse = bootstrap.Collapse.getOrCreateInstance(
+                    menu,
+                    {
+                        toggle: false,
+                    }
+                );
+
+                const savedState = sessionStorage.getItem(storageKey);
+
+                if (savedState === "true") {
+                    collapse.show();
+                } else if (savedState === "false") {
+                    collapse.hide();
+                } else if (activeByDefault) {
+                    collapse.show();
+                }
+
+                menu.addEventListener("shown.bs.collapse", function () {
+                    sessionStorage.setItem(storageKey, "true");
+                });
+
+                menu.addEventListener("hidden.bs.collapse", function () {
+                    sessionStorage.setItem(storageKey, "false");
+                });
+            }
+
+            setupPersistentMenu(
+                "inventoryMenu",
+                "inventoryMenuOpen",
+                currentApp === "inventory"
+            );
+
+            setupPersistentMenu(
+                "operationsMenu",
+                "operationsMenuOpen",
+                currentApp === "purchases"
+            );
+        });
+    </script>
+    
 
 </body>
 </html>

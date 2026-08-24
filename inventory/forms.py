@@ -90,3 +90,8 @@ class ProductForm(forms.ModelForm):
             return category.default_vat_rate
 
         return vat_rate
+
+
+class ProductChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, product):
+        return f"{product.name} · {product.category.name} · {product.format_unit}"

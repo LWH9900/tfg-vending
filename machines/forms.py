@@ -1,5 +1,6 @@
 from django import forms
 
+from inventory.forms import ProductChoiceField
 from inventory.models import Product
 
 from .models import Machine, MachinePriceOverride, PricingProfile
@@ -72,11 +73,6 @@ class MachinePricingProfileForm(forms.Form):
             }
         ),
     )
-
-
-class ProductChoiceField(forms.ModelChoiceField):
-    def label_from_instance(self, product):
-        return f"{product.name} · {product.category.name} · {product.format_unit}"
 
 
 class MachinePriceOverrideForm(forms.ModelForm):

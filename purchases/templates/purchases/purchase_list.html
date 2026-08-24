@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Compras | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones / Compras
+            </div>
+
+            <h1 class="page-title">
+                Histórico de compras
+            </h1>
+
+            <p class="page-description">
+                Consulta las compras registradas y filtra el histórico
+                por fecha, producto o proveedor.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="form-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Filtros</h2>
+    </div>
+
+    <div class="form-card-body">
+
+        <form method="get">
+
+            {% if filter_form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in filter_form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row">
+
+                <div class="col-md-3">
+                    {% include "components/form_field.html" with field=filter_form.date_from %}
+                </div>
+
+                <div class="col-md-3">
+                    {% include "components/form_field.html" with field=filter_form.date_to %}
+                </div>
+
+                <div class="col-md-3">
+                    {% include "components/form_field.html" with field=filter_form.product %}
+                </div>
+
+                <div class="col-md-3">
+                    {% include "components/form_field.html" with field=filter_form.supplier %}
+                </div>
+
+            </div>
+
+            <div class="form-actions">
+
+                <a
+                    href="{% url 'purchases:purchase_list' %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Limpiar filtros
+                </a>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Filtrar
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
+
+
+<div class="card border-0">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Fecha / hora</th>
+                    <th>Proveedor</th>
+                    <th>Factura / albarán</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for purchase in purchases %}
+
+                    <tr>
+
+                        <td>
+                            <a
+                                href="{% url 'purchases:purchase_detail' purchase.pk %}"
+                                class="text-decoration-none"
+                            >
+                                {{ purchase.purchased_at|date:"d/m/Y H:i" }}
+                            </a>
+                        </td>
+
+                        <td>
+                            {{ purchase.supplier }}
+                        </td>
+
+                        <td>
+                            {% if purchase.document_reference %}
+                                {{ purchase.document_reference }}
+                            {% else %}
+                                <span class="text-secondary">
+                                    —
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ purchase.total|floatformat:2 }} €
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center py-5 text-secondary"
+                        >
+                            {% if request.GET %}
+                                No se han encontrado compras con los filtros aplicados.
+                            {% else %}
+                                No hay compras registradas.
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}
