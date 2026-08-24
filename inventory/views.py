@@ -38,15 +38,17 @@ def product_list(request):
 
 def product_detail(request, pk):
     product = get_object_or_404(
-        Product,
+        Product.objects.select_related("category"),
         pk=pk,
-        is_active=True,
     )
 
     return render(
         request,
         "inventory/product_detail.html",
-        {"product": product},
+        {
+            "product": product,
+            "is_edit": False,
+        },
     )
 
 
@@ -80,7 +82,10 @@ def product_create(request):
 
 
 def product_update(request, pk):
-    product = get_object_or_404(Product, pk=pk, is_active=True)
+    product = get_object_or_404(
+        Product.objects.select_related("category"),
+        pk=pk,
+    )
 
     if request.method == "POST":
         form = ProductForm(
@@ -89,14 +94,17 @@ def product_update(request, pk):
         )
 
         if form.is_valid():
-            product = form.save()
+            form.save()
 
             return redirect(
                 "inventory:product_detail",
                 pk=product.pk,
             )
+
     else:
-        form = ProductForm(instance=product)
+        form = ProductForm(
+            instance=product,
+        )
 
     category_vat_rates = {
         str(category.pk): str(category.default_vat_rate)
@@ -105,11 +113,11 @@ def product_update(request, pk):
 
     return render(
         request,
-        "inventory/product_form.html",
+        "inventory/product_detail.html",
         {
-            "form": form,
-            "category_vat_rates": category_vat_rates,
-            "is_editing": True,
             "product": product,
+            "form": form,
+            "is_edit": True,
+            "category_vat_rates": category_vat_rates,
         },
     )

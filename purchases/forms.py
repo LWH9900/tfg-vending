@@ -183,7 +183,6 @@ class PurchaseLineForm(forms.ModelForm):
 
 
 class BasePurchaseLineFormSet(BaseInlineFormSet):
-
     default_error_messages = {
         "too_few_forms": "Añade al menos un producto a la compra.",
     }

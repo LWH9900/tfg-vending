@@ -21,7 +21,9 @@
 
             <div class="page-breadcrumb">
                 Inventario /
-                <a href="{% url 'inventory:product_list' %}">Productos</a>
+                <a href="{% url 'inventory:product_list' %}">
+                    Productos
+                </a>
                 /
                 {{ product.name }}
             </div>
@@ -31,60 +33,312 @@
             </h1>
 
             <p class="page-description">
-                Consulta la información general de {{ product.name }}.
+                {% if is_edit %}
+                    Modifica la información general de {{ product.name }}.
+                {% else %}
+                    Consulta la información general de {{ product.name }}.
+                {% endif %}
             </p>
 
         </div>
 
+
         <div class="page-header-actions">
-            <a
-                href="{% url 'inventory:product_update' product.pk %}"
-                class="btn btn-primary"
-            >
-                Editar producto
-            </a>
+
+            {% if is_edit %}
+
+                <a
+                    href="{% url 'inventory:product_detail' product.pk %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    form="product-edit-form"
+                    class="btn btn-primary"
+                >
+                    Guardar cambios
+                </button>
+
+            {% else %}
+
+                <a
+                    href="{% url 'inventory:product_update' product.pk %}"
+                    class="btn btn-primary"
+                >
+                    Editar producto
+                </a>
+
+            {% endif %}
+
         </div>
 
     </div>
 
-
 </header>
 
 
+{% if is_edit %}
+
+<form
+    method="post"
+    id="product-edit-form"
+    novalidate
+>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+{% endif %}
 
 
 <section class="product-detail-grid">
 
-    <div class="detail-card">
+    <div class="product-detail-main">
 
-        <dl class="detail-list">
+        <div class="detail-card">
 
-            <div class="detail-row">
-                <dt>Nombre</dt>
-                <dd>{{ product.name }}</dd>
+            <dl class="detail-list">
+
+                <div class="detail-row {% if is_edit and form.name.errors %}field-error{% endif %}">
+
+                    <dt>
+                        {% if is_edit %}
+                            <label for="{{ form.name.id_for_label }}">
+                                Nombre
+                            </label>
+                        {% else %}
+                            Nombre
+                        {% endif %}
+                    </dt>
+
+                    <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                        {% if is_edit %}
+
+                            {{ form.name }}
+
+                            {% for error in form.name.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+
+                        {% else %}
+
+                            {{ product.name }}
+
+                        {% endif %}
+
+                    </dd>
+
+                </div>
+
+
+                <div class="detail-row {% if is_edit and form.category.errors %}field-error{% endif %}">
+
+                    <dt>
+                        {% if is_edit %}
+                            <label for="{{ form.category.id_for_label }}">
+                                Categoría
+                            </label>
+                        {% else %}
+                            Categoría
+                        {% endif %}
+                    </dt>
+
+                    <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                        {% if is_edit %}
+
+                            {{ form.category }}
+
+                            {% for error in form.category.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+
+                        {% else %}
+
+                            {{ product.category.name }}
+
+                        {% endif %}
+
+                    </dd>
+
+                </div>
+
+
+                <div class="detail-row {% if is_edit and form.format_unit.errors %}field-error{% endif %}">
+
+                    <dt>
+                        {% if is_edit %}
+                            <label for="{{ form.format_unit.id_for_label }}">
+                                Formato / unidad
+                            </label>
+                        {% else %}
+                            Formato / unidad
+                        {% endif %}
+                    </dt>
+
+                    <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                        {% if is_edit %}
+
+                            {{ form.format_unit }}
+
+                            {% for error in form.format_unit.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+
+                        {% else %}
+
+                            {{ product.format_unit }}
+
+                        {% endif %}
+
+                    </dd>
+
+                </div>
+
+
+                <div class="detail-row {% if is_edit and form.vat_rate.errors %}field-error{% endif %}">
+
+                    <dt>
+                        {% if is_edit %}
+                            <label for="{{ form.vat_rate.id_for_label }}">
+                                IVA
+                            </label>
+                        {% else %}
+                            IVA
+                        {% endif %}
+                    </dt>
+
+                    <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                        {% if is_edit %}
+
+                            {{ form.vat_rate }}
+
+                            {% for error in form.vat_rate.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+
+                        {% else %}
+
+                            {{ product.vat_rate }} %
+
+                        {% endif %}
+
+                    </dd>
+
+                </div>
+
+
+                <div class="detail-row {% if is_edit and form.default_sale_price.errors %}field-error{% endif %}">
+
+                    <dt>
+                        {% if is_edit %}
+                            <label for="{{ form.default_sale_price.id_for_label }}">
+                                Precio por defecto
+                            </label>
+                        {% else %}
+                            Precio por defecto
+                        {% endif %}
+                    </dt>
+
+                    <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                        {% if is_edit %}
+
+                            {{ form.default_sale_price }}
+
+                            {% for error in form.default_sale_price.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+
+                        {% else %}
+
+                            {{ product.default_sale_price|floatformat:2 }} €
+
+                        {% endif %}
+
+                    </dd>
+
+                </div>
+
+            </dl>
+
+        </div>
+
+
+        <div class="product-costs-grid">
+
+            <div class="product-cost-card">
+
+                <div class="product-cost-label">
+                    Último coste de compra
+                </div>
+
+                <div class="product-cost-value">
+
+                    {% if product.latest_purchase_cost is not None %}
+
+                        {{ product.latest_purchase_cost|floatformat:2 }} €
+
+                    {% else %}
+
+                        <span class="product-cost-empty">
+                            Sin compras
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
             </div>
 
-            <div class="detail-row">
-                <dt>Categoría</dt>
-                <dd>{{ product.category.name }}</dd>
+
+            <div class="product-cost-card">
+
+                <div class="product-cost-label">
+                    Coste promedio de compra
+                </div>
+
+                <div class="product-cost-value">
+
+                    {% if product.average_purchase_cost is not None %}
+
+                        {{ product.average_purchase_cost|floatformat:2 }} €
+
+                    {% else %}
+
+                        <span class="product-cost-empty">
+                            Sin compras
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
             </div>
 
-            <div class="detail-row">
-                <dt>Formato / unidad</dt>
-                <dd>{{ product.format_unit }}</dd>
-            </div>
-
-            <div class="detail-row">
-                <dt>IVA</dt>
-                <dd>{{ product.vat_rate }} %</dd>
-            </div>
-
-            <div class="detail-row">
-                <dt>Precio por defecto</dt>
-                <dd>{{ product.default_sale_price }} €</dd>
-            </div>
-
-        </dl>
+        </div>
 
     </div>
 
@@ -92,18 +346,29 @@
     <div class="product-image-card">
 
         <div class="product-image-placeholder">
-            <div class="product-image-icon">🖼</div>
 
-            <p>Imagen del producto</p>
+            <div class="product-image-icon">
+                🖼
+            </div>
+
+            <p>
+                Imagen del producto
+            </p>
 
             <span>
                 Imagen no disponible
             </span>
+
         </div>
 
     </div>
 
 </section>
+
+
+{% if is_edit %}
+</form>
+{% endif %}
 
 
 <section class="product-related-card">
@@ -133,5 +398,45 @@
     </a>
 
 </div>
+
+
+{% if is_edit %}
+
+{{ category_vat_rates|json_script:"category-vat-rates" }}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const categorySelect = document.getElementById("id_category");
+    const vatInput = document.getElementById("id_vat_rate");
+    const vatRatesElement = document.getElementById(
+        "category-vat-rates"
+    );
+
+    if (
+        !categorySelect ||
+        !vatInput ||
+        !vatRatesElement
+    ) {
+        return;
+    }
+
+    const categoryVatRates = JSON.parse(
+        vatRatesElement.textContent
+    );
+
+    categorySelect.addEventListener("change", function () {
+        const selectedCategoryId = categorySelect.value;
+
+        if (selectedCategoryId) {
+            vatInput.value =
+                categoryVatRates[selectedCategoryId] ?? "";
+        } else {
+            vatInput.value = "";
+        }
+    });
+});
+</script>
+
+{% endif %}
 
 {% endblock %}
