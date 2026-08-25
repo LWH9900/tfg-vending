@@ -52,6 +52,10 @@
         rel="stylesheet"
         href="{% static 'css/components/sections.css' %}"
     >
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/tables.css' %}"
+    >
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -183,9 +187,13 @@
                                 Ventas
                             </span>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'replenishments' %} active {% endif %}"
+                                href="{% url 'replenishments:replenishment_list' %}"
+                            >
                                 Reposiciones
-                            </span>
+                            </a>
 
                         </div>
                     </div>
@@ -275,11 +283,14 @@
             setupPersistentMenu(
                 "operationsMenu",
                 "operationsMenuOpen",
-                currentApp === "purchases"
+                currentApp === "purchases" ||
+                currentApp === "replenishments"
             );
         });
     </script>
-    
 
+
+
+<script src="{% static 'js/clickable-rows.js' %}"></script>
 </body>
 </html>

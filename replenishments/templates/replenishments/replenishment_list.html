@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Compras | Vimach{% endblock %}
+{% block title %}Histórico de reposiciones | Vimach{% endblock %}
 
 {% block content %}
 
@@ -11,27 +11,18 @@
         <div class="page-header-content">
 
             <div class="page-breadcrumb">
-                Operaciones / Compras
+                Operaciones / Reposiciones
             </div>
 
             <h1 class="page-title">
-                Histórico de compras
+                Histórico de reposiciones
             </h1>
 
             <p class="page-description">
-                Consulta las compras registradas y filtra el histórico
-                por fecha, producto o proveedor.
+                Consulta las reposiciones realizadas y filtra el histórico
+                por fecha, máquina o producto.
             </p>
 
-        </div>
-
-        <div class="page-header-actions">
-            <a
-                href="{% url 'purchases:purchase_create' %}"
-                class="btn btn-primary"
-            >
-                + Nueva compra
-            </a>
         </div>
 
     </div>
@@ -52,12 +43,12 @@
             {% if filter_form.non_field_errors %}
                 <div class="alert alert-danger">
                     {% for error in filter_form.non_field_errors %}
-                        {{ error }}
+                        <div>{{ error }}</div>
                     {% endfor %}
                 </div>
             {% endif %}
 
-            <div class="row">
+            <div class="row g-3">
 
                 <div class="col-md-3">
                     {% include "components/form_field.html" with field=filter_form.date_from %}
@@ -68,19 +59,20 @@
                 </div>
 
                 <div class="col-md-3">
-                    {% include "components/form_field.html" with field=filter_form.product %}
+                    {% include "components/form_field.html" with field=filter_form.machine %}
                 </div>
 
                 <div class="col-md-3">
-                    {% include "components/form_field.html" with field=filter_form.supplier %}
+                    {% include "components/form_field.html" with field=filter_form.product %}
                 </div>
 
             </div>
 
+
             <div class="form-actions">
 
                 <a
-                    href="{% url 'purchases:purchase_list' %}"
+                    href="{% url 'replenishments:replenishment_list' %}"
                     class="btn btn-outline-secondary"
                 >
                     Limpiar filtros
@@ -102,7 +94,7 @@
 </section>
 
 
-<div class="card border-0">
+<section class="section-card">
 
     <div class="table-responsive">
 
@@ -111,43 +103,34 @@
             <thead>
                 <tr>
                     <th>Fecha / hora</th>
-                    <th>Proveedor</th>
-                    <th>Factura / albarán</th>
-                    <th>Total</th>
+                    <th>Máquina</th>
+                    <th>Productos</th>
                 </tr>
             </thead>
 
             <tbody>
 
-                {% for purchase in purchases %}
+                {% for replenishment in replenishments %}
 
                     <tr
                         class="clickable-row"
-                        data-href="{% url 'purchases:purchase_detail' purchase.pk %}"
+                        data-href="{% url 'replenishments:replenishment_detail' replenishment.pk %}"
                         tabindex="0"
                         role="link"
                     >
 
                         <td>
-                            {{ purchase.purchased_at|date:"d/m/Y H:i" }}
+                            {{ replenishment.replenished_at|date:"d/m/Y H:i" }}
                         </td>
 
                         <td>
-                            {{ purchase.supplier }}
+                            {{ replenishment.machine.identifier }}
+                            ·
+                            {{ replenishment.machine.name }}
                         </td>
 
                         <td>
-                            {% if purchase.document_reference %}
-                                {{ purchase.document_reference }}
-                            {% else %}
-                                <span class="text-secondary">
-                                    —
-                                </span>
-                            {% endif %}
-                        </td>
-
-                        <td>
-                            {{ purchase.total|floatformat:2 }} €
+                            {{ replenishment.lines.count }}
                         </td>
 
                     </tr>
@@ -156,14 +139,10 @@
 
                     <tr>
                         <td
-                            colspan="4"
+                            colspan="3"
                             class="text-center py-5 text-secondary"
                         >
-                            {% if request.GET %}
-                                No se han encontrado compras con los filtros aplicados.
-                            {% else %}
-                                No hay compras registradas.
-                            {% endif %}
+                            No hay reposiciones registradas.
                         </td>
                     </tr>
 
@@ -175,6 +154,26 @@
 
     </div>
 
-</div>
+</section>
 
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const rows = document.querySelectorAll(".clickable-row");
+
+    rows.forEach(function (row) {
+
+        row.addEventListener("click", function () {
+            window.location.href = row.dataset.href;
+        });
+
+        row.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                window.location.href = row.dataset.href;
+            }
+        });
+
+    });
+});
+</script>
 {% endblock %}

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Reposición #{{ replenishment.pk }} | Vimach
+{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'replenishments:replenishment_list' %}">
+                    Reposiciones
+                </a>
+                /
+                #{{ replenishment.pk }}
+            </div>
+
+            <h1 class="page-title">
+                Detalle de reposición
+            </h1>
+
+            <p class="page-description">
+                Consulta la máquina y los productos trasladados
+                en esta reposición.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="detail-card">
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Fecha / hora</dt>
+
+            <dd>
+                {{ replenishment.replenished_at|date:"d/m/Y H:i" }}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Máquina</dt>
+
+            <dd>
+                <a
+                    href="{% url 'machines:machine_detail' replenishment.machine.pk %}"
+                    class="text-decoration-none"
+                >
+                    {{ replenishment.machine.identifier }}
+                    ·
+                    {{ replenishment.machine.name }}
+                </a>
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Ubicación</dt>
+
+            <dd>
+                {% if replenishment.machine.location %}
+                    {{ replenishment.machine.location }}
+                {% else %}
+                    <span class="text-secondary">
+                        Sin ubicación
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Productos</dt>
+
+            <dd>
+                {{ replenishment.lines.count }}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+
+<div class="pricing-section-heading">
+
+    <h2>Productos repuestos</h2>
+
+    <div class="pricing-section-line"></div>
+
+</div>
+
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Formato / unidad</th>
+                    <th>Cantidad</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for line in replenishment.lines.all %}
+
+                    <tr>
+
+                        <td>
+                            <a
+                                href="{% url 'inventory:product_detail' line.product.pk %}"
+                                class="text-decoration-none"
+                            >
+                                {{ line.product.name }}
+                            </a>
+                        </td>
+
+                        <td>
+                            {{ line.product.category.name }}
+                        </td>
+
+                        <td>
+                            {{ line.product.format_unit }}
+                        </td>
+
+                        <td>
+                            {{ line.quantity }}
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center py-5 text-secondary"
+                        >
+                            Esta reposición no tiene líneas asociadas.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'replenishments:replenishment_list' %}"
+        class="back-link"
+    >
+        ← Volver al histórico de reposiciones
+    </a>
+
+</div>
+
+{% endblock %}

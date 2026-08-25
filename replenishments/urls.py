@@ -1,3 +1,18 @@
+from django.urls import path
+
+from . import views
+
 app_name = "replenishments"
 
-urlpatterns = []
+urlpatterns = [
+    path(
+        "",
+        views.replenishment_list,
+        name="replenishment_list",
+    ),
+    path(
+        "<int:pk>/",
+        views.replenishment_detail,
+        name="replenishment_detail",
+    ),
+]

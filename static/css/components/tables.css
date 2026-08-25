@@ -1,0 +1,16 @@
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row > td {
+    transition: background-color 0.15s ease;
+}
+
+.clickable-row:hover > td,
+.clickable-row:focus-visible > td {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 8%,
+        transparent
+    );
+}
