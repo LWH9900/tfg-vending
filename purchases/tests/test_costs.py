@@ -33,20 +33,14 @@ class ProductPurchaseCostTests(TestCase):
         )
 
     def test_product_without_purchases_has_no_costs(self):
-        self.assertIsNone(
-            self.product.latest_purchase_cost
-        )
+        self.assertIsNone(self.product.latest_purchase_cost)
 
-        self.assertIsNone(
-            self.product.average_purchase_cost
-        )
+        self.assertIsNone(self.product.average_purchase_cost)
 
     def test_latest_purchase_cost_uses_most_recent_purchase(self):
         latest_purchase = Purchase.objects.create(
             supplier="Proveedor B",
-            purchased_at=timezone.make_aware(
-                datetime(2026, 8, 20, 10, 0)
-            ),
+            purchased_at=timezone.make_aware(datetime(2026, 8, 20, 10, 0)),
         )
 
         PurchaseLine.objects.create(
@@ -58,9 +52,7 @@ class ProductPurchaseCostTests(TestCase):
 
         older_purchase = Purchase.objects.create(
             supplier="Proveedor A",
-            purchased_at=timezone.make_aware(
-                datetime(2026, 8, 10, 10, 0)
-            ),
+            purchased_at=timezone.make_aware(datetime(2026, 8, 10, 10, 0)),
         )
 
         PurchaseLine.objects.create(
@@ -135,9 +127,7 @@ class ProductPurchaseCostTests(TestCase):
     def test_new_purchase_updates_latest_and_average_cost(self):
         first_purchase = Purchase.objects.create(
             supplier="Proveedor A",
-            purchased_at=timezone.make_aware(
-                datetime(2026, 8, 10, 10, 0)
-            ),
+            purchased_at=timezone.make_aware(datetime(2026, 8, 10, 10, 0)),
         )
 
         PurchaseLine.objects.create(
@@ -159,9 +149,7 @@ class ProductPurchaseCostTests(TestCase):
 
         second_purchase = Purchase.objects.create(
             supplier="Proveedor B",
-            purchased_at=timezone.make_aware(
-                datetime(2026, 8, 20, 10, 0)
-            ),
+            purchased_at=timezone.make_aware(datetime(2026, 8, 20, 10, 0)),
         )
 
         PurchaseLine.objects.create(

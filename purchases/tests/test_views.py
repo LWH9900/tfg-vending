@@ -50,18 +50,14 @@ class PurchaseViewTests(TestCase):
         for index, line in enumerate(lines):
             data.update(
                 {
-                    f"{prefix}-{index}-product": str(
-                        line["product"].pk
-                    ),
-                    f"{prefix}-{index}-quantity": str(
-                        line["quantity"]
-                    ),
-                    f"{prefix}-{index}-unit_price_excl_vat":
-                        str(line["price"]),
+                    f"{prefix}-{index}-product": str(line["product"].pk),
+                    f"{prefix}-{index}-quantity": str(line["quantity"]),
+                    f"{prefix}-{index}-unit_price_excl_vat": str(line["price"]),
                 }
             )
 
         return data
+
     def test_create_purchase_with_one_line(self):
         response = self.client.post(
             reverse("purchases:purchase_create"),
@@ -102,6 +98,7 @@ class PurchaseViewTests(TestCase):
             line.unit_price_excl_vat,
             Decimal("0.50"),
         )
+
     def test_create_purchase_with_multiple_lines(self):
         response = self.client.post(
             reverse("purchases:purchase_create"),
@@ -129,6 +126,7 @@ class PurchaseViewTests(TestCase):
             purchase.lines.count(),
             2,
         )
+
     def test_purchase_cannot_be_created_without_lines(self):
         data = self.purchase_post_data([])
 
@@ -154,9 +152,8 @@ class PurchaseViewTests(TestCase):
 
         formset = response.context["formset"]
 
-        self.assertTrue(
-            formset.non_form_errors()
-        )
+        self.assertTrue(formset.non_form_errors())
+
     def test_invalid_line_does_not_create_partial_purchase(self):
         response = self.client.post(
             reverse("purchases:purchase_create"),
@@ -192,6 +189,7 @@ class PurchaseViewTests(TestCase):
             "quantity",
             formset.forms[0].errors,
         )
+
     def test_same_product_cannot_be_added_twice(self):
         response = self.client.post(
             reverse("purchases:purchase_create"),
@@ -232,6 +230,7 @@ class PurchaseViewTests(TestCase):
             "Este producto ya está incluido en la compra.",
             formset.forms[1].errors["product"],
         )
+
     def test_filter_purchases_by_supplier(self):
         Purchase.objects.create(
             supplier="Makro",
@@ -259,6 +258,7 @@ class PurchaseViewTests(TestCase):
             purchases.first().supplier,
             "Makro",
         )
+
     def test_purchase_detail_shows_all_lines(self):
         purchase = Purchase.objects.create(
             supplier="Makro",
@@ -304,6 +304,7 @@ class PurchaseViewTests(TestCase):
             response,
             "Makro",
         )
+
     def test_filter_purchases_by_product(self):
         first_purchase = Purchase.objects.create(
             supplier="Proveedor A",
@@ -340,6 +341,7 @@ class PurchaseViewTests(TestCase):
             list(purchases),
             [first_purchase],
         )
+
     def test_filter_purchases_by_date_range(self):
         now = timezone.now()
 
@@ -358,13 +360,9 @@ class PurchaseViewTests(TestCase):
             purchased_at=now,
         )
 
-        date_from = (
-            now - timedelta(days=10)
-        ).date().isoformat()
+        date_from = (now - timedelta(days=10)).date().isoformat()
 
-        date_to = (
-            now - timedelta(days=2)
-        ).date().isoformat()
+        date_to = (now - timedelta(days=2)).date().isoformat()
 
         response = self.client.get(
             reverse("purchases:purchase_list"),
@@ -374,9 +372,7 @@ class PurchaseViewTests(TestCase):
             },
         )
 
-        purchases = list(
-            response.context["purchases"]
-        )
+        purchases = list(response.context["purchases"])
 
         self.assertEqual(
             purchases,
