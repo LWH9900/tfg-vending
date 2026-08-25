@@ -1,6 +1,11 @@
-from django.shortcuts import get_object_or_404, render
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import ReplenishmentFilterForm
+from .forms import (
+    ReplenishmentFilterForm,
+    ReplenishmentForm,
+    ReplenishmentLineFormSet,
+)
 from .models import Replenishment
 
 
@@ -57,5 +62,53 @@ def replenishment_detail(request, pk):
         "replenishments/replenishment_detail.html",
         {
             "replenishment": replenishment,
+        },
+    )
+
+
+def replenishment_create(request):
+    replenishment = Replenishment()
+
+    if request.method == "POST":
+        form = ReplenishmentForm(
+            request.POST,
+            instance=replenishment,
+        )
+
+        formset = ReplenishmentLineFormSet(
+            request.POST,
+            instance=replenishment,
+        )
+
+        form_is_valid = form.is_valid()
+        formset_is_valid = formset.is_valid()
+
+        if form_is_valid and formset_is_valid:
+            with transaction.atomic():
+                replenishment = form.save()
+
+                formset.instance = replenishment
+                formset.save()
+
+            return redirect(
+                "replenishments:replenishment_detail",
+                pk=replenishment.pk,
+            )
+
+    else:
+        form = ReplenishmentForm(
+            instance=replenishment,
+        )
+
+        formset = ReplenishmentLineFormSet(
+            instance=replenishment,
+        )
+
+    return render(
+        request,
+        "replenishments/replenishment_form.html",
+        {
+            "form": form,
+            "formset": formset,
         },
     )

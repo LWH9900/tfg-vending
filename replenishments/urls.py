@@ -15,4 +15,9 @@ urlpatterns = [
         views.replenishment_detail,
         name="replenishment_detail",
     ),
+    path(
+        "new/",
+        views.replenishment_create,
+        name="replenishment_create",
+    ),
 ]
