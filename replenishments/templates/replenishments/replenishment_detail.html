@@ -32,10 +32,94 @@
 
         </div>
 
+
+        <div class="page-header-actions">
+
+            {% if replenishment.status == "DRAFT" %}
+
+                <a
+                    href="{% url 'replenishments:replenishment_edit' replenishment.pk %}"
+                    class="btn btn-outline-primary"
+                >
+                    Editar
+                </a>
+
+                <form
+                    method="post"
+                    action="{% url 'replenishments:replenishment_delete' replenishment.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('¿Seguro que quieres eliminar este borrador?');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="btn btn-outline-danger"
+                    >
+                        Eliminar borrador
+                    </button>
+                </form>
+
+                <form
+                    method="post"
+                    action="{% url 'replenishments:replenishment_register' replenishment.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('Una vez registrada, la reposición dejará de poder editarse. ¿Quieres continuar?');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        Registrar reposición
+                    </button>
+                </form>
+
+
+            {% elif replenishment.status == "REGISTERED" %}
+
+                <form
+                    method="post"
+                    action="{% url 'replenishments:replenishment_cancel' replenishment.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('¿Seguro que quieres anular esta reposición?');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="btn btn-outline-danger"
+                    >
+                        Anular reposición
+                    </button>
+                </form>
+
+            {% endif %}
+
+        </div>
+
     </div>
 
 </header>
 
+{% if replenishment.status == "CANCELLED" %}
+
+    <div class="alert alert-warning">
+        Esta reposición está anulada y no se tendrá en cuenta
+        en los cálculos de inventario.
+    </div>
+
+{% endif %}
+
+{% if replenishment.status == "DRAFT" %}
+
+    <div class="alert alert-light border">
+        Esta reposición está en borrador y todavía no afecta
+        al inventario.
+    </div>
+
+{% endif %}
 
 <section class="detail-card">
 
@@ -86,6 +170,28 @@
 
             <dd>
                 {{ replenishment.lines.count }}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Estado</dt>
+
+            <dd>
+                {% if replenishment.status == "DRAFT" %}
+                    <span class="badge text-bg-secondary">
+                        Borrador
+                    </span>
+
+                {% elif replenishment.status == "REGISTERED" %}
+                    <span class="badge text-bg-success">
+                        Registrada
+                    </span>
+
+                {% elif replenishment.status == "CANCELLED" %}
+                    <span class="badge text-bg-danger">
+                        Anulada
+                    </span>
+                {% endif %}
             </dd>
         </div>
 

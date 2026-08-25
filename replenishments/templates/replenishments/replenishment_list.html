@@ -60,20 +60,24 @@
 
             <div class="row g-3">
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.date_from %}
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.date_to %}
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.machine %}
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.product %}
+                </div>
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.status %}
                 </div>
 
             </div>
@@ -115,6 +119,7 @@
                     <th>Fecha / hora</th>
                     <th>Máquina</th>
                     <th>Productos</th>
+                    <th>Estado</th>
                 </tr>
             </thead>
 
@@ -142,6 +147,23 @@
                         <td>
                             {{ replenishment.lines.count }}
                         </td>
+                        <td>
+                            {% if replenishment.status == "DRAFT" %}
+                                <span class="badge text-bg-secondary">
+                                    Borrador
+                                </span>
+
+                            {% elif replenishment.status == "REGISTERED" %}
+                                <span class="badge text-bg-success">
+                                    Registrada
+                                </span>
+
+                            {% elif replenishment.status == "CANCELLED" %}
+                                <span class="badge text-bg-danger">
+                                    Anulada
+                                </span>
+                            {% endif %}
+                        </td>
 
                     </tr>
 
@@ -149,7 +171,7 @@
 
                     <tr>
                         <td
-                            colspan="3"
+                            colspan="4"
                             class="text-center py-5 text-secondary"
                         >
                             No hay reposiciones registradas.
@@ -166,24 +188,5 @@
 
 </section>
 
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const rows = document.querySelectorAll(".clickable-row");
 
-    rows.forEach(function (row) {
-
-        row.addEventListener("click", function () {
-            window.location.href = row.dataset.href;
-        });
-
-        row.addEventListener("keydown", function (event) {
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                window.location.href = row.dataset.href;
-            }
-        });
-
-    });
-});
-</script>
 {% endblock %}

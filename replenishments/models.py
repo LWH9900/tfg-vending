@@ -4,6 +4,11 @@ from django.utils import timezone
 
 
 class Replenishment(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Borrador"
+        REGISTERED = "REGISTERED", "Registrada"
+        CANCELLED = "CANCELLED", "Anulada"
+
     replenished_at = models.DateTimeField(
         default=timezone.now,
     )
@@ -12,6 +17,12 @@ class Replenishment(models.Model):
         "machines.Machine",
         on_delete=models.PROTECT,
         related_name="replenishments",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
     )
 
     def __str__(self):
