@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -108,3 +109,84 @@ class ReplenishmentCreateViewTests(TestCase):
             "product",
             formset.forms[0].errors,
         )
+
+
+class ReplenishmentModelTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(
+            name="Bebidas",
+            default_vat_rate=Decimal("21.00"),
+        )
+
+        cls.product = Product.objects.create(
+            name="Coca cola",
+            category=cls.category,
+            format_unit="330 ml",
+            vat_rate=Decimal("21.00"),
+            default_sale_price=Decimal("1.50"),
+        )
+
+        cls.machine = Machine.objects.create(
+            identifier="M-001",
+            name="Máquina 1",
+            serial_number="SN-001",
+        )
+
+    def test_new_replenishment_is_draft_by_default(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.DRAFT,
+        )
+
+    def test_quantity_zero_is_not_valid(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+        )
+
+        line = ReplenishmentLine(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=0,
+        )
+
+        with self.assertRaises(ValidationError):
+            line.full_clean()
+
+    def test_negative_quantity_is_not_valid(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+        )
+
+        line = ReplenishmentLine(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=-1,
+        )
+
+        with self.assertRaises(ValidationError):
+            line.full_clean()
+
+    def test_same_product_cannot_appear_twice(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=5,
+        )
+
+        duplicate = ReplenishmentLine(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=10,
+        )
+
+        with self.assertRaises(ValidationError):
+            duplicate.full_clean()

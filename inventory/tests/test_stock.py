@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.test import TestCase
+from django.urls import reverse
 
 from inventory.models import Category, Product
 from inventory.services import (
@@ -529,3 +530,49 @@ class StockServiceTests(TestCase):
             product_stocks[0].machine_stock,
             20,
         )
+
+    def test_machine_product_stocks_ignore_non_registered_replenishments(self):
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            20,
+            Replenishment.Status.REGISTERED,
+        )
+
+        self.create_replenishment(
+            self.other_product,
+            self.machine,
+            30,
+            Replenishment.Status.DRAFT,
+        )
+
+        product_stocks = list(get_machine_product_stocks(self.machine))
+
+        self.assertEqual(
+            len(product_stocks),
+            1,
+        )
+
+        self.assertEqual(
+            product_stocks[0].pk,
+            self.product.pk,
+        )
+
+        self.assertEqual(
+            product_stocks[0].machine_stock,
+            20,
+        )
+
+    def test_product_stock_detail_shows_stock_breakdown(self):
+        response = self.client.get(
+            reverse(
+                "inventory:product_stock_detail",
+                args=[self.product.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("total_stock", response.context)
+        self.assertIn("warehouse_stock", response.context)
+        self.assertIn("machines_stock", response.context)
+        self.assertIn("machine_stocks", response.context)

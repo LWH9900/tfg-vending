@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
@@ -9,6 +10,7 @@ from .forms import (
     PurchaseLineFormSet,
 )
 from .models import Purchase
+from .services import get_purchase_cancellation_stock_errors
 
 
 def purchase_list(request):
@@ -214,15 +216,43 @@ def purchase_delete(request, pk):
 @require_POST
 def purchase_cancel(request, pk):
     purchase = get_object_or_404(
-        Purchase,
+        Purchase.objects.prefetch_related("lines__product"),
         pk=pk,
     )
 
     if purchase.status != Purchase.Status.REGISTERED:
         raise PermissionDenied("Solo se pueden anular compras registradas.")
 
-    purchase.status = Purchase.Status.CANCELLED
-    purchase.save(update_fields=["status"])
+    stock_errors = get_purchase_cancellation_stock_errors(purchase)
+
+    if stock_errors:
+        details = "; ".join(
+            (
+                f"{error['product'].name}: "
+                f"{error['current_stock']} uds. disponibles, "
+                f"la compra aporta "
+                f"{error['purchase_quantity']} uds."
+            )
+            for error in stock_errors
+        )
+
+        messages.error(
+            request,
+            (
+                "No se puede anular la compra porque "
+                "el stock de almacén quedaría negativo. "
+                f"{details}"
+            ),
+        )
+
+        return redirect(
+            "purchases:purchase_detail",
+            pk=purchase.pk,
+        )
+
+    with transaction.atomic():
+        purchase.status = Purchase.Status.CANCELLED
+        purchase.save(update_fields=["status"])
 
     return redirect(
         "purchases:purchase_detail",
