@@ -57,22 +57,26 @@
                 </div>
             {% endif %}
 
-            <div class="row">
+            <div class="row g-3">
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.date_from %}
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.date_to %}
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.product %}
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-6 col-lg">
                     {% include "components/form_field.html" with field=filter_form.supplier %}
+                </div>
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.status %}
                 </div>
 
             </div>
@@ -114,6 +118,7 @@
                     <th>Proveedor</th>
                     <th>Factura / albarán</th>
                     <th>Total</th>
+                    <th>Estado</th>
                 </tr>
             </thead>
 
@@ -150,13 +155,31 @@
                             {{ purchase.total|floatformat:2 }} €
                         </td>
 
+                        <td>
+                            {% if purchase.status == "DRAFT" %}
+                                <span class="badge text-bg-secondary">
+                                    Borrador
+                                </span>
+
+                            {% elif purchase.status == "REGISTERED" %}
+                                <span class="badge text-bg-success">
+                                    Registrada
+                                </span>
+
+                            {% elif purchase.status == "CANCELLED" %}
+                                <span class="badge text-bg-danger">
+                                    Anulada
+                                </span>
+                            {% endif %}
+                        </td>
+
                     </tr>
 
                 {% empty %}
 
                     <tr>
                         <td
-                            colspan="4"
+                            colspan="5"
                             class="text-center py-5 text-secondary"
                         >
                             {% if request.GET %}

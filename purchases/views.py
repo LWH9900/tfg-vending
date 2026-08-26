@@ -1,5 +1,7 @@
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .forms import (
     PurchaseFilterForm,
@@ -21,6 +23,7 @@ def purchase_list(request):
         date_to = filter_form.cleaned_data.get("date_to")
         product = filter_form.cleaned_data.get("product")
         supplier = filter_form.cleaned_data.get("supplier")
+        status = filter_form.cleaned_data.get("status")
 
         if date_from:
             purchases = purchases.filter(
@@ -40,6 +43,11 @@ def purchase_list(request):
         if supplier:
             purchases = purchases.filter(
                 supplier__icontains=supplier,
+            )
+
+        if status:
+            purchases = purchases.filter(
+                status=status,
             )
 
     purchases = purchases.distinct()
@@ -81,13 +89,15 @@ def purchase_create(request):
             request.POST,
             instance=purchase,
         )
-
         formset = PurchaseLineFormSet(
             request.POST,
             instance=purchase,
         )
 
-        if form.is_valid() and formset.is_valid():
+        form_is_valid = form.is_valid()
+        formset_is_valid = formset.is_valid()
+
+        if form_is_valid and formset_is_valid:
             with transaction.atomic():
                 purchase = form.save()
 
@@ -103,7 +113,6 @@ def purchase_create(request):
         form = PurchaseForm(
             instance=purchase,
         )
-
         formset = PurchaseLineFormSet(
             instance=purchase,
         )
@@ -123,6 +132,8 @@ def purchase_edit(request, pk):
         Purchase,
         pk=pk,
     )
+    if purchase.status != Purchase.Status.DRAFT:
+        raise PermissionDenied("Solo se pueden editar compras en borrador.")
 
     if request.method == "POST":
         form = PurchaseForm(
@@ -160,4 +171,60 @@ def purchase_edit(request, pk):
             "formset": formset,
             "is_edit": True,
         },
+    )
+
+
+@require_POST
+def purchase_register(request, pk):
+    purchase = get_object_or_404(
+        Purchase,
+        pk=pk,
+    )
+
+    if purchase.status != Purchase.Status.DRAFT:
+        raise PermissionDenied("Solo se pueden registrar compras en borrador.")
+
+    if not purchase.lines.exists():
+        raise PermissionDenied("No se puede registrar una compra sin productos.")
+
+    purchase.status = Purchase.Status.REGISTERED
+    purchase.save(update_fields=["status"])
+
+    return redirect(
+        "purchases:purchase_detail",
+        pk=purchase.pk,
+    )
+
+
+@require_POST
+def purchase_delete(request, pk):
+    purchase = get_object_or_404(
+        Purchase,
+        pk=pk,
+    )
+
+    if purchase.status != Purchase.Status.DRAFT:
+        raise PermissionDenied("Solo se pueden eliminar compras en borrador.")
+
+    purchase.delete()
+
+    return redirect("purchases:purchase_list")
+
+
+@require_POST
+def purchase_cancel(request, pk):
+    purchase = get_object_or_404(
+        Purchase,
+        pk=pk,
+    )
+
+    if purchase.status != Purchase.Status.REGISTERED:
+        raise PermissionDenied("Solo se pueden anular compras registradas.")
+
+    purchase.status = Purchase.Status.CANCELLED
+    purchase.save(update_fields=["status"])
+
+    return redirect(
+        "purchases:purchase_detail",
+        pk=purchase.pk,
     )

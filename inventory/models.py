@@ -55,6 +55,9 @@ class Product(models.Model):
     def latest_purchase_cost(self):
         latest_line = (
             self.purchase_lines.select_related("purchase")
+            .filter(
+                purchase__status="REGISTERED",
+            )
             .order_by(
                 "-purchase__purchased_at",
                 "-purchase_id",
@@ -70,7 +73,9 @@ class Product(models.Model):
 
     @property
     def average_purchase_cost(self):
-        totals = self.purchase_lines.aggregate(
+        totals = self.purchase_lines.filter(
+            purchase__status="REGISTERED",
+        ).aggregate(
             total_quantity=Sum("quantity"),
             total_cost=Sum(
                 ExpressionWrapper(

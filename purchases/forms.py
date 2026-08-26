@@ -52,6 +52,19 @@ class PurchaseFilterForm(forms.Form):
             }
         ),
     )
+    status = forms.ChoiceField(
+        choices=[
+            ("", "Todos los estados"),
+            *Purchase.Status.choices,
+        ],
+        required=False,
+        label="Estado",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
 
     def clean(self):
         cleaned_data = super().clean()

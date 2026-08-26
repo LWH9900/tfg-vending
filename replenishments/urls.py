@@ -20,7 +20,7 @@ urlpatterns = [
         views.replenishment_create,
         name="replenishment_create",
     ),
-     path(
+    path(
         "<int:pk>/edit/",
         views.replenishment_edit,
         name="replenishment_edit",

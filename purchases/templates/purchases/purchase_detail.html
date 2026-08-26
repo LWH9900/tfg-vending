@@ -64,14 +64,66 @@
                     Guardar cambios
                 </button>
 
-            {% else %}
+
+            {% elif purchase.status == "DRAFT" %}
 
                 <a
                     href="{% url 'purchases:purchase_edit' purchase.pk %}"
-                    class="btn btn-primary"
+                    class="btn btn-outline-primary"
                 >
-                    Editar compra
+                    Editar
                 </a>
+
+                <form
+                    method="post"
+                    action="{% url 'purchases:purchase_delete' purchase.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('¿Seguro que quieres eliminar este borrador?');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="btn btn-outline-danger"
+                    >
+                        Eliminar borrador
+                    </button>
+                </form>
+
+                <form
+                    method="post"
+                    action="{% url 'purchases:purchase_register' purchase.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('Una vez registrada, la compra dejará de poder editarse. ¿Quieres continuar?');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        Registrar compra
+                    </button>
+                </form>
+
+
+            {% elif purchase.status == "REGISTERED" %}
+
+                <form
+                    method="post"
+                    action="{% url 'purchases:purchase_cancel' purchase.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('¿Seguro que quieres anular esta compra?');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="btn btn-outline-danger"
+                    >
+                        Anular compra
+                    </button>
+                </form>
 
             {% endif %}
 
@@ -80,7 +132,21 @@
     </div>
 
 </header>
+{% if purchase.status == "CANCELLED" %}
 
+    <div class="alert alert-warning">
+        Esta compra está anulada y no se tendrá en cuenta
+        en los cálculos de inventario ni de costes.
+    </div>
+
+{% elif purchase.status == "DRAFT" and not is_edit %}
+
+    <div class="alert alert-light border">
+        Esta compra está en borrador y todavía no afecta
+        al inventario ni a los costes de los productos.
+    </div>
+
+{% endif %}
 
 {% if is_edit %}
 <form
@@ -218,6 +284,28 @@
             </dd>
         </div>
 
+        <div class="detail-row">
+            <dt>Estado</dt>
+
+            <dd>
+                {% if purchase.status == "DRAFT" %}
+                    <span class="badge text-bg-secondary">
+                        Borrador
+                    </span>
+
+                {% elif purchase.status == "REGISTERED" %}
+                    <span class="badge text-bg-success">
+                        Registrada
+                    </span>
+
+                {% elif purchase.status == "CANCELLED" %}
+                    <span class="badge text-bg-danger">
+                        Anulada
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
 
         <div class="detail-row">
             <dt>Total</dt>
@@ -231,14 +319,13 @@
 
 </section>
 
-
-<div class="pricing-section-heading">
+<div class="section-heading">
 
     <h2>Productos comprados</h2>
 
-    <div class="pricing-section-line"></div>
+    <div class="section-heading-line"></div>
 
-        {% if is_edit %}
+    {% if is_edit %}
         <button
             type="button"
             class="btn btn-outline-primary btn-sm"

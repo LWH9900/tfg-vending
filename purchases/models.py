@@ -6,15 +6,21 @@ from django.utils import timezone
 
 
 class Purchase(models.Model):
-    purchased_at = models.DateTimeField(
-        default=timezone.now,
-    )
-    supplier = models.CharField(
-        max_length=255,
-    )
-    document_reference = models.CharField(
-        max_length=100,
-        blank=True,
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Borrador"
+        REGISTERED = "REGISTERED", "Registrada"
+        CANCELLED = "CANCELLED", "Anulada"
+
+    purchased_at = models.DateTimeField(default=timezone.now)
+
+    supplier = models.CharField(max_length=255)
+
+    document_reference = models.CharField(max_length=100, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
     )
 
     @property

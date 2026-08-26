@@ -98,6 +98,10 @@ class PurchaseViewTests(TestCase):
             line.unit_price_excl_vat,
             Decimal("0.50"),
         )
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.DRAFT,
+        )
 
     def test_create_purchase_with_multiple_lines(self):
         response = self.client.post(
@@ -386,5 +390,179 @@ class PurchaseViewTests(TestCase):
 
         self.assertNotIn(
             future_purchase,
+            purchases,
+        )
+
+    def test_draft_purchase_can_be_edited(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.DRAFT,
+        )
+
+        response = self.client.get(
+            reverse(
+                "purchases:purchase_edit",
+                args=[purchase.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_registered_purchase_cannot_be_edited(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        response = self.client.get(
+            reverse(
+                "purchases:purchase_edit",
+                args=[purchase.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_draft_purchase_can_be_deleted(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.DRAFT,
+        )
+
+        response = self.client.post(
+            reverse(
+                "purchases:purchase_delete",
+                args=[purchase.pk],
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("purchases:purchase_list"),
+        )
+
+        self.assertFalse(Purchase.objects.filter(pk=purchase.pk).exists())
+
+    def test_registered_purchase_cannot_be_deleted(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        response = self.client.post(
+            reverse(
+                "purchases:purchase_delete",
+                args=[purchase.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        self.assertTrue(Purchase.objects.filter(pk=purchase.pk).exists())
+
+    def test_draft_purchase_can_be_registered(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.DRAFT,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("0.50"),
+        )
+
+        response = self.client.post(
+            reverse(
+                "purchases:purchase_register",
+                args=[purchase.pk],
+            )
+        )
+
+        purchase.refresh_from_db()
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "purchases:purchase_detail",
+                args=[purchase.pk],
+            ),
+        )
+
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.REGISTERED,
+        )
+
+    def test_registered_purchase_can_be_cancelled(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        self.client.post(
+            reverse(
+                "purchases:purchase_cancel",
+                args=[purchase.pk],
+            )
+        )
+
+        purchase.refresh_from_db()
+
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.CANCELLED,
+        )
+
+    def test_purchase_cannot_be_registered_without_lines(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.DRAFT,
+        )
+
+        response = self.client.post(
+            reverse(
+                "purchases:purchase_register",
+                args=[purchase.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        purchase.refresh_from_db()
+
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.DRAFT,
+        )
+
+    def test_filter_purchases_by_status(self):
+        draft = Purchase.objects.create(
+            supplier="Borrador",
+            status=Purchase.Status.DRAFT,
+        )
+
+        registered = Purchase.objects.create(
+            supplier="Registrada",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        response = self.client.get(
+            reverse("purchases:purchase_list"),
+            {
+                "status": Purchase.Status.REGISTERED,
+            },
+        )
+
+        purchases = list(response.context["purchases"])
+
+        self.assertEqual(
+            purchases,
+            [registered],
+        )
+
+        self.assertNotIn(
+            draft,
             purchases,
         )

@@ -1,5 +1,7 @@
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .forms import (
     ReplenishmentFilterForm,
@@ -7,8 +9,7 @@ from .forms import (
     ReplenishmentLineFormSet,
 )
 from .models import Replenishment
-from django.core.exceptions import PermissionDenied
-from django.views.decorators.http import require_POST
+
 
 def replenishment_list(request):
     replenishments = (
@@ -38,9 +39,7 @@ def replenishment_list(request):
         if product:
             replenishments = replenishments.filter(lines__product=product)
         if status:
-            replenishments = replenishments.filter(
-            status=status
-        )
+            replenishments = replenishments.filter(status=status)
 
     replenishments = replenishments.distinct()
 
@@ -113,6 +112,7 @@ def replenishment_create(request):
         },
     )
 
+
 def replenishment_edit(request, pk):
     replenishment = get_object_or_404(
         Replenishment,
@@ -120,9 +120,7 @@ def replenishment_edit(request, pk):
     )
 
     if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied(
-            "Solo se pueden editar reposiciones en borrador."
-        )
+        raise PermissionDenied("Solo se pueden editar reposiciones en borrador.")
 
     if request.method == "POST":
         form = ReplenishmentForm(
@@ -177,19 +175,13 @@ def replenishment_register(request, pk):
     )
 
     if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied(
-            "Solo se pueden registrar reposiciones en borrador."
-        )
+        raise PermissionDenied("Solo se pueden registrar reposiciones en borrador.")
 
     if not replenishment.lines.exists():
-        raise PermissionDenied(
-            "No se puede registrar una reposición sin productos."
-        )
+        raise PermissionDenied("No se puede registrar una reposición sin productos.")
 
     replenishment.status = Replenishment.Status.REGISTERED
-    replenishment.save(
-        update_fields=["status"]
-    )
+    replenishment.save(update_fields=["status"])
 
     return redirect(
         "replenishments:replenishment_detail",
@@ -205,15 +197,12 @@ def replenishment_delete(request, pk):
     )
 
     if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied(
-            "Solo se pueden eliminar reposiciones en borrador."
-        )
+        raise PermissionDenied("Solo se pueden eliminar reposiciones en borrador.")
 
     replenishment.delete()
 
-    return redirect(
-        "replenishments:replenishment_list"
-    )
+    return redirect("replenishments:replenishment_list")
+
 
 @require_POST
 def replenishment_cancel(request, pk):
@@ -223,14 +212,10 @@ def replenishment_cancel(request, pk):
     )
 
     if replenishment.status != Replenishment.Status.REGISTERED:
-        raise PermissionDenied(
-            "Solo se pueden anular reposiciones registradas."
-        )
+        raise PermissionDenied("Solo se pueden anular reposiciones registradas.")
 
     replenishment.status = Replenishment.Status.CANCELLED
-    replenishment.save(
-        update_fields=["status"]
-    )
+    replenishment.save(update_fields=["status"])
 
     return redirect(
         "replenishments:replenishment_detail",

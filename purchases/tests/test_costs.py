@@ -41,6 +41,7 @@ class ProductPurchaseCostTests(TestCase):
         latest_purchase = Purchase.objects.create(
             supplier="Proveedor B",
             purchased_at=timezone.make_aware(datetime(2026, 8, 20, 10, 0)),
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -53,6 +54,7 @@ class ProductPurchaseCostTests(TestCase):
         older_purchase = Purchase.objects.create(
             supplier="Proveedor A",
             purchased_at=timezone.make_aware(datetime(2026, 8, 10, 10, 0)),
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -70,6 +72,7 @@ class ProductPurchaseCostTests(TestCase):
     def test_average_purchase_cost_is_weighted_by_quantity(self):
         first_purchase = Purchase.objects.create(
             supplier="Proveedor A",
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -81,6 +84,7 @@ class ProductPurchaseCostTests(TestCase):
 
         second_purchase = Purchase.objects.create(
             supplier="Proveedor B",
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -98,6 +102,7 @@ class ProductPurchaseCostTests(TestCase):
     def test_other_products_do_not_affect_cost_calculation(self):
         purchase = Purchase.objects.create(
             supplier="Makro",
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -128,6 +133,7 @@ class ProductPurchaseCostTests(TestCase):
         first_purchase = Purchase.objects.create(
             supplier="Proveedor A",
             purchased_at=timezone.make_aware(datetime(2026, 8, 10, 10, 0)),
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -150,6 +156,7 @@ class ProductPurchaseCostTests(TestCase):
         second_purchase = Purchase.objects.create(
             supplier="Proveedor B",
             purchased_at=timezone.make_aware(datetime(2026, 8, 20, 10, 0)),
+            status=Purchase.Status.REGISTERED,
         )
 
         PurchaseLine.objects.create(
@@ -167,4 +174,83 @@ class ProductPurchaseCostTests(TestCase):
         self.assertEqual(
             self.product.average_purchase_cost,
             Decimal("3.50"),
+        )
+
+    def test_draft_purchase_does_not_affect_costs(self):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor",
+            status=Purchase.Status.DRAFT,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("5.00"),
+        )
+
+        self.assertIsNone(self.product.latest_purchase_cost)
+        self.assertIsNone(self.product.average_purchase_cost)
+
+    def test_cancelled_purchase_does_not_affect_costs(self):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor",
+            status=Purchase.Status.CANCELLED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("5.00"),
+        )
+
+        self.assertIsNone(self.product.latest_purchase_cost)
+        self.assertIsNone(self.product.average_purchase_cost)
+
+    def test_draft_and_cancelled_purchases_are_ignored(self):
+        registered_purchase = Purchase.objects.create(
+            supplier="Proveedor registrado",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=registered_purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("2.00"),
+        )
+
+        draft_purchase = Purchase.objects.create(
+            supplier="Proveedor borrador",
+            status=Purchase.Status.DRAFT,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=draft_purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("8.00"),
+        )
+
+        cancelled_purchase = Purchase.objects.create(
+            supplier="Proveedor anulado",
+            status=Purchase.Status.CANCELLED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=cancelled_purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("20.00"),
+        )
+
+        self.assertEqual(
+            self.product.latest_purchase_cost,
+            Decimal("2.00"),
+        )
+
+        self.assertEqual(
+            self.product.average_purchase_cost,
+            Decimal("2.00"),
         )

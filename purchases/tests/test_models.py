@@ -188,3 +188,35 @@ class PurchaseModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             duplicate.full_clean()
+
+    def test_new_purchase_is_draft_by_default(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+        )
+
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.DRAFT,
+        )
+
+    def test_purchase_can_be_registered(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.REGISTERED,
+        )
+
+    def test_purchase_can_be_cancelled(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.CANCELLED,
+        )
+
+        self.assertEqual(
+            purchase.status,
+            Purchase.Status.CANCELLED,
+        )
