@@ -1,6 +1,8 @@
+from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -9,6 +11,7 @@ from .forms import (
     ReplenishmentLineFormSet,
 )
 from .models import Replenishment
+from .services import get_replenishment_stock_errors
 
 
 def replenishment_list(request):
@@ -62,11 +65,20 @@ def replenishment_detail(request, pk):
         pk=pk,
     )
 
+    stock_warnings = []
+
+    if replenishment.status == Replenishment.Status.DRAFT:
+        stock_warnings = get_replenishment_stock_errors(replenishment)
+
+    stock_error = request.GET.get("stock_error") == "1"
+
     return render(
         request,
         "replenishments/replenishment_detail.html",
         {
             "replenishment": replenishment,
+            "stock_warnings": stock_warnings,
+            "stock_error": stock_error,
         },
     )
 
@@ -93,6 +105,11 @@ def replenishment_create(request):
 
                 formset.instance = replenishment
                 formset.save()
+
+            add_replenishment_stock_warnings(
+                request,
+                replenishment,
+            )
 
             return redirect(
                 "replenishments:replenishment_detail",
@@ -141,6 +158,11 @@ def replenishment_edit(request, pk):
                 form.save()
                 formset.save()
 
+            add_replenishment_stock_warnings(
+                request,
+                replenishment,
+            )
+
             return redirect(
                 "replenishments:replenishment_detail",
                 pk=replenishment.pk,
@@ -178,7 +200,28 @@ def replenishment_register(request, pk):
         raise PermissionDenied("Solo se pueden registrar reposiciones en borrador.")
 
     if not replenishment.lines.exists():
-        raise PermissionDenied("No se puede registrar una reposición sin productos.")
+        messages.error(
+            request,
+            "No se puede registrar una reposición sin productos.",
+        )
+
+        return redirect(
+            "replenishments:replenishment_detail",
+            pk=replenishment.pk,
+        )
+
+    stock_errors = get_replenishment_stock_errors(replenishment)
+
+    if stock_errors:
+        return redirect(
+            f"{reverse('replenishments:replenishment_detail', args=[replenishment.pk])}"
+            "?stock_error=1"
+        )
+
+        return redirect(
+            "replenishments:replenishment_detail",
+            pk=replenishment.pk,
+        )
 
     replenishment.status = Replenishment.Status.REGISTERED
     replenishment.save(update_fields=["status"])
@@ -221,3 +264,19 @@ def replenishment_cancel(request, pk):
         "replenishments:replenishment_detail",
         pk=replenishment.pk,
     )
+
+
+def add_replenishment_stock_warnings(request, replenishment):
+    stock_errors = get_replenishment_stock_errors(replenishment)
+
+    for error in stock_errors:
+        messages.warning(
+            request,
+            (
+                f"Cuidado: stock insuficiente para "
+                f"{error['product'].name}: "
+                f"hay {error['available_stock']} uds. "
+                f"disponibles y el borrador solicita "
+                f"{error['requested_quantity']} uds."
+            ),
+        )

@@ -102,12 +102,68 @@
     </div>
 
 </header>
+{% if messages %}
+
+    {% for message in messages %}
+
+        {% if message.tags == "error" %}
+            <div class="alert alert-danger">
+                {{ message }}
+            </div>
+        {% else %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endif %}
+
+    {% endfor %}
+
+{% endif %}
 
 {% if replenishment.status == "CANCELLED" %}
 
     <div class="alert alert-warning">
         Esta reposición está anulada y no se tendrá en cuenta
         en los cálculos de inventario.
+    </div>
+
+{% endif %}
+
+{% if stock_warnings %}
+
+    <div
+        class="alert
+        {% if stock_error %}
+            alert-danger
+        {% else %}
+            alert-warning
+        {% endif %}"
+    >
+
+        <strong>
+            {% if stock_error %}
+                No se puede registrar la reposición porque no hay
+                stock suficiente para algunos productos.
+            {% else %}
+                El borrador contiene cantidades superiores
+                al stock disponible.
+            {% endif %}
+        </strong>
+
+        <ul class="mb-0 mt-2">
+
+            {% for warning in stock_warnings %}
+
+                <li>
+                    <strong>{{ warning.product.name }}</strong>:
+                    {{ warning.available_stock }} uds. disponibles,
+                    {{ warning.requested_quantity }} uds. solicitadas.
+                </li>
+
+            {% endfor %}
+
+        </ul>
+
     </div>
 
 {% endif %}
