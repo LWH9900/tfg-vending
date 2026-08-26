@@ -4,7 +4,9 @@ from django.test import TestCase
 
 from inventory.models import Category, Product
 from inventory.services import (
+    get_machine_product_stocks,
     get_machine_stock,
+    get_product_machine_stocks,
     get_stock_value,
     get_total_stock,
     get_warehouse_stock,
@@ -379,4 +381,151 @@ class StockServiceTests(TestCase):
         self.assertEqual(
             get_stock_value(self.product),
             Decimal("0.00"),
+        )
+
+    def test_product_machine_stocks_are_grouped_by_machine(self):
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            20,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            15,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.other_machine,
+            10,
+        )
+
+        machine_stocks = list(get_product_machine_stocks(self.product))
+
+        self.assertEqual(
+            len(machine_stocks),
+            2,
+        )
+
+        stocks = {machine.pk: machine.product_stock for machine in machine_stocks}
+
+        self.assertEqual(
+            stocks[self.machine.pk],
+            35,
+        )
+
+        self.assertEqual(
+            stocks[self.other_machine.pk],
+            10,
+        )
+
+    def test_product_machine_stocks_ignore_other_products_and_states(self):
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            20,
+            Replenishment.Status.REGISTERED,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            30,
+            Replenishment.Status.DRAFT,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            40,
+            Replenishment.Status.CANCELLED,
+        )
+
+        self.create_replenishment(
+            self.other_product,
+            self.machine,
+            100,
+            Replenishment.Status.REGISTERED,
+        )
+
+        machine_stocks = list(get_product_machine_stocks(self.product))
+
+        self.assertEqual(
+            len(machine_stocks),
+            1,
+        )
+
+        self.assertEqual(
+            machine_stocks[0].pk,
+            self.machine.pk,
+        )
+
+        self.assertEqual(
+            machine_stocks[0].product_stock,
+            20,
+        )
+
+    def test_machine_product_stocks_are_grouped_by_product(self):
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            20,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            10,
+        )
+
+        self.create_replenishment(
+            self.other_product,
+            self.machine,
+            15,
+        )
+
+        product_stocks = list(get_machine_product_stocks(self.machine))
+
+        stocks = {product.pk: product.machine_stock for product in product_stocks}
+
+        self.assertEqual(
+            stocks[self.product.pk],
+            30,
+        )
+
+        self.assertEqual(
+            stocks[self.other_product.pk],
+            15,
+        )
+
+    def test_machine_product_stocks_ignore_other_machines(self):
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            20,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.other_machine,
+            100,
+        )
+
+        product_stocks = list(get_machine_product_stocks(self.machine))
+
+        self.assertEqual(
+            len(product_stocks),
+            1,
+        )
+
+        self.assertEqual(
+            product_stocks[0].pk,
+            self.product.pk,
+        )
+
+        self.assertEqual(
+            product_stocks[0].machine_stock,
+            20,
         )

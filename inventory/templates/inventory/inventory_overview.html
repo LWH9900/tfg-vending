@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'inventory/css/inventory.css' %}"
+>
+{% endblock %}
+
+{% block title %}
+    Inventario | Vimach
+{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Inventario
+            </div>
+
+            <h1 class="page-title">
+                Inventario
+            </h1>
+
+            <p class="page-description">
+                Consulta las existencias actuales y su distribución
+                entre almacén y máquinas.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<div class="pricing-section-heading">
+    <h2>Resumen de existencias</h2>
+    <div class="pricing-section-line"></div>
+</div>
+
+
+<div class="product-stock-grid-four">
+
+    <div class="product-cost-card">
+        <span class="product-cost-label">
+            Stock total
+        </span>
+
+        <strong class="product-cost-value">
+            {{ total_units }} uds.
+        </strong>
+    </div>
+
+    <div class="product-cost-card">
+        <span class="product-cost-label">
+            Stock en almacén
+        </span>
+
+        <strong class="product-cost-value">
+            {{ warehouse_units }} uds.
+        </strong>
+    </div>
+
+    <div class="product-cost-card">
+        <span class="product-cost-label">
+            Stock en máquinas
+        </span>
+
+        <strong class="product-cost-value">
+            {{ machines_units }} uds.
+        </strong>
+    </div>
+
+    <div class="product-cost-card">
+        <span class="product-cost-label">
+            Valor del inventario
+        </span>
+
+        <strong class="product-cost-value">
+            {{ total_value|floatformat:2 }} €
+        </strong>
+    </div>
+
+</div>
+
+<div class="pricing-section-heading">
+
+    <h2>Inventario por producto</h2>
+
+    <div class="pricing-section-line"></div>
+
+</div>
+
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Formato / unidad</th>
+                    <th>Stock total</th>
+                    <th>Almacén</th>
+                    <th>Máquinas</th>
+                    <th>Coste medio</th>
+                    <th>Valor stock</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for item in inventory_items %}
+
+                    <tr
+                        class="clickable-row"
+                        data-href="{% url 'inventory:product_stock_detail' item.product.pk %}"
+                        tabindex="0"
+                        role="link"
+                    >
+
+                        <td>
+                            {{ item.product.name }}
+                        </td>
+
+                        <td>
+                            {{ item.product.category.name }}
+                        </td>
+
+                        <td>
+                            {{ item.product.format_unit }}
+                        </td>
+
+                        <td>
+                            <strong>
+                                {{ item.total_stock }} uds.
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ item.warehouse_stock }} uds.
+                        </td>
+
+                        <td>
+                            {{ item.machines_stock }} uds.
+                        </td>
+
+                        <td>
+                            {% if item.average_cost is not None %}
+                                {{ item.average_cost|floatformat:2 }} €
+                            {% else %}
+                                <span class="text-secondary">
+                                    —
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ item.stock_value|floatformat:2 }} €
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="8"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay productos en el catálogo.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+{% endblock %}

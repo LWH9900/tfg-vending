@@ -141,9 +141,15 @@
                                 Productos
                             </a>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.url_name == 'inventory_overview' or request.resolver_match.url_name == 'product_stock_detail' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'inventory:inventory_overview' %}"
+                            >
                                 Stock
-                            </span>
+                            </a>
 
                             <span class="sidebar-link sidebar-sublink disabled-link">
                                 Categorías

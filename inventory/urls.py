@@ -14,4 +14,9 @@ urlpatterns = [
         views.product_stock_detail,
         name="product_stock_detail",
     ),
+    path(
+        "stock/",
+        views.inventory_overview,
+        name="inventory_overview",
+    ),
 ]

@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from inventory.services import (
     get_machines_stock,
     get_product_machine_stocks,
+    get_stock_value,
     get_total_stock,
     get_warehouse_stock,
 )
@@ -188,5 +189,51 @@ def product_stock_detail(request, pk):
             "machine_stocks": machine_stocks,
             "purchase_lines": purchase_lines,
             "replenishment_lines": replenishment_lines,
+        },
+    )
+
+
+def inventory_overview(request):
+    products = Product.objects.select_related("category").order_by("name")
+
+    inventory_items = []
+
+    total_units = 0
+    warehouse_units = 0
+    machines_units = 0
+    total_value = 0
+
+    for product in products:
+        total_stock = get_total_stock(product)
+        warehouse_stock = get_warehouse_stock(product)
+        machines_stock = get_machines_stock(product)
+        stock_value = get_stock_value(product)
+
+        inventory_items.append(
+            {
+                "product": product,
+                "total_stock": total_stock,
+                "warehouse_stock": warehouse_stock,
+                "machines_stock": machines_stock,
+                "average_cost": product.average_purchase_cost,
+                "latest_cost": product.latest_purchase_cost,
+                "stock_value": stock_value,
+            }
+        )
+
+        total_units += total_stock
+        warehouse_units += warehouse_stock
+        machines_units += machines_stock
+        total_value += stock_value
+
+    return render(
+        request,
+        "inventory/inventory_overview.html",
+        {
+            "inventory_items": inventory_items,
+            "total_units": total_units,
+            "warehouse_units": warehouse_units,
+            "machines_units": machines_units,
+            "total_value": total_value,
         },
     )
