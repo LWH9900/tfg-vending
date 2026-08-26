@@ -14,3 +14,17 @@
         transparent
     );
 }
+
+.clickable-card {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.clickable-card:hover,
+.clickable-card:focus-visible {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 8%,
+        transparent
+    );
+}

@@ -365,6 +365,60 @@
 
 </section>
 
+<div class="pricing-section-heading">
+    <h2>Existencias</h2>
+    <div class="pricing-section-line"></div>
+</div>
+
+<div class="product-stock-grid">
+
+    <div
+        class="product-cost-card clickable-card"
+        data-href="{% url 'inventory:product_stock_detail' product.pk %}#summary"
+        tabindex="0"
+        role="link"
+    >
+        <span class="product-cost-label">
+            Stock total
+        </span>
+
+        <strong class="product-cost-value">
+            {{ total_stock }} uds.
+        </strong>
+    </div>
+
+
+    <div
+        class="product-cost-card clickable-card"
+        data-href="{% url 'inventory:product_stock_detail' product.pk %}#warehouse"
+        tabindex="0"
+        role="link"
+    >
+        <span class="product-cost-label">
+            Stock en almacén
+        </span>
+
+        <strong class="product-cost-value">
+            {{ warehouse_stock }} uds.
+        </strong>
+    </div>
+
+    <div
+        class="product-cost-card clickable-card"
+        data-href="{% url 'inventory:product_stock_detail' product.pk %}#machines"
+        tabindex="0"
+        role="link"
+    >
+        <span class="product-cost-label">
+            Stock en máquinas
+        </span>
+
+        <strong class="product-cost-value">
+            {{ machines_stock }} uds.
+        </strong>
+    </div>
+
+</div>
 
 {% if is_edit %}
 </form>

@@ -15,7 +15,6 @@ from replenishments.models import Replenishment, ReplenishmentLine
 
 
 class StockServiceTests(TestCase):
-
     @classmethod
     def setUpTestData(cls):
         cls.category = Category.objects.create(
@@ -352,6 +351,7 @@ class StockServiceTests(TestCase):
             ),
             20,
         )
+
     def test_stock_value_uses_average_purchase_cost(self):
         self.create_purchase(
             self.product,
@@ -374,6 +374,7 @@ class StockServiceTests(TestCase):
             get_stock_value(self.product),
             Decimal("70.00"),
         )
+
     def test_product_without_purchases_has_zero_stock_value(self):
         self.assertEqual(
             get_stock_value(self.product),

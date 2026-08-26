@@ -134,6 +134,11 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;
 }
+.product-stock-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
 
 .product-cost-card {
     min-height: 80px;
@@ -165,4 +170,29 @@
     font-size: 1rem;
     font-weight: 500;
     color: var(--app-text-secondary);
+}
+
+
+.product-stat-card-centered {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 1.5rem 1rem;
+    min-height: 110px;
+    text-align: center;
+}
+
+.product-stat-card-centered .product-stat-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.product-stat-card-centered .product-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #111827;
 }

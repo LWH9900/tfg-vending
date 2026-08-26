@@ -261,6 +261,83 @@
 
 </section>
 
+<div class="pricing-section-heading">
+
+    <h2>
+        Inventario
+    </h2>
+
+    <div class="pricing-section-line"></div>
+
+</div>
+
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Formato / unidad</th>
+                    <th>Stock</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for product in machine_product_stocks %}
+
+                    <tr
+                        class="clickable-row"
+                        data-href="{% url 'inventory:product_stock_detail' product.pk %}#machines"
+                        tabindex="0"
+                        role="link"
+                    >
+
+                        <td>
+                            {{ product.name }}
+                        </td>
+
+                        <td>
+                            {{ product.category.name }}
+                        </td>
+
+                        <td>
+                            {{ product.format_unit }}
+                        </td>
+
+                        <td>
+                            <strong>
+                                {{ product.machine_stock }} uds.
+                            </strong>
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center py-5 text-secondary"
+                        >
+                            Esta máquina no tiene productos en stock.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
 
 <div class="detail-actions">
 

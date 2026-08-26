@@ -1,5 +1,7 @@
 from django.shortcuts import get_object_or_404, redirect, render
 
+from inventory.services import get_machine_product_stocks
+
 from .forms import (
     MachineForm,
     MachinePriceOverrideForm,
@@ -86,6 +88,7 @@ def machine_detail(request, pk):
         Machine.objects.select_related("pricing_profile"),
         pk=pk,
     )
+    machine_product_stocks = get_machine_product_stocks(machine)
 
     overrides = machine.price_overrides.select_related(
         "product",
@@ -127,6 +130,7 @@ def machine_detail(request, pk):
             "override_form": override_form,
             "pricing_profile_form": pricing_profile_form,
             "product_prices": product_prices,
+            "machine_product_stocks": machine_product_stocks,
         },
     )
 
