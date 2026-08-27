@@ -221,6 +221,92 @@
                 </span>
 
             </nav>
+            <script>
+                (function () {
+                    const currentApp =
+                        "{{ request.resolver_match.app_name|default:''|escapejs }}";
+
+                    function restoreMenuState(
+                        menuId,
+                        storageKey,
+                        activeByDefault
+                    ) {
+                        const menu = document.getElementById(menuId);
+
+                        if (!menu) {
+                            return;
+                        }
+
+                        const button = document.querySelector(
+                            `[data-bs-target="#${menuId}"]`
+                        );
+
+                        const savedState = sessionStorage.getItem(storageKey);
+
+                        let shouldBeOpen;
+
+                        if (savedState === "true") {
+                            shouldBeOpen = true;
+                        } else if (savedState === "false") {
+                            shouldBeOpen = false;
+                        } else {
+                            shouldBeOpen = activeByDefault;
+                        }
+
+                        menu.classList.toggle(
+                            "show",
+                            shouldBeOpen
+                        );
+
+                        if (button) {
+                            button.classList.toggle(
+                                "collapsed",
+                                !shouldBeOpen
+                            );
+
+                            button.setAttribute(
+                                "aria-expanded",
+                                shouldBeOpen
+                                    ? "true"
+                                    : "false"
+                            );
+                        }
+
+                        menu.addEventListener(
+                            "shown.bs.collapse",
+                            function () {
+                                sessionStorage.setItem(
+                                    storageKey,
+                                    "true"
+                                );
+                            }
+                        );
+
+                        menu.addEventListener(
+                            "hidden.bs.collapse",
+                            function () {
+                                sessionStorage.setItem(
+                                    storageKey,
+                                    "false"
+                                );
+                            }
+                        );
+                    }
+
+                    restoreMenuState(
+                        "inventoryMenu",
+                        "inventoryMenuOpen",
+                        currentApp === "inventory"
+                    );
+
+                    restoreMenuState(
+                        "operationsMenu",
+                        "operationsMenuOpen",
+                        currentApp === "purchases" ||
+                            currentApp === "replenishments"
+                    );
+                })();
+            </script>
 
             <div class="sidebar-footer">
                 <div class="sidebar-user">
@@ -243,59 +329,6 @@
         integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
         crossorigin="anonymous"
     ></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const currentApp = "{{ request.resolver_match.app_name|default:''|escapejs }}";
-
-            function setupPersistentMenu(menuId, storageKey, activeByDefault) {
-                const menu = document.getElementById(menuId);
-
-                if (!menu) {
-                    return;
-                }
-
-                const collapse = bootstrap.Collapse.getOrCreateInstance(
-                    menu,
-                    {
-                        toggle: false,
-                    }
-                );
-
-                const savedState = sessionStorage.getItem(storageKey);
-
-                if (savedState === "true") {
-                    collapse.show();
-                } else if (savedState === "false") {
-                    collapse.hide();
-                } else if (activeByDefault) {
-                    collapse.show();
-                }
-
-                menu.addEventListener("shown.bs.collapse", function () {
-                    sessionStorage.setItem(storageKey, "true");
-                });
-
-                menu.addEventListener("hidden.bs.collapse", function () {
-                    sessionStorage.setItem(storageKey, "false");
-                });
-            }
-
-            setupPersistentMenu(
-                "inventoryMenu",
-                "inventoryMenuOpen",
-                currentApp === "inventory"
-            );
-
-            setupPersistentMenu(
-                "operationsMenu",
-                "operationsMenuOpen",
-                currentApp === "purchases" ||
-                currentApp === "replenishments"
-            );
-        });
-    </script>
-
-
 
 <script src="{% static 'js/clickable-rows.js' %}"></script>
 </body>
