@@ -182,7 +182,6 @@ class ReplenishmentLineForm(forms.ModelForm):
 
 
 class BaseReplenishmentLineFormSet(BaseInlineFormSet):
-
     def _construct_form(self, i, **kwargs):
         form = super()._construct_form(
             i,
@@ -224,19 +223,14 @@ class BaseReplenishmentLineFormSet(BaseInlineFormSet):
             if product.pk in products:
                 form.add_error(
                     "product",
-                    (
-                        "Este producto ya está incluido "
-                        "en la reposición."
-                    ),
+                    ("Este producto ya está incluido en la reposición."),
                 )
                 continue
 
             products.add(product.pk)
 
         if not has_non_deleted_form:
-            raise forms.ValidationError(
-                "Añade al menos un producto a la reposición."
-            )
+            raise forms.ValidationError("Añade al menos un producto a la reposición.")
 
 
 ReplenishmentLineFormSet = inlineformset_factory(

@@ -566,6 +566,7 @@ class PurchaseViewTests(TestCase):
             draft,
             purchases,
         )
+
     def test_edit_purchase_cannot_remove_all_lines(self):
         purchase = Purchase.objects.create(
             supplier="Makro",

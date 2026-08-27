@@ -8,7 +8,13 @@
 >
 {% endblock %}
 
-{% block title %}{{ product.name }} | Vimach{% endblock %}
+{% block title %}
+    {% if is_edit %}
+        Editar producto {{ product.name }} | Vimach
+    {% else %}
+        {{ product.name }} | Vimach
+    {% endif %}
+{% endblock %}
 
 {% block content %}
 
@@ -29,7 +35,11 @@
             </div>
 
             <h1 class="page-title">
-                Ficha del producto
+                {% if is_edit %}
+                    Editar producto
+                {% else %}
+                    Ficha del producto
+                {% endif %}
             </h1>
 
             <p class="page-description">

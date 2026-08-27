@@ -63,7 +63,9 @@
 }
 
 .detail-edit-field .form-control,
-.detail-edit-field .form-select {
+.detail-edit-field .form-select,
+.table-form-field .form-control,
+.table-form-field .form-select {
     width: 100%;
     padding: 12px 16px;
 
@@ -76,12 +78,16 @@
 }
 
 .detail-edit-field .form-control:hover,
-.detail-edit-field .form-select:hover {
+.detail-edit-field .form-select:hover,
+.table-form-field .form-control:hover,
+.table-form-field .form-select:hover {
     border-color: var(--app-primary);
 }
 
 .detail-edit-field .form-control:focus,
-.detail-edit-field .form-select:focus {
+.detail-edit-field .form-select:focus,
+.table-form-field .form-control:focus,
+.table-form-field .form-select:focus {
     border-color: var(--app-primary);
     box-shadow: 0 0 0 0.2rem rgba(108, 99, 255, 0.12);
 }

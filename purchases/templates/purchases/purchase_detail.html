@@ -479,15 +479,16 @@
 
                     {% for line in purchase.lines.all %}
 
-                        <tr>
+                            <tr
+                                class="clickable-row"
+                                data-href="{% url 'inventory:product_detail' line.product.pk %}"
+                                tabindex="0"
+                                role="link"
+                            >
 
                             <td>
-                                <a
-                                    href="{% url 'inventory:product_detail' line.product.pk %}"
-                                    class="text-decoration-none"
-                                >
-                                    {{ line.product.name }}
-                                </a>
+                                {{ line.product.name }}
+                                
                             </td>
 
                             <td>

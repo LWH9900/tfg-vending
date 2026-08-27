@@ -245,9 +245,7 @@ class BasePurchaseLineFormSet(BaseInlineFormSet):
             products.add(product.pk)
 
         if not has_non_deleted_form:
-            raise forms.ValidationError(
-                "Añade al menos un producto a la compra."
-            )
+            raise forms.ValidationError("Añade al menos un producto a la compra.")
 
 
 PurchaseLineFormSet = inlineformset_factory(
