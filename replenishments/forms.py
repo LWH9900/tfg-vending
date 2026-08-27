@@ -3,6 +3,7 @@ from django.forms.models import BaseInlineFormSet, inlineformset_factory
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
+from inventory.services import get_warehouse_stock
 from machines.models import Machine
 from replenishments.models import Replenishment, ReplenishmentLine
 
@@ -126,8 +127,22 @@ class ReplenishmentForm(forms.ModelForm):
         }
 
 
+class ReplenishmentProductChoiceField(ProductChoiceField):
+    # Si el número de productos aumenta y se detectan problemas de
+    # rendimiento,convendría optimizar este selector obteniendo los stocks de todos los
+    # productos en una única consulta agregada, evitando una consulta adicional por
+    # producto.
+
+    def label_from_instance(self, product):
+        base_label = super().label_from_instance(product)
+
+        warehouse_stock = get_warehouse_stock(product)
+
+        return f"{base_label} · Stock: {warehouse_stock} uds."
+
+
 class ReplenishmentLineForm(forms.ModelForm):
-    product = ProductChoiceField(
+    product = ReplenishmentProductChoiceField(
         queryset=Product.objects.none(),
         label="Producto",
         widget=forms.Select(
