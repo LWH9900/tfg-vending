@@ -326,13 +326,15 @@
         </div>
 
 
-        <div class="detail-row">
-            <dt>Total</dt>
+        {% if not is_edit %}
+            <div class="detail-row">
+                <dt>Total</dt>
 
-            <dd>
-                {{ purchase.total|floatformat:2 }} €
-            </dd>
-        </div>
+                <dd>
+                    {{ purchase.total|floatformat:2 }} €
+                </dd>
+            </div>
+        {% endif %}
 
     </dl>
 
@@ -545,23 +547,24 @@
             {% endfor %}
 
             <td>
-
-                {{ formset.empty_form.product }}
-
-                {% for error in formset.empty_form.product.errors %}
-                    <div class="invalid-feedback d-block">
-                        {{ error }}
-                    </div>
-                {% endfor %}
-
+                <div class="table-form-field">
+                    {{ formset.empty_form.product }}
+                    <div class="table-form-errors"></div>
+                </div>
             </td>
 
             <td>
-                {{ formset.empty_form.quantity }}
+                <div class="table-form-field">
+                    {{ formset.empty_form.quantity }}
+                    <div class="table-form-errors"></div>
+                </div>
             </td>
 
             <td>
-                {{ formset.empty_form.unit_price_excl_vat }}
+                <div class="table-form-field">
+                    {{ formset.empty_form.unit_price_excl_vat }}
+                    <div class="table-form-errors"></div>
+                </div>
             </td>
 
             <td class="text-end">

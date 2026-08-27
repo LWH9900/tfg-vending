@@ -162,6 +162,6 @@
 }
 
 .table-form-errors {
-    min-height: 20px;
-    margin-top: 4px;
+    min-height: 1.25rem;
+    margin-top: 0.25rem;
 }

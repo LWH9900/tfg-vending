@@ -566,3 +566,57 @@ class PurchaseViewTests(TestCase):
             draft,
             purchases,
         )
+    def test_edit_purchase_cannot_remove_all_lines(self):
+        purchase = Purchase.objects.create(
+            supplier="Makro",
+            status=Purchase.Status.DRAFT,
+        )
+
+        line = PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("0.50"),
+        )
+
+        prefix = PurchaseLineFormSet.get_default_prefix()
+
+        data = {
+            "purchased_at": "2026-08-27T10:30",
+            "supplier": "Makro",
+            "document_reference": "F-001",
+            f"{prefix}-TOTAL_FORMS": "1",
+            f"{prefix}-INITIAL_FORMS": "1",
+            f"{prefix}-MIN_NUM_FORMS": "1",
+            f"{prefix}-MAX_NUM_FORMS": "1000",
+            f"{prefix}-0-id": str(line.pk),
+            f"{prefix}-0-product": str(self.product.pk),
+            f"{prefix}-0-quantity": "10",
+            f"{prefix}-0-unit_price_excl_vat": "0.50",
+            f"{prefix}-0-DELETE": "on",
+        }
+
+        response = self.client.post(
+            reverse(
+                "purchases:purchase_edit",
+                args=[purchase.pk],
+            ),
+            data,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        purchase.refresh_from_db()
+
+        self.assertEqual(
+            purchase.lines.count(),
+            1,
+        )
+
+        self.assertIn(
+            "Añade al menos un producto a la compra.",
+            response.context["formset"].non_form_errors(),
+        )

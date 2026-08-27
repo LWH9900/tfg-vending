@@ -127,12 +127,16 @@ def replenishment_create(request):
 
 def replenishment_edit(request, pk):
     replenishment = get_object_or_404(
-        Replenishment,
+        Replenishment.objects.prefetch_related(
+            "lines__product"
+        ),
         pk=pk,
     )
 
     if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden editar reposiciones en borrador.")
+        raise PermissionDenied(
+            "Solo se pueden editar reposiciones en borrador."
+        )
 
     if request.method == "POST":
         form = ReplenishmentForm(
@@ -145,10 +149,7 @@ def replenishment_edit(request, pk):
             instance=replenishment,
         )
 
-        form_is_valid = form.is_valid()
-        formset_is_valid = formset.is_valid()
-
-        if form_is_valid and formset_is_valid:
+        if form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 form.save()
                 formset.save()
@@ -169,7 +170,7 @@ def replenishment_edit(request, pk):
 
     return render(
         request,
-        "replenishments/replenishment_form.html",
+        "replenishments/replenishment_detail.html",
         {
             "replenishment": replenishment,
             "form": form,
@@ -177,7 +178,6 @@ def replenishment_edit(request, pk):
             "is_edit": True,
         },
     )
-
 
 @require_POST
 def replenishment_register(request, pk):

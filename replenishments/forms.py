@@ -182,9 +182,15 @@ class ReplenishmentLineForm(forms.ModelForm):
 
 
 class BaseReplenishmentLineFormSet(BaseInlineFormSet):
-    default_error_messages = {
-        "too_few_forms": "Añade al menos un producto a la reposición.",
-    }
+
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(
+            i,
+            **kwargs,
+        )
+        form.empty_permitted = False
+
+        return form
 
     def validate_unique(self):
         pass
@@ -193,6 +199,7 @@ class BaseReplenishmentLineFormSet(BaseInlineFormSet):
         super().clean()
 
         products = set()
+        has_non_deleted_form = False
 
         for form in self.forms:
             cleaned_data = getattr(
@@ -201,11 +208,13 @@ class BaseReplenishmentLineFormSet(BaseInlineFormSet):
                 None,
             )
 
-            if not cleaned_data:
+            if cleaned_data is None:
                 continue
 
             if cleaned_data.get("DELETE"):
                 continue
+
+            has_non_deleted_form = True
 
             product = cleaned_data.get("product")
 
@@ -215,11 +224,19 @@ class BaseReplenishmentLineFormSet(BaseInlineFormSet):
             if product.pk in products:
                 form.add_error(
                     "product",
-                    "Este producto ya está incluido en la reposición.",
+                    (
+                        "Este producto ya está incluido "
+                        "en la reposición."
+                    ),
                 )
                 continue
 
             products.add(product.pk)
+
+        if not has_non_deleted_form:
+            raise forms.ValidationError(
+                "Añade al menos un producto a la reposición."
+            )
 
 
 ReplenishmentLineFormSet = inlineformset_factory(
@@ -229,6 +246,6 @@ ReplenishmentLineFormSet = inlineformset_factory(
     formset=BaseReplenishmentLineFormSet,
     extra=0,
     min_num=1,
-    validate_min=True,
+    validate_min=False,
     can_delete=True,
 )

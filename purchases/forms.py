@@ -196,9 +196,15 @@ class PurchaseLineForm(forms.ModelForm):
 
 
 class BasePurchaseLineFormSet(BaseInlineFormSet):
-    default_error_messages = {
-        "too_few_forms": "Añade al menos un producto a la compra.",
-    }
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(
+            i,
+            **kwargs,
+        )
+
+        form.empty_permitted = False
+
+        return form
 
     def validate_unique(self):
         pass
@@ -207,15 +213,22 @@ class BasePurchaseLineFormSet(BaseInlineFormSet):
         super().clean()
 
         products = set()
+        has_non_deleted_form = False
 
         for form in self.forms:
-            cleaned_data = getattr(form, "cleaned_data", None)
+            cleaned_data = getattr(
+                form,
+                "cleaned_data",
+                None,
+            )
 
-            if not cleaned_data:
+            if cleaned_data is None:
                 continue
 
             if cleaned_data.get("DELETE"):
                 continue
+
+            has_non_deleted_form = True
 
             product = cleaned_data.get("product")
 
@@ -231,6 +244,11 @@ class BasePurchaseLineFormSet(BaseInlineFormSet):
 
             products.add(product.pk)
 
+        if not has_non_deleted_form:
+            raise forms.ValidationError(
+                "Añade al menos un producto a la compra."
+            )
+
 
 PurchaseLineFormSet = inlineformset_factory(
     Purchase,
@@ -239,6 +257,6 @@ PurchaseLineFormSet = inlineformset_factory(
     formset=BasePurchaseLineFormSet,
     extra=0,
     min_num=1,
-    validate_min=True,
+    validate_min=False,
     can_delete=True,
 )

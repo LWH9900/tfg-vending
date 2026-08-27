@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}
-    Reposición #{{ replenishment.pk }} | Vimach
+    {% if is_edit %}
+        Editar reposición #{{ replenishment.pk }} | Vimach
+    {% else %}
+        Reposición #{{ replenishment.pk }} | Vimach
+    {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -22,12 +26,21 @@
             </div>
 
             <h1 class="page-title">
-                Detalle de reposición
+                {% if is_edit %}
+                    Editar reposición
+                {% else %}
+                    Detalle de reposición
+                {% endif %}
             </h1>
 
             <p class="page-description">
-                Consulta la máquina y los productos trasladados
-                en esta reposición.
+                {% if is_edit %}
+                    Modifica la máquina y los productos
+                    asociados a esta reposición.
+                {% else %}
+                    Consulta la máquina y los productos trasladados
+                    en esta reposición.
+                {% endif %}
             </p>
 
         </div>
@@ -35,7 +48,25 @@
 
         <div class="page-header-actions">
 
-            {% if replenishment.status == "DRAFT" %}
+            {% if is_edit %}
+
+                <a
+                    href="{% url 'replenishments:replenishment_detail' replenishment.pk %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    form="replenishment-edit-form"
+                    class="btn btn-primary"
+                >
+                    Guardar cambios
+                </button>
+
+
+            {% elif replenishment.status == "DRAFT" %}
 
                 <a
                     href="{% url 'replenishments:replenishment_edit' replenishment.pk %}"
@@ -102,6 +133,8 @@
     </div>
 
 </header>
+
+
 {% if messages %}
 
     {% for message in messages %}
@@ -120,6 +153,7 @@
 
 {% endif %}
 
+
 {% if replenishment.status == "CANCELLED" %}
 
     <div class="alert alert-warning">
@@ -127,9 +161,17 @@
         en los cálculos de inventario.
     </div>
 
+{% elif replenishment.status == "DRAFT" and not is_edit %}
+
+    <div class="alert alert-light border">
+        Esta reposición está en borrador y todavía no afecta
+        al inventario.
+    </div>
+
 {% endif %}
 
-{% if stock_warnings %}
+
+{% if stock_warnings and not is_edit %}
 
     <div
         class="alert
@@ -153,13 +195,11 @@
         <ul class="mb-0 mt-2">
 
             {% for warning in stock_warnings %}
-
                 <li>
                     <strong>{{ warning.product.name }}</strong>:
                     {{ warning.available_stock }} uds. disponibles,
                     {{ warning.requested_quantity }} uds. solicitadas.
                 </li>
-
             {% endfor %}
 
         </ul>
@@ -168,68 +208,158 @@
 
 {% endif %}
 
-{% if replenishment.status == "DRAFT" %}
 
-    <div class="alert alert-light border">
-        Esta reposición está en borrador y todavía no afecta
-        al inventario.
-    </div>
+{% if is_edit %}
+
+<form
+    method="post"
+    id="replenishment-edit-form"
+    novalidate
+>
+    {% csrf_token %}
+
+    {{ formset.management_form }}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if formset.non_form_errors %}
+        <div class="alert alert-danger">
+            {% for error in formset.non_form_errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
 {% endif %}
+
 
 <section class="detail-card">
 
     <dl class="detail-list">
 
-        <div class="detail-row">
-            <dt>Fecha / hora</dt>
+        <div
+            class="detail-row
+            {% if is_edit and form.replenished_at.errors %}
+                field-error
+            {% endif %}"
+        >
 
-            <dd>
-                {{ replenishment.replenished_at|date:"d/m/Y H:i" }}
-            </dd>
-        </div>
-
-
-        <div class="detail-row">
-            <dt>Máquina</dt>
-
-            <dd>
-                <a
-                    href="{% url 'machines:machine_detail' replenishment.machine.pk %}"
-                    class="text-decoration-none"
-                >
-                    {{ replenishment.machine.identifier }}
-                    ·
-                    {{ replenishment.machine.name }}
-                </a>
-            </dd>
-        </div>
-
-
-        <div class="detail-row">
-            <dt>Ubicación</dt>
-
-            <dd>
-                {% if replenishment.machine.location %}
-                    {{ replenishment.machine.location }}
+            <dt>
+                {% if is_edit %}
+                    <label for="{{ form.replenished_at.id_for_label }}">
+                        Fecha / hora
+                    </label>
                 {% else %}
-                    <span class="text-secondary">
-                        Sin ubicación
-                    </span>
+                    Fecha / hora
                 {% endif %}
+            </dt>
+
+            <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                {% if is_edit %}
+
+                    {{ form.replenished_at }}
+
+                    {% for error in form.replenished_at.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                {% else %}
+
+                    {{ replenishment.replenished_at|date:"d/m/Y H:i" }}
+
+                {% endif %}
+
             </dd>
+
         </div>
 
 
-        <div class="detail-row">
-            <dt>Productos</dt>
+        <div
+            class="detail-row
+            {% if is_edit and form.machine.errors %}
+                field-error
+            {% endif %}"
+        >
 
-            <dd>
-                {{ replenishment.lines.count }}
+            <dt>
+                {% if is_edit %}
+                    <label for="{{ form.machine.id_for_label }}">
+                        Máquina
+                    </label>
+                {% else %}
+                    Máquina
+                {% endif %}
+            </dt>
+
+            <dd {% if is_edit %}class="detail-edit-field"{% endif %}>
+
+                {% if is_edit %}
+
+                    {{ form.machine }}
+
+                    {% for error in form.machine.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                {% else %}
+
+                    <a
+                        href="{% url 'machines:machine_detail' replenishment.machine.pk %}"
+                        class="text-decoration-none"
+                    >
+                        {{ replenishment.machine.identifier }}
+                        ·
+                        {{ replenishment.machine.name }}
+                    </a>
+
+                {% endif %}
+
             </dd>
+
         </div>
 
+
+        {% if not is_edit %}
+
+            <div class="detail-row">
+                <dt>Ubicación</dt>
+
+                <dd>
+                    {% if replenishment.machine.location %}
+                        {{ replenishment.machine.location }}
+                    {% else %}
+                        <span class="text-secondary">
+                            Sin ubicación
+                        </span>
+                    {% endif %}
+                </dd>
+            </div>
+
+
+            <div class="detail-row">
+                <dt>Productos</dt>
+
+                <dd>
+                    {{ replenishment.lines.count }}
+                </dd>
+            </div>
+
+        {% endif %}
+
+
         <div class="detail-row">
+
             <dt>Estado</dt>
 
             <dd>
@@ -249,6 +379,7 @@
                     </span>
                 {% endif %}
             </dd>
+
         </div>
 
     </dl>
@@ -262,6 +393,16 @@
 
     <div class="pricing-section-line"></div>
 
+    {% if is_edit %}
+        <button
+            type="button"
+            class="btn btn-outline-primary btn-sm"
+            id="add-line-button"
+        >
+            + Añadir producto
+        </button>
+    {% endif %}
+
 </div>
 
 
@@ -269,58 +410,158 @@
 
     <div class="table-responsive">
 
-        <table class="table align-middle mb-0">
+        <table class="table align-middle mb-0 editable-table">
+
+            {% if is_edit %}
+                <colgroup>
+                    <col style="width: 60%;">
+                    <col style="width: 30%;">
+                    <col style="width: 10%;">
+                </colgroup>
+            {% endif %}
 
             <thead>
-                <tr>
-                    <th>Producto</th>
-                    <th>Categoría</th>
-                    <th>Formato / unidad</th>
-                    <th>Cantidad</th>
-                </tr>
+
+                {% if is_edit %}
+
+                    <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th class="text-end">Acción</th>
+                    </tr>
+
+                {% else %}
+
+                    <tr>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th>Formato / unidad</th>
+                        <th>Cantidad</th>
+                    </tr>
+
+                {% endif %}
+
             </thead>
 
-            <tbody>
 
-                {% for line in replenishment.lines.all %}
+            <tbody id="replenishment-lines">
 
-                    <tr>
+                {% if is_edit %}
 
-                        <td>
-                            <a
-                                href="{% url 'inventory:product_detail' line.product.pk %}"
-                                class="text-decoration-none"
-                            >
-                                {{ line.product.name }}
-                            </a>
-                        </td>
+                    {% for line_form in formset %}
 
-                        <td>
-                            {{ line.product.category.name }}
-                        </td>
-
-                        <td>
-                            {{ line.product.format_unit }}
-                        </td>
-
-                        <td>
-                            {{ line.quantity }}
-                        </td>
-
-                    </tr>
-
-                {% empty %}
-
-                    <tr>
-                        <td
-                            colspan="4"
-                            class="text-center py-5 text-secondary"
+                        <tr
+                            class="replenishment-line
+                            {% if line_form.DELETE.value %}
+                                d-none
+                            {% endif %}"
                         >
-                            Esta reposición no tiene líneas asociadas.
-                        </td>
-                    </tr>
 
-                {% endfor %}
+                            {% for hidden in line_form.hidden_fields %}
+                                {{ hidden }}
+                            {% endfor %}
+
+                            <td>
+
+                                <div class="table-form-field">
+
+                                    {{ line_form.product }}
+
+                                    <div class="table-form-errors">
+                                        {% for error in line_form.product.errors %}
+                                            <div class="text-danger small">
+                                                {{ error }}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+
+                                </div>
+
+                            </td>
+
+
+                            <td>
+
+                                <div class="table-form-field">
+
+                                    {{ line_form.quantity }}
+
+                                    <div class="table-form-errors">
+                                        {% for error in line_form.quantity.errors %}
+                                            <div class="text-danger small">
+                                                {{ error }}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+
+                                </div>
+
+                            </td>
+
+
+                            <td class="text-end align-top">
+
+                                <div class="d-none">
+                                    {{ line_form.DELETE }}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-danger btn-sm remove-line-button"
+                                >
+                                    Eliminar
+                                </button>
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+
+                {% else %}
+
+                    {% for line in replenishment.lines.all %}
+
+                        <tr>
+
+                            <td>
+                                <a
+                                    href="{% url 'inventory:product_detail' line.product.pk %}"
+                                    class="text-decoration-none"
+                                >
+                                    {{ line.product.name }}
+                                </a>
+                            </td>
+
+                            <td>
+                                {{ line.product.category.name }}
+                            </td>
+
+                            <td>
+                                {{ line.product.format_unit }}
+                            </td>
+
+                            <td>
+                                {{ line.quantity }}
+                            </td>
+
+                        </tr>
+
+                    {% empty %}
+
+                        <tr>
+                            <td
+                                colspan="4"
+                                class="text-center py-5 text-secondary"
+                            >
+                                Esta reposición no tiene líneas asociadas.
+                            </td>
+                        </tr>
+
+                    {% endfor %}
+
+                {% endif %}
 
             </tbody>
 
@@ -329,6 +570,63 @@
     </div>
 
 </section>
+
+
+{% if is_edit %}
+
+    <template id="empty-line-template">
+
+        <tr class="replenishment-line">
+
+            {% for hidden in formset.empty_form.hidden_fields %}
+                {{ hidden }}
+            {% endfor %}
+
+            <td>
+                <div class="table-form-field">
+
+                    {{ formset.empty_form.product }}
+
+                    <div class="table-form-errors"></div>
+
+                </div>
+            </td>
+
+            <td>
+                <div class="table-form-field">
+
+                    {{ formset.empty_form.quantity }}
+
+                    <div class="table-form-errors"></div>
+
+                </div>
+            </td>
+
+            <td class="text-end">
+
+                <div class="d-none">
+                    {{ formset.empty_form.DELETE }}
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm remove-line-button"
+                >
+                    Eliminar
+                </button>
+
+            </td>
+
+        </tr>
+
+    </template>
+
+{% endif %}
+
+
+{% if is_edit %}
+</form>
+{% endif %}
 
 
 <div class="detail-actions">
@@ -341,5 +639,106 @@
     </a>
 
 </div>
+
+
+{% if is_edit %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const linesContainer = document.getElementById(
+        "replenishment-lines"
+    );
+
+    const addButton = document.getElementById(
+        "add-line-button"
+    );
+
+    const emptyTemplate = document.getElementById(
+        "empty-line-template"
+    );
+
+    const prefix = "{{ formset.prefix|escapejs }}";
+
+    const totalFormsInput = document.getElementById(
+        `id_${prefix}-TOTAL_FORMS`
+    );
+
+    if (
+        !linesContainer ||
+        !addButton ||
+        !emptyTemplate ||
+        !totalFormsInput
+    ) {
+        return;
+    }
+
+
+    function addLine() {
+        const formIndex = Number(
+            totalFormsInput.value
+        );
+
+        const newLineHtml =
+            emptyTemplate.innerHTML.replaceAll(
+                "__prefix__",
+                formIndex
+            );
+
+        linesContainer.insertAdjacentHTML(
+            "beforeend",
+            newLineHtml
+        );
+
+        totalFormsInput.value =
+            formIndex + 1;
+    }
+
+
+    function removeLine(button) {
+        const line = button.closest(
+            ".replenishment-line"
+        );
+
+        if (!line) {
+            return;
+        }
+
+        const deleteInput = line.querySelector(
+            'input[name$="-DELETE"]'
+        );
+
+        if (deleteInput) {
+            deleteInput.checked = true;
+        }
+
+        line.classList.add("d-none");
+    }
+
+
+    addButton.addEventListener(
+        "click",
+        addLine
+    );
+
+
+    linesContainer.addEventListener(
+        "click",
+        function (event) {
+            const removeButton =
+                event.target.closest(
+                    ".remove-line-button"
+                );
+
+            if (!removeButton) {
+                return;
+            }
+
+            removeLine(removeButton);
+        }
+    );
+});
+</script>
+
+{% endif %}
 
 {% endblock %}
