@@ -5,10 +5,10 @@ from django.urls import reverse
 
 from inventory.models import Category, Product
 from inventory.services import (
+    get_inventory_cost_value,
     get_machine_product_stocks,
     get_machine_stock,
     get_product_machine_stocks,
-    get_stock_value,
     get_total_stock,
     get_warehouse_stock,
 )
@@ -355,7 +355,7 @@ class StockServiceTests(TestCase):
             20,
         )
 
-    def test_stock_value_uses_average_purchase_cost(self):
+    def test_inventory_cost_value_uses_average_purchase_cost(self):
         self.create_purchase(
             self.product,
             10,
@@ -374,13 +374,13 @@ class StockServiceTests(TestCase):
         )
 
         self.assertEqual(
-            get_stock_value(self.product),
+            get_inventory_cost_value(self.product),
             Decimal("70.00"),
         )
 
-    def test_product_without_purchases_has_zero_stock_value(self):
+    def test_product_without_purchases_has_zero_inventory_cost_value(self):
         self.assertEqual(
-            get_stock_value(self.product),
+            get_inventory_cost_value(self.product),
             Decimal("0.00"),
         )
 

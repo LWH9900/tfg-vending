@@ -376,59 +376,74 @@
 </section>
 
 <div class="pricing-section-heading">
-    <h2>Existencias</h2>
+        <h2>
+        <a
+            href="{% url 'inventory:product_stock_detail' product.pk %}"
+            class="pricing-section-link"
+        >
+            Existencias
+        </a>
+    </h2>
     <div class="pricing-section-line"></div>
 </div>
 
-<div class="product-stock-grid">
+<div class="inventory-summary-grid">
 
-    <div
-        class="product-cost-card clickable-card"
-        data-href="{% url 'inventory:product_stock_detail' product.pk %}#summary"
-        tabindex="0"
-        role="link"
-    >
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock total
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ total_stock }} uds.
         </strong>
     </div>
 
-
-    <div
-        class="product-cost-card clickable-card"
-        data-href="{% url 'inventory:product_stock_detail' product.pk %}#warehouse"
-        tabindex="0"
-        role="link"
-    >
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock en almacén
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ warehouse_stock }} uds.
         </strong>
     </div>
 
-    <div
-        class="product-cost-card clickable-card"
-        data-href="{% url 'inventory:product_stock_detail' product.pk %}#machines"
-        tabindex="0"
-        role="link"
-    >
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock en máquinas
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ machines_stock }} uds.
         </strong>
     </div>
 
+    <div class="summary-card">
+        <span class="summary-label">
+            Valor de existencias
+        </span>
+
+        <strong class="summary-value">
+            {{ inventory_value|floatformat:2 }} €
+        </strong>
+    </div>
+
+    <div class="summary-card">
+        <span class="summary-label">
+            Valor potencial de venta
+            <span class="summary-help">
+                (IVA incluido)
+            </span>
+        </span>
+
+        <strong class="summary-value">
+            {{ potential_sale_value|floatformat:2 }} €
+        </strong>
+    </div>
+
 </div>
+
 
 {% if is_edit %}
 </form>

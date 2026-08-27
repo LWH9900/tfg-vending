@@ -47,22 +47,71 @@ def calculate_adjusted_price(base_price, percentage_adjustment):
     )
 
 
-def get_product_price_for_machine(machine, product):
+def build_product_price_details(
+    machine,
+    product,
+    override,
+):
+    base_price = product.default_sale_price
+
+    if override is not None:
+        percentage_adjustment = override.percentage_adjustment
+
+        source = "override"
+
+        description = (
+            "Excepción específica para esta máquina: "
+            f"{percentage_adjustment:+.2f} % "
+            "sobre el precio base."
+        )
+
+    elif machine.pricing_profile is not None:
+        percentage_adjustment = machine.pricing_profile.percentage_adjustment
+
+        source = "profile"
+
+        description = (
+            f'Tarifa "{machine.pricing_profile.name}": '
+            f"{percentage_adjustment:+.2f} % "
+            "sobre el precio base."
+        )
+
+    else:
+        percentage_adjustment = Decimal("0.00")
+
+        source = "base"
+        description = ""
+
+    final_price = calculate_adjusted_price(
+        base_price,
+        percentage_adjustment,
+    )
+
+    adjustment_amount = final_price - base_price
+
+    return {
+        "base_price": base_price,
+        "adjustment_amount": adjustment_amount,
+        "adjustment_percentage": percentage_adjustment,
+        "final_price": final_price,
+        "price_source": source,
+        "adjustment_description": description,
+    }
+
+
+def get_product_price_for_machine(
+    machine,
+    product,
+):
     override = MachinePriceOverride.objects.filter(
         machine=machine,
         product=product,
     ).first()
 
-    if override:
-        return calculate_adjusted_price(
-            product.default_sale_price,
-            override.percentage_adjustment,
-        )
+    price_details = build_product_price_details(
+        machine,
+        product,
+        override,
+    )
 
-    if machine.pricing_profile:
-        return calculate_adjusted_price(
-            product.default_sale_price,
-            machine.pricing_profile.percentage_adjustment,
-        )
-
-    return product.default_sale_price
+    return price_details["final_price"]

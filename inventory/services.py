@@ -5,6 +5,9 @@ from django.db.models.functions import Coalesce
 
 from inventory.models import Product
 from machines.models import Machine
+from machines.services.pricing import (
+    get_product_price_for_machine,
+)
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
 
@@ -48,7 +51,7 @@ def get_machine_stock(product, machine):
     return replenished_quantity
 
 
-def get_stock_value(product):
+def get_inventory_cost_value(product):
     stock = get_total_stock(product)
     average_cost = product.average_purchase_cost
 
@@ -131,3 +134,21 @@ def get_machine_product_stocks(machine):
         .filter(machine_stock__gt=0)
         .order_by("name")
     )
+
+
+def get_potential_sale_value(product):
+    warehouse_stock = get_warehouse_stock(product)
+
+    value = Decimal(warehouse_stock) * product.default_sale_price
+
+    machine_stocks = get_product_machine_stocks(product)
+
+    for machine in machine_stocks:
+        final_price = get_product_price_for_machine(
+            machine,
+            product,
+        )
+
+        value += Decimal(machine.product_stock) * final_price
+
+    return value.quantize(Decimal("0.01"))

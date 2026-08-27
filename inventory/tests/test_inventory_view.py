@@ -69,7 +69,12 @@ class InventoryViewTests(TestCase):
         )
 
         self.assertEqual(
-            item["stock_value"],
+            item["inventory_value"],
+            Decimal("0.00"),
+        )
+
+        self.assertEqual(
+            item["potential_sale_value"],
             Decimal("0.00"),
         )
 
@@ -119,6 +124,10 @@ class InventoryViewTests(TestCase):
         )
 
         self.assertEqual(
-            item["stock_value"],
+            item["inventory_value"],
             Decimal("100.00"),
+        )
+        self.assertEqual(
+            item["potential_sale_value"],
+            Decimal("150.00"),
         )

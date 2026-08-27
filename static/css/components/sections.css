@@ -24,3 +24,14 @@
     background-color: var(--app-primary);
     opacity: 0.45;
 }
+
+.pricing-section-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pricing-section-link:hover {
+    color: var(--app-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}

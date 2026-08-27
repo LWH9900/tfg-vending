@@ -58,74 +58,63 @@
 </div>
 
 
-<div class="product-stock-grid">
+<div class="inventory-summary-grid">
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock total
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ total_stock }} uds.
         </strong>
     </div>
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock en almacén
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ warehouse_stock }} uds.
         </strong>
     </div>
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock en máquinas
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ machines_stock }} uds.
+        </strong>
+    </div>
+
+    <div class="summary-card">
+        <span class="summary-label">
+            Valor de existencias
+        </span>
+
+        <strong class="summary-value">
+            {{ inventory_value|floatformat:2 }} €
+        </strong>
+    </div>
+
+    <div class="summary-card">
+        <span class="summary-label">
+            Valor potencial de venta
+            <span class="summary-help">
+                (IVA incluido)
+            </span>
+        </span>
+
+        <strong class="summary-value">
+            {{ potential_sale_value|floatformat:2 }} €
         </strong>
     </div>
 
 </div>
 
-
-<div
-    class="pricing-section-heading"
-    id="warehouse"
->
-    <h2>Stock en almacén</h2>
-    <div class="pricing-section-line"></div>
-</div>
-
-<section class="detail-card mb-4">
-
-    <dl class="detail-list">
-
-        <div class="detail-row">
-            <dt>Stock actual en almacén</dt>
-
-            <dd>
-                <strong>
-                    {{ warehouse_stock }} uds.
-                </strong>
-            </dd>
-        </div>
-
-        <div class="detail-row">
-            <dt>Cálculo</dt>
-
-            <dd>
-                Compras registradas − reposiciones registradas
-            </dd>
-        </div>
-
-    </dl>
-
-</section>
 
 <div class="pricing-section-heading">
     <h2>Entradas por compras</h2>

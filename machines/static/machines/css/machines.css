@@ -159,16 +159,7 @@
     visibility: visible;
 }
 
-.pricing-section-link {
-    color: inherit;
-    text-decoration: none;
-}
 
-.pricing-section-link:hover {
-    color: var(--app-primary);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-}
 
 .pricing-profile-actions {
     display: flex;
@@ -191,4 +182,10 @@
         opacity: 1;
         visibility: visible;
     }
+}
+
+.price-adjustment {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2rem;
 }

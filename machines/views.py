@@ -11,10 +11,43 @@ from .forms import (
 )
 from .models import Machine, MachinePriceOverride, PricingProfile
 from .services.pricing import (
+    build_product_price_details,
     calculate_adjusted_price,
     change_machine_pricing_profile,
     get_redundant_price_overrides,
 )
+
+
+def build_machine_inventory_items(machine):
+    machine_product_stocks = get_machine_product_stocks(machine)
+
+    overrides = {
+        override.product_id: override for override in machine.price_overrides.all()
+    }
+
+    items = []
+
+    for product in machine_product_stocks:
+        override = overrides.get(product.pk)
+
+        price_details = build_product_price_details(
+            machine,
+            product,
+            override,
+        )
+
+        items.append(
+            {
+                "product": product,
+                "machine_stock": product.machine_stock,
+                "potential_sale_value": (
+                    product.machine_stock * price_details["final_price"]
+                ),
+                **price_details,
+            }
+        )
+
+    return items
 
 
 def machine_list(request):
@@ -88,12 +121,15 @@ def machine_detail(request, pk):
         Machine.objects.select_related("pricing_profile"),
         pk=pk,
     )
-    machine_product_stocks = get_machine_product_stocks(machine)
 
-    overrides = machine.price_overrides.select_related(
-        "product",
-        "product__category",
-    ).order_by("product__name")
+    machine_inventory_items = build_machine_inventory_items(machine)
+
+    overrides = list(
+        machine.price_overrides.select_related(
+            "product",
+            "product__category",
+        ).order_by("product__name")
+    )
 
     price_overrides = [
         {
@@ -130,7 +166,7 @@ def machine_detail(request, pk):
             "override_form": override_form,
             "pricing_profile_form": pricing_profile_form,
             "product_prices": product_prices,
-            "machine_product_stocks": machine_product_stocks,
+            "machine_inventory_items": (machine_inventory_items),
         },
     )
 
@@ -186,7 +222,7 @@ def machine_price_override_create(request, pk):
         str(product.pk): str(product.default_sale_price)
         for product in form.fields["product"].queryset
     }
-
+    machine_inventory_items = build_machine_inventory_items(machine)
     return render(
         request,
         "machines/machine_detail.html",
@@ -196,6 +232,7 @@ def machine_price_override_create(request, pk):
             "override_form": form,
             "pricing_profile_form": pricing_profile_form,
             "product_prices": product_prices,
+            "machine_inventory_items": (machine_inventory_items),
             "open_override_modal": True,
         },
     )
@@ -250,7 +287,7 @@ def machine_pricing_profile_update(request, pk):
                 str(product.pk): str(product.default_sale_price)
                 for product in override_form.fields["product"].queryset
             }
-
+            machine_inventory_items = build_machine_inventory_items(machine)
             return render(
                 request,
                 "machines/machine_detail.html",
@@ -260,6 +297,7 @@ def machine_pricing_profile_update(request, pk):
                     "override_form": override_form,
                     "pricing_profile_form": form,
                     "product_prices": product_prices,
+                    "machine_inventory_items": (machine_inventory_items),
                     "redundant_overrides": redundant_overrides,
                     "open_pricing_modal": True,
                 },
@@ -345,7 +383,7 @@ def machine_price_override_update(
         str(product.pk): str(product.default_sale_price)
         for product in override_form.fields["product"].queryset
     }
-
+    machine_inventory_items = build_machine_inventory_items(machine)
     return render(
         request,
         "machines/machine_detail.html",
@@ -355,6 +393,7 @@ def machine_price_override_update(
             "override_form": override_form,
             "pricing_profile_form": pricing_profile_form,
             "product_prices": product_prices,
+            "machine_inventory_items": (machine_inventory_items),
             "edit_override_form": form,
             "edit_override": override,
             "open_edit_override_modal": True,

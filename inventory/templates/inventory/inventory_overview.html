@@ -47,47 +47,59 @@
 </div>
 
 
-<div class="product-stock-grid-four">
+<div class="inventory-summary-grid">
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock total
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ total_units }} uds.
         </strong>
     </div>
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock en almacén
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ warehouse_units }} uds.
         </strong>
     </div>
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
+    <div class="summary-card">
+        <span class="summary-label">
             Stock en máquinas
         </span>
 
-        <strong class="product-cost-value">
+        <strong class="summary-value">
             {{ machines_units }} uds.
         </strong>
     </div>
 
-    <div class="product-cost-card">
-        <span class="product-cost-label">
-            Valor del inventario
+    <div class="summary-card">
+        <span class="summary-label">
+            Valor de existencias
         </span>
 
-        <strong class="product-cost-value">
-            {{ total_value|floatformat:2 }} €
+        <strong class="summary-value">
+            {{ total_inventory_value|floatformat:2 }} €
         </strong>
     </div>
+    <div class="summary-card">
+
+    <span class="summary-label">
+        Valor potencial de venta<span class="summary-help"> (IVA incluido)</span>
+    </span>
+
+    <strong class="summary-value">
+        {{ total_potential_sale_value|floatformat:2 }} €
+    </strong>
+    
+
+    </div>  
 
 </div>
 
@@ -115,7 +127,13 @@
                     <th>Almacén</th>
                     <th>Máquinas</th>
                     <th>Coste medio</th>
-                    <th>Valor stock</th>
+                    <th>Valor de existencias</th>
+                    <th>
+                        Venta potencial
+                        <span class="text-secondary fw-normal">
+                            (IVA incl.)
+                        </span>
+                    </th>
                 </tr>
             </thead>
 
@@ -160,15 +178,19 @@
                             {% if item.average_cost is not None %}
                                 {{ item.average_cost|floatformat:2 }} €
                             {% else %}
-                                <span class="text-secondary">
-                                    —
-                                </span>
+                                <span class="text-secondary">—</span>
                             {% endif %}
                         </td>
 
                         <td>
-                            {{ item.stock_value|floatformat:2 }} €
+                            {{ item.inventory_value|floatformat:2 }} €
                         </td>
+
+                        <td>
+                            <strong>
+                                {{ item.potential_sale_value|floatformat:2 }} €
+                            </strong>
+</td>
 
                     </tr>
 
@@ -176,7 +198,7 @@
 
                     <tr>
                         <td
-                            colspan="8"
+                            colspan="9"
                             class="text-center py-5 text-secondary"
                         >
                             No hay productos en el catálogo.

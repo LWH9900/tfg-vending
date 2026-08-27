@@ -269,8 +269,11 @@
 
     <div class="pricing-section-line"></div>
 
-</div>
+    <span class="text-secondary small">
+        Los precios mostrados incluyen IVA.
+    </span>
 
+</div>
 
 <section class="section-card">
 
@@ -284,45 +287,86 @@
                     <th>Categoría</th>
                     <th>Formato / unidad</th>
                     <th>Stock</th>
+                    <th>Precio base</th>
+                    <th>Ajuste</th>
+                    <th>Precio final</th>
+                    <th>Venta potencial</th>
                 </tr>
             </thead>
 
             <tbody>
 
-                {% for product in machine_product_stocks %}
+                {% for item in machine_inventory_items %}
 
                     <tr
                         class="clickable-row"
-                        data-href="{% url 'inventory:product_stock_detail' product.pk %}#machines"
+                        data-href="{% url 'inventory:product_stock_detail' item.product.pk %}#machines"
                         tabindex="0"
                         role="link"
                     >
 
                         <td>
-                            {{ product.name }}
+                            {{ item.product.name }}
                         </td>
 
                         <td>
-                            {{ product.category.name }}
+                            {{ item.product.category.name }}
                         </td>
 
                         <td>
-                            {{ product.format_unit }}
+                            {{ item.product.format_unit }}
                         </td>
 
+                        <td>
+                            {{ item.machine_stock }} uds.
+                        </td>
+
+                        <td>
+                            {{ item.base_price|floatformat:2 }} €
+                        </td>
+
+                        <td>
+
+                            {% if item.adjustment_amount != 0 %}
+
+                                <span
+                                    class="price-adjustment"
+                                    title="{{ item.adjustment_description }}"
+                                >
+                                    {% if item.adjustment_amount > 0 %}
+                                        +
+                                    {% endif %}
+                                    {{ item.adjustment_amount|floatformat:2 }} €
+                                </span>
+
+                            {% else %}
+
+                                <span class="text-secondary">
+                                    —
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ item.final_price|floatformat:2 }} €
+                    
+                        </td>
                         <td>
                             <strong>
-                                {{ product.machine_stock }} uds.
+                                {{ item.potential_sale_value|floatformat:2 }} €
                             </strong>
                         </td>
 
                     </tr>
 
+
                 {% empty %}
 
                     <tr>
                         <td
-                            colspan="4"
+                            colspan="8"
                             class="text-center py-5 text-secondary"
                         >
                             Esta máquina no tiene productos en stock.
