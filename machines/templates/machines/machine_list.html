@@ -65,15 +65,16 @@
 
                 {% for machine in machines %}
 
-                    <tr>
+                    <tr
+                        class="clickable-row"
+                        data-href="{% url 'machines:machine_detail' machine.pk %}"
+                        tabindex="0"
+                        role="link"
+                    >
 
                         <td>
-                            <a
-                                href="{% url 'machines:machine_detail' machine.pk %}"
-                                class="text-decoration-none machine-link"
-                            >
                                 {{ machine.identifier }}
-                            </a>
+                        
                         </td>
 
                         <td>

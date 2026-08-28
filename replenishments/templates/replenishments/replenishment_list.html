@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico de reposiciones | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones / Reposiciones
+            </div>
+
+            <h1 class="page-title">
+                Histórico de reposiciones
+            </h1>
+
+            <p class="page-description">
+                Consulta las reposiciones realizadas y filtra el histórico
+                por fecha, máquina o producto.
+            </p>
+
+        </div>
+        <div class="page-header-actions">
+
+            <a
+                href="{% url 'replenishments:replenishment_create' %}"
+                class="btn btn-primary"
+            >
+                + Nueva reposición
+            </a>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="form-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Filtros</h2>
+    </div>
+
+    <div class="form-card-body">
+
+        <form method="get">
+
+            {% if filter_form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in filter_form.non_field_errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row g-3">
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.date_from %}
+                </div>
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.date_to %}
+                </div>
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.machine %}
+                </div>
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.product %}
+                </div>
+
+                <div class="col-md-6 col-lg">
+                    {% include "components/form_field.html" with field=filter_form.status %}
+                </div>
+
+            </div>
+
+
+            <div class="form-actions">
+
+                <a
+                    href="{% url 'replenishments:replenishment_list' %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Limpiar filtros
+                </a>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Filtrar
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
+
+
+<section class="section-card">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Fecha / hora</th>
+                    <th>Máquina</th>
+                    <th>Productos</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for replenishment in replenishments %}
+
+                    <tr
+                        class="clickable-row"
+                        data-href="{% url 'replenishments:replenishment_detail' replenishment.pk %}"
+                        tabindex="0"
+                        role="link"
+                    >
+
+                        <td>
+                            {{ replenishment.replenished_at|date:"d/m/Y H:i" }}
+                        </td>
+
+                        <td>
+                            {{ replenishment.machine.identifier }}
+                            ·
+                            {{ replenishment.machine.name }}
+                        </td>
+
+                        <td>
+                            {{ replenishment.lines.count }}
+                        </td>
+                        <td>
+                            {% if replenishment.status == "DRAFT" %}
+                                <span class="badge text-bg-secondary">
+                                    Borrador
+                                </span>
+
+                            {% elif replenishment.status == "REGISTERED" %}
+                                <span class="badge text-bg-success">
+                                    Registrada
+                                </span>
+
+                            {% elif replenishment.status == "CANCELLED" %}
+                                <span class="badge text-bg-danger">
+                                    Anulada
+                                </span>
+                            {% endif %}
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay reposiciones registradas.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+
+{% endblock %}

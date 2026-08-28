@@ -48,7 +48,14 @@
         rel="stylesheet"
         href="{% static 'css/components/detail.css' %}"
     >
-
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/sections.css' %}"
+    >
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/tables.css' %}"
+    >
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -110,18 +117,18 @@
 
                 <div class="sidebar-section">
                     <button
-                        class="sidebar-group"
+                        class="sidebar-group collapsed"
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#inventoryMenu"
-                        aria-expanded="true"
+                        aria-expanded="false"
                         aria-controls="inventoryMenu"
                     >
                         Inventario
                         <span>⌄</span>
                     </button>
 
-                    <div class="collapse show" id="inventoryMenu">
+                    <div class="collapse" id="inventoryMenu">
                         <div class="sidebar-submenu">
 
                             <a
@@ -134,9 +141,15 @@
                                 Productos
                             </a>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.url_name == 'inventory_overview' or request.resolver_match.url_name == 'product_stock_detail' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'inventory:inventory_overview' %}"
+                            >
                                 Stock
-                            </span>
+                            </a>
 
                             <span class="sidebar-link sidebar-sublink disabled-link">
                                 Categorías
@@ -147,6 +160,7 @@
                 </div>
 
                 <div class="sidebar-section">
+
                     <button
                         class="sidebar-group collapsed"
                         type="button"
@@ -159,21 +173,37 @@
                         <span>⌄</span>
                     </button>
 
-                    <div class="collapse" id="operationsMenu">
+                    <div
+                        class="collapse"
+                        id="operationsMenu"
+                    >
                         <div class="sidebar-submenu">
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'purchases' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'purchases:purchase_list' %}"
+                            >
                                 Compras
-                            </span>
+                            </a>
 
                             <span class="sidebar-link sidebar-sublink disabled-link">
                                 Ventas
                             </span>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'replenishments' %} active {% endif %}"
+                                href="{% url 'replenishments:replenishment_list' %}"
+                            >
                                 Reposiciones
-                            </span>
+                            </a>
+
                         </div>
                     </div>
+
                 </div>
 
                 <a
@@ -191,6 +221,92 @@
                 </span>
 
             </nav>
+            <script>
+                (function () {
+                    const currentApp =
+                        "{{ request.resolver_match.app_name|default:''|escapejs }}";
+
+                    function restoreMenuState(
+                        menuId,
+                        storageKey,
+                        activeByDefault
+                    ) {
+                        const menu = document.getElementById(menuId);
+
+                        if (!menu) {
+                            return;
+                        }
+
+                        const button = document.querySelector(
+                            `[data-bs-target="#${menuId}"]`
+                        );
+
+                        const savedState = sessionStorage.getItem(storageKey);
+
+                        let shouldBeOpen;
+
+                        if (savedState === "true") {
+                            shouldBeOpen = true;
+                        } else if (savedState === "false") {
+                            shouldBeOpen = false;
+                        } else {
+                            shouldBeOpen = activeByDefault;
+                        }
+
+                        menu.classList.toggle(
+                            "show",
+                            shouldBeOpen
+                        );
+
+                        if (button) {
+                            button.classList.toggle(
+                                "collapsed",
+                                !shouldBeOpen
+                            );
+
+                            button.setAttribute(
+                                "aria-expanded",
+                                shouldBeOpen
+                                    ? "true"
+                                    : "false"
+                            );
+                        }
+
+                        menu.addEventListener(
+                            "shown.bs.collapse",
+                            function () {
+                                sessionStorage.setItem(
+                                    storageKey,
+                                    "true"
+                                );
+                            }
+                        );
+
+                        menu.addEventListener(
+                            "hidden.bs.collapse",
+                            function () {
+                                sessionStorage.setItem(
+                                    storageKey,
+                                    "false"
+                                );
+                            }
+                        );
+                    }
+
+                    restoreMenuState(
+                        "inventoryMenu",
+                        "inventoryMenuOpen",
+                        currentApp === "inventory"
+                    );
+
+                    restoreMenuState(
+                        "operationsMenu",
+                        "operationsMenuOpen",
+                        currentApp === "purchases" ||
+                            currentApp === "replenishments"
+                    );
+                })();
+            </script>
 
             <div class="sidebar-footer">
                 <div class="sidebar-user">
@@ -214,5 +330,6 @@
         crossorigin="anonymous"
     ></script>
 
+<script src="{% static 'js/clickable-rows.js' %}"></script>
 </body>
 </html>

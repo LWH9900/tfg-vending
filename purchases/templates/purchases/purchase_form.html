@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Nueva compra | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'purchases:purchase_list' %}">
+                    Compras
+                </a>
+                /
+                Nueva compra
+            </div>
+
+            <h1 class="page-title">
+                Nueva compra
+            </h1>
+
+            <p class="page-description">
+                Crea un borrador de compra y añade los productos incluidos en ella.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="form-container">
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if formset.non_form_errors %}
+            <div class="alert alert-danger">
+                {% for error in formset.non_form_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+
+        <div class="form-card mb-4">
+
+            <div class="form-card-header">
+                <h2>
+                    Información de la compra
+                </h2>
+            </div>
+
+            <div class="form-card-body">
+
+                {% include "components/form_field.html" with field=form.purchased_at %}
+
+                {% include "components/form_field.html" with field=form.supplier %}
+
+                {% include "components/form_field.html" with field=form.document_reference %}
+
+            </div>
+
+        </div>
+
+
+        <div class="section-heading">
+
+            <h2>
+                Productos
+            </h2>
+
+            <div class="section-heading-line"></div>
+
+        </div>
+
+
+        <div class="form-card">
+
+            <div class="form-card-header d-flex justify-content-between align-items-center">
+
+                <h2>
+                    Líneas de compra
+                </h2>
+
+                <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    id="add-line-button"
+                >
+                    + Añadir producto
+                </button>
+
+            </div>
+
+
+            <div class="form-card-body">
+
+                {{ formset.management_form }}
+
+
+                <div id="purchase-lines">
+
+                    {% for line_form in formset %}
+
+                        <div
+                            class="purchase-line border rounded p-3 mb-3
+                            {% if line_form.DELETE.value %}d-none{% endif %}"
+                            data-form-index="{{ forloop.counter0 }}"
+                        >
+
+                            {{ line_form.id }}
+
+                            <div class="d-none">
+                                {{ line_form.DELETE }}
+                            </div>
+
+
+                            <div class="row g-3 align-items-start">
+
+                                <div class="col-lg-5">
+                                    {% include "components/form_field.html" with field=line_form.product %}
+                                </div>
+
+                                <div class="col-lg-2">
+                                    {% include "components/form_field.html" with field=line_form.quantity %}
+                                </div>
+
+                                <div class="col-lg-3">
+                                    {% include "components/form_field.html" with field=line_form.unit_price_excl_vat %}
+                                </div>
+
+                                <div class="col-lg-2">
+
+                                    <label class="form-label d-block">
+                                        Acción
+                                    </label>
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-danger remove-line-button w-100"
+                                    >
+                                        Eliminar
+                                    </button>
+
+                                </div>
+
+                            </div>
+
+
+                            {% if line_form.non_field_errors %}
+                                <div class="text-danger small mt-2">
+                                    {% for error in line_form.non_field_errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+                    {% endfor %}
+
+                </div>
+
+
+                <template id="empty-line-template">
+
+                    <div
+                        class="purchase-line border rounded p-3 mb-3"
+                        data-form-index="__prefix__"
+                    >
+
+                        {{ formset.empty_form.id }}
+
+                        <div class="d-none">
+                            {{ formset.empty_form.DELETE }}
+                        </div>
+
+                        <div class="row g-3 align-items-start">
+
+                            <div class="col-lg-5">
+                                {% include "components/form_field.html" with field=formset.empty_form.product %}
+                            </div>
+
+                            <div class="col-lg-2">
+                                {% include "components/form_field.html" with field=formset.empty_form.quantity %}
+                            </div>
+
+                            <div class="col-lg-3">
+                                {% include "components/form_field.html" with field=formset.empty_form.unit_price_excl_vat %}
+                            </div>
+
+                            <div class="col-lg-2">
+
+                                <label class="form-label d-block">
+                                    Acción
+                                </label>
+
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-danger remove-line-button w-100"
+                                >
+                                    Eliminar
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </template>
+
+            </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+            <a
+                href="{% url 'purchases:purchase_list' %}"
+                class="btn btn-outline-secondary"
+            >
+                Cancelar
+            </a>
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                Guardar borrador
+            </button>
+
+        </div>
+
+    </form>
+
+</section>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const linesContainer = document.getElementById("purchase-lines");
+        const addButton = document.getElementById("add-line-button");
+        const emptyTemplate = document.getElementById("empty-line-template");
+
+        const prefix = "{{ formset.prefix|escapejs }}";
+
+        const totalFormsInput = document.getElementById(
+            `id_${prefix}-TOTAL_FORMS`
+        );
+
+        if (
+            !linesContainer ||
+            !addButton ||
+            !emptyTemplate ||
+            !totalFormsInput
+        ) {
+            return;
+        }
+
+
+        function addLine() {
+            const formIndex = Number(totalFormsInput.value);
+
+            const newLineHtml = emptyTemplate.innerHTML.replaceAll(
+                "__prefix__",
+                formIndex
+            );
+
+            linesContainer.insertAdjacentHTML(
+                "beforeend",
+                newLineHtml
+            );
+
+            totalFormsInput.value = formIndex + 1;
+        }
+
+
+        function removeLine(button) {
+            const line = button.closest(".purchase-line");
+
+            if (!line) {
+                return;
+            }
+
+            const deleteInput = line.querySelector(
+                'input[name$="-DELETE"]'
+            );
+
+            if (deleteInput) {
+                deleteInput.checked = true;
+            }
+
+            line.classList.add("d-none");
+        }
+
+
+        addButton.addEventListener("click", function () {
+            addLine();
+        });
+
+
+        linesContainer.addEventListener("click", function (event) {
+            const removeButton = event.target.closest(
+                ".remove-line-button"
+            );
+
+            if (!removeButton) {
+                return;
+            }
+
+            removeLine(removeButton);
+        });
+    });
+</script>
+
+{% endblock %}

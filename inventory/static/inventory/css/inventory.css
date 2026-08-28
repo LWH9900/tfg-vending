@@ -122,3 +122,134 @@
         width: 100%;
     }
 }
+
+.product-detail-main {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.product-costs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+.product-stock-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.product-cost-card {
+    min-height: 80px;
+    padding: 18px 22px;
+
+    background-color: var(--app-white);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.product-cost-label {
+    font-size: 1.0rem;
+    font-weight: 600;
+    color: var(--app-text-secondary);
+}
+
+.product-cost-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--app-text);
+}
+.product-cost-empty {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--app-text-secondary);
+}
+
+
+.product-stat-card-centered {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 1.5rem 1rem;
+    min-height: 110px;
+    text-align: center;
+}
+
+.product-stat-card-centered .product-stat-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.product-stat-card-centered .product-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #111827;
+}
+
+.product-stock-grid-four {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+@media (max-width: 992px) {
+    .product-stock-gri-four {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 576px) {
+    .product-stock-grid-four {
+        grid-template-columns: 1fr;
+    }
+}
+
+.inventory-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-bottom: 1.25rem;
+}
+
+.summary-card {
+    background: #fff;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    min-height: 25px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.summary-label {
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 0.35rem;
+}
+
+.summary-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.summary-help {
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    line-height: 1.1;
+    color: var(--bs-secondary-color);
+}

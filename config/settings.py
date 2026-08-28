@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "inventory.apps.InventoryConfig",
     "machines.apps.MachinesConfig",
+    "purchases.apps.PurchasesConfig",
+    "replenishments.apps.ReplenishmentsConfig",
 ]
 
 MIDDLEWARE = [

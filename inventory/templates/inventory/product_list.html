@@ -50,7 +50,7 @@
         <div class="card border-0 shadow-sm">
 
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table align-middle mb-0">
 
                     <thead>
                         <tr>
@@ -66,14 +66,14 @@
 
                         {% for product in products %}
 
-                            <tr>
+                            <tr
+                                class="clickable-row"
+                                data-href="{% url 'inventory:product_detail' product.pk %}"
+                                tabindex="0"
+                                role="link"
+                            >
                                 <td>
-                                    <a
-                                        href="{% url 'inventory:product_detail' product.pk %}"
-                                        class="text-decoration-none product-name-link"
-                                    >
-                                        {{ product.name }}
-                                    </a>
+                                    {{ product.name }}
                                 </td>
 
                                 <td>

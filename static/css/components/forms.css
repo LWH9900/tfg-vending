@@ -77,3 +77,30 @@
         width: 100%;
     }
 }
+
+
+.editable-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.editable-table .form-control,
+.editable-table .form-select {
+    width: 100%;
+}
+
+.purchase-col-product {
+    width: 40%;
+}
+
+.purchase-col-quantity {
+    width: 25%;
+}
+
+.purchase-col-price {
+    width: 25%;
+}
+
+.purchase-col-action {
+    width: 10%;
+}
