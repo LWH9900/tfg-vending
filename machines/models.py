@@ -1,6 +1,20 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
+from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Lower
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+)
+
+
+
+MAX_MACHINE_ROWS = 20
+MAX_MACHINE_COLUMNS = 20
 
 
 class PricingProfile(models.Model):
@@ -32,21 +46,17 @@ class Machine(models.Model):
         max_length=50,
         unique=True,
     )
-
     name = models.CharField(
         max_length=100,
     )
-
     location = models.CharField(
         max_length=255,
         blank=True,
     )
-
     serial_number = models.CharField(
         max_length=100,
         unique=True,
     )
-
     pricing_profile = models.ForeignKey(
         PricingProfile,
         on_delete=models.PROTECT,
@@ -55,8 +65,77 @@ class Machine(models.Model):
         null=True,
     )
 
+    rows = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(MAX_MACHINE_ROWS),
+        ],
+    )
+
+    columns = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(MAX_MACHINE_COLUMNS),
+        ],
+    )
+
+    def clean(self):
+        super().clean()
+
+        if (self.rows is None) != (self.columns is None):
+            raise ValidationError(
+                {
+                    "rows": (
+                        "Las filas y columnas deben configurarse "
+                        "al mismo tiempo."
+                    ),
+                    "columns": (
+                        "Las filas y columnas deben configurarse "
+                        "al mismo tiempo."
+                    ),
+                }
+            )
+
+        if self.pk:
+            original = Machine.objects.get(pk=self.pk)
+
+            dimensions_were_configured = (
+                original.rows is not None
+                and original.columns is not None
+            )
+
+            dimensions_changed = (
+                original.rows != self.rows
+                or original.columns != self.columns
+            )
+
+            if dimensions_were_configured and dimensions_changed:
+                raise ValidationError(
+                    "Las dimensiones de una máquina no pueden "
+                    "modificarse una vez establecidas."
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.identifier} - {self.name}"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(rows__isnull=True, columns__isnull=True)
+                    | Q(rows__isnull=False, columns__isnull=False)
+                ),
+                name="machine_grid_dimensions_both_set_or_null",
+            ),
+        ]
 
 
 class MachinePriceOverride(models.Model):
@@ -115,12 +194,25 @@ class MachinePriceOverride(models.Model):
 
 
 class MachineLayout(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Borrador"
+        REGISTERED = "REGISTERED", "Registrada"
+
     machine = models.ForeignKey(
         Machine,
         on_delete=models.CASCADE,
         related_name="layouts",
     )
-    name = models.CharField(max_length=100)
+
+    name = models.CharField(
+        max_length=100,
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
 
     @property
     def has_been_activated(self):
@@ -130,20 +222,12 @@ class MachineLayout(models.Model):
         if self.pk:
             original = MachineLayout.objects.get(pk=self.pk)
 
-            if original.has_been_activated:
+            if original.status == self.Status.REGISTERED:
                 raise ValidationError(
-                    "Una disposición que ya ha sido activada no puede modificarse."
+                    "Una disposición registrada no puede modificarse."
                 )
 
         super().save(*args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        if self.has_been_activated:
-            raise ValidationError(
-                "Una disposición que ya ha sido activada no puede eliminarse."
-            )
-
-        return super().delete(*args, **kwargs)
 
     def __str__(self):
         return f"{self.machine.identifier} - {self.name}"
@@ -164,7 +248,37 @@ class MachinePosition(models.Model):
         on_delete=models.CASCADE,
         related_name="positions",
     )
-    identifier = models.CharField(max_length=20)
+
+    identifier = models.CharField(
+        max_length=20,
+    )
+
+    row = models.PositiveSmallIntegerField(
+        validators=[
+            MinValueValidator(1),
+        ],
+    )
+
+    column = models.PositiveSmallIntegerField(
+        validators=[
+            MinValueValidator(1),
+        ],
+    )
+
+    width = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[
+            MinValueValidator(1),
+        ],
+    )
+
+    height = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[
+            MinValueValidator(1),
+        ],
+    )
+
     product = models.ForeignKey(
         "inventory.Product",
         on_delete=models.PROTECT,
@@ -173,35 +287,111 @@ class MachinePosition(models.Model):
         null=True,
     )
 
-    def save(self, *args, **kwargs):
-        if self.pk:
-            original = MachinePosition.objects.select_related("layout").get(pk=self.pk)
+    def clean(self):
+        super().clean()
 
-            if original.layout.has_been_activated:
-                raise ValidationError(
-                    "Las posiciones de una disposición que ya "
-                    "ha sido activada no pueden modificarse."
-                )
+        machine = self.layout.machine
 
-        if self.layout.has_been_activated:
+        if machine.rows is None or machine.columns is None:
             raise ValidationError(
-                "No se pueden añadir o modificar posiciones "
-                "en una disposición que ya ha sido activada."
+                "La cuadrícula de la máquina debe estar configurada "
+                "antes de crear posiciones."
             )
 
-        super().save(*args, **kwargs)
+        last_row = self.row + self.height - 1
+        last_column = self.column + self.width - 1
+
+        if last_row > machine.rows:
+            raise ValidationError(
+                {
+                    "height": (
+                        "La posición supera el número de filas "
+                        "de la máquina."
+                    )
+                }
+            )
+
+        if last_column > machine.columns:
+            raise ValidationError(
+                {
+                    "width": (
+                        "La posición supera el número de columnas "
+                        "de la máquina."
+                    )
+                }
+            )
+        
+        other_positions = MachinePosition.objects.filter(
+        layout=self.layout,
+        )
+
+        if self.pk:
+            other_positions = other_positions.exclude(
+                pk=self.pk,
+            )
+
+        for other in other_positions:
+            other_last_row = (
+                other.row + other.height - 1
+            )
+            other_last_column = (
+                other.column + other.width - 1
+            )
+
+            rows_overlap = (
+                self.row <= other_last_row
+                and last_row >= other.row
+            )
+
+            columns_overlap = (
+                self.column <= other_last_column
+                and last_column >= other.column
+            )
+
+            if rows_overlap and columns_overlap:
+                raise ValidationError(
+                    "La posición se solapa con otra posición "
+                    "de la disposición."
+                )
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = MachinePosition.objects.select_related(
+                "layout"
+            ).get(pk=self.pk)
+
+            if (
+                original.layout.status
+                == MachineLayout.Status.REGISTERED
+            ):
+                raise ValidationError(
+                    "Las posiciones de una disposición registrada "
+                    "no pueden modificarse."
+                )
+
+        if self.layout.status == MachineLayout.Status.REGISTERED:
+            raise ValidationError(
+                "No se pueden añadir o modificar posiciones "
+                "en una disposición registrada."
+            )
+
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.layout.has_been_activated:
+        if self.layout.status == MachineLayout.Status.REGISTERED:
             raise ValidationError(
-                "Las posiciones de una disposición que ya "
-                "ha sido activada no pueden eliminarse."
+                "Las posiciones de una disposición registrada "
+                "no pueden eliminarse."
             )
 
         return super().delete(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.layout.machine.identifier} - {self.identifier}"
+        return (
+            f"{self.layout.machine.identifier} - "
+            f"{self.identifier}"
+        )
 
     class Meta:
         constraints = [
@@ -222,8 +412,24 @@ class MachineLayoutActivation(models.Model):
 
     effective_from = models.DateTimeField()
 
+    def clean(self):
+        super().clean()
+
+        if self.layout.status != MachineLayout.Status.REGISTERED:
+            raise ValidationError(
+                {
+                    "layout": (
+                        "Solo se puede activar una disposición "
+                        "registrada."
+                    )
+                }
+            )
+
     def __str__(self):
-        return f"{self.layout} - {self.effective_from:%d/%m/%Y %H:%M}"
+        return (
+            f"{self.layout} - "
+            f"{self.effective_from:%d/%m/%Y %H:%M}"
+        )
 
     class Meta:
         ordering = [
