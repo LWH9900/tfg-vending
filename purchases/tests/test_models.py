@@ -17,7 +17,7 @@ class PurchaseModelTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -25,7 +25,7 @@ class PurchaseModelTests(TestCase):
         )
 
         cls.second_product = Product.objects.create(
-            name="Nestea",
+            name="VimaTea",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -35,7 +35,7 @@ class PurchaseModelTests(TestCase):
     def test_create_valid_purchase_with_one_line(self):
         purchase = Purchase.objects.create(
             purchased_at=timezone.now(),
-            supplier="Makro",
+            supplier="Proveedor A",
             document_reference="F-001",
         )
 
@@ -59,7 +59,7 @@ class PurchaseModelTests(TestCase):
 
     def test_create_valid_purchase_with_multiple_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         PurchaseLine.objects.create(
@@ -83,7 +83,7 @@ class PurchaseModelTests(TestCase):
 
     def test_quantity_zero_is_not_valid(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         line = PurchaseLine(
@@ -98,7 +98,7 @@ class PurchaseModelTests(TestCase):
 
     def test_negative_quantity_is_not_valid(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         line = PurchaseLine(
@@ -113,7 +113,7 @@ class PurchaseModelTests(TestCase):
 
     def test_negative_unit_price_is_not_valid(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         line = PurchaseLine(
@@ -128,7 +128,7 @@ class PurchaseModelTests(TestCase):
 
     def test_line_total(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         line = PurchaseLine.objects.create(
@@ -145,7 +145,7 @@ class PurchaseModelTests(TestCase):
 
     def test_purchase_total_with_multiple_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         PurchaseLine.objects.create(
@@ -169,7 +169,7 @@ class PurchaseModelTests(TestCase):
 
     def test_same_product_cannot_appear_twice_in_purchase(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         PurchaseLine.objects.create(
@@ -191,7 +191,7 @@ class PurchaseModelTests(TestCase):
 
     def test_new_purchase_is_draft_by_default(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         self.assertEqual(
@@ -201,7 +201,7 @@ class PurchaseModelTests(TestCase):
 
     def test_purchase_can_be_registered(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -212,7 +212,7 @@ class PurchaseModelTests(TestCase):
 
     def test_purchase_can_be_cancelled(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.CANCELLED,
         )
 

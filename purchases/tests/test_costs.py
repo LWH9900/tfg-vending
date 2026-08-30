@@ -17,7 +17,7 @@ class ProductPurchaseCostTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -101,7 +101,7 @@ class ProductPurchaseCostTests(TestCase):
 
     def test_other_products_do_not_affect_cost_calculation(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 

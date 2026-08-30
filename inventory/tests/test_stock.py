@@ -26,7 +26,7 @@ class StockServiceTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -34,7 +34,7 @@ class StockServiceTests(TestCase):
         )
 
         cls.other_product = Product.objects.create(
-            name="Nestea",
+            name="VimaTea",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),

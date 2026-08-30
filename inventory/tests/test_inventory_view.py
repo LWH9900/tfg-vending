@@ -18,7 +18,7 @@ class InventoryViewTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -80,7 +80,7 @@ class InventoryViewTests(TestCase):
 
     def test_inventory_overview_shows_calculated_stock(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 

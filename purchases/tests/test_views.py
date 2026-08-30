@@ -19,7 +19,7 @@ class PurchaseViewTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -27,7 +27,7 @@ class PurchaseViewTests(TestCase):
         )
 
         cls.second_product = Product.objects.create(
-            name="Nestea",
+            name="VimaTea",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -39,7 +39,7 @@ class PurchaseViewTests(TestCase):
 
         data = {
             "purchased_at": "2026-08-25T10:30",
-            "supplier": "Makro",
+            "supplier": "Proveedor A",
             "document_reference": "F-001",
             f"{prefix}-TOTAL_FORMS": str(len(lines)),
             f"{prefix}-INITIAL_FORMS": "0",
@@ -236,18 +236,13 @@ class PurchaseViewTests(TestCase):
         )
 
     def test_filter_purchases_by_supplier(self):
-        Purchase.objects.create(
-            supplier="Makro",
-        )
-
-        Purchase.objects.create(
-            supplier="Carrefour",
-        )
+        Purchase.objects.create(supplier="Proveedor Norte")
+        Purchase.objects.create(supplier="Proveedor Sur")
 
         response = self.client.get(
             reverse("purchases:purchase_list"),
             {
-                "supplier": "Mak",
+                "supplier": "Norte",
             },
         )
 
@@ -260,12 +255,12 @@ class PurchaseViewTests(TestCase):
 
         self.assertEqual(
             purchases.first().supplier,
-            "Makro",
+            "Proveedor Norte",
         )
 
     def test_purchase_detail_shows_all_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         PurchaseLine.objects.create(
@@ -296,17 +291,17 @@ class PurchaseViewTests(TestCase):
 
         self.assertContains(
             response,
-            "Coca cola",
+            "VimaCola",
         )
 
         self.assertContains(
             response,
-            "Nestea",
+            "VimaTea",
         )
 
         self.assertContains(
             response,
-            "Makro",
+            "Proveedor A",
         )
 
     def test_filter_purchases_by_product(self):
@@ -395,7 +390,7 @@ class PurchaseViewTests(TestCase):
 
     def test_draft_purchase_can_be_edited(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -410,7 +405,7 @@ class PurchaseViewTests(TestCase):
 
     def test_registered_purchase_cannot_be_edited(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -425,7 +420,7 @@ class PurchaseViewTests(TestCase):
 
     def test_draft_purchase_can_be_deleted(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -445,7 +440,7 @@ class PurchaseViewTests(TestCase):
 
     def test_registered_purchase_cannot_be_deleted(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -462,7 +457,7 @@ class PurchaseViewTests(TestCase):
 
     def test_draft_purchase_can_be_registered(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -497,7 +492,7 @@ class PurchaseViewTests(TestCase):
 
     def test_registered_purchase_can_be_cancelled(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -517,7 +512,7 @@ class PurchaseViewTests(TestCase):
 
     def test_purchase_cannot_be_registered_without_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -569,7 +564,7 @@ class PurchaseViewTests(TestCase):
 
     def test_edit_purchase_cannot_remove_all_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -584,7 +579,7 @@ class PurchaseViewTests(TestCase):
 
         data = {
             "purchased_at": "2026-08-27T10:30",
-            "supplier": "Makro",
+            "supplier": "Proveedor A",
             "document_reference": "F-001",
             f"{prefix}-TOTAL_FORMS": "1",
             f"{prefix}-INITIAL_FORMS": "1",

@@ -112,3 +112,121 @@ class MachinePriceOverride(models.Model):
                 name="unique_machine_product_price_override",
             ),
         ]
+
+
+class MachineLayout(models.Model):
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.CASCADE,
+        related_name="layouts",
+    )
+    name = models.CharField(max_length=100)
+
+    @property
+    def has_been_activated(self):
+        return self.activations.exists()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = MachineLayout.objects.get(pk=self.pk)
+
+            if original.has_been_activated:
+                raise ValidationError(
+                    "Una disposición que ya ha sido activada no puede modificarse."
+                )
+
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.has_been_activated:
+            raise ValidationError(
+                "Una disposición que ya ha sido activada no puede eliminarse."
+            )
+
+        return super().delete(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.machine.identifier} - {self.name}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                "machine",
+                name="unique_machine_layout_name_ci",
+            ),
+        ]
+
+
+class MachinePosition(models.Model):
+    layout = models.ForeignKey(
+        MachineLayout,
+        on_delete=models.CASCADE,
+        related_name="positions",
+    )
+    identifier = models.CharField(max_length=20)
+    product = models.ForeignKey(
+        "inventory.Product",
+        on_delete=models.PROTECT,
+        related_name="machine_positions",
+        blank=True,
+        null=True,
+    )
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = MachinePosition.objects.select_related("layout").get(pk=self.pk)
+
+            if original.layout.has_been_activated:
+                raise ValidationError(
+                    "Las posiciones de una disposición que ya "
+                    "ha sido activada no pueden modificarse."
+                )
+
+        if self.layout.has_been_activated:
+            raise ValidationError(
+                "No se pueden añadir o modificar posiciones "
+                "en una disposición que ya ha sido activada."
+            )
+
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.layout.has_been_activated:
+            raise ValidationError(
+                "Las posiciones de una disposición que ya "
+                "ha sido activada no pueden eliminarse."
+            )
+
+        return super().delete(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.layout.machine.identifier} - {self.identifier}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("identifier"),
+                "layout",
+                name="unique_layout_position_identifier_ci",
+            ),
+        ]
+
+
+class MachineLayoutActivation(models.Model):
+    layout = models.ForeignKey(
+        MachineLayout,
+        on_delete=models.PROTECT,
+        related_name="activations",
+    )
+
+    effective_from = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.layout} - {self.effective_from:%d/%m/%Y %H:%M}"
+
+    class Meta:
+        ordering = [
+            "effective_from",
+            "pk",
+        ]

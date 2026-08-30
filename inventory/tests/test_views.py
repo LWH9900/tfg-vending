@@ -15,7 +15,7 @@ class ProductViewTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -34,7 +34,7 @@ class ProductViewTests(TestCase):
     def test_product_appears_in_list(self):
         response = self.client.get(reverse("inventory:product_list"))
 
-        self.assertContains(response, "Coca cola")
+        self.assertContains(response, "VimaCola")
         self.assertContains(response, "Bebidas azucaradas")
         self.assertContains(response, "330 ml")
 
@@ -51,13 +51,13 @@ class ProductViewTests(TestCase):
             response,
             "inventory/product_detail.html",
         )
-        self.assertContains(response, "Coca cola")
+        self.assertContains(response, "VimaCola")
 
     def test_create_product(self):
         response = self.client.post(
             reverse("inventory:product_create"),
             {
-                "name": "Fanta",
+                "name": "Refresco naranja",
                 "category": self.category.pk,
                 "format_unit": "330 ml",
                 "vat_rate": "21.00",
@@ -65,7 +65,7 @@ class ProductViewTests(TestCase):
             },
         )
 
-        product = Product.objects.get(name="Fanta")
+        product = Product.objects.get(name="Refresco naranja")
 
         self.assertRedirects(
             response,
@@ -114,7 +114,7 @@ class ProductViewTests(TestCase):
                 args=[self.product.pk],
             ),
             {
-                "name": "Coca cola Zero",
+                "name": "VimaCola Zero",
                 "category": self.category.pk,
                 "format_unit": "330 ml",
                 "vat_rate": "21.00",
@@ -134,7 +134,7 @@ class ProductViewTests(TestCase):
 
         self.assertEqual(
             self.product.name,
-            "Coca cola Zero",
+            "VimaCola Zero",
         )
         self.assertEqual(
             self.product.default_sale_price,
@@ -148,7 +148,7 @@ class ProductViewTests(TestCase):
                 args=[self.product.pk],
             ),
             {
-                "name": "Coca cola",
+                "name": "VimaCola",
                 "category": self.category.pk,
                 "format_unit": "330 ml",
                 "vat_rate": "21.00",
@@ -174,7 +174,7 @@ class ProductViewTests(TestCase):
 
     def test_update_cannot_create_duplicate_product(self):
         other_product = Product.objects.create(
-            name="Fanta",
+            name="Refresco naranja",
             category=self.category,
             format_unit="500 ml",
             vat_rate=Decimal("21.00"),
@@ -187,7 +187,7 @@ class ProductViewTests(TestCase):
                 args=[other_product.pk],
             ),
             {
-                "name": "Coca cola",
+                "name": "VimaCola",
                 "category": self.category.pk,
                 "format_unit": "330 ml",
                 "vat_rate": "21.00",
@@ -203,5 +203,5 @@ class ProductViewTests(TestCase):
 
         other_product.refresh_from_db()
 
-        self.assertEqual(other_product.name, "Fanta")
+        self.assertEqual(other_product.name, "Refresco naranja")
         self.assertEqual(other_product.format_unit, "500 ml")

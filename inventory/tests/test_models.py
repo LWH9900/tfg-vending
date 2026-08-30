@@ -16,7 +16,7 @@ class ProductModelTests(TestCase):
 
     def test_create_valid_product(self):
         product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=self.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -24,7 +24,7 @@ class ProductModelTests(TestCase):
         )
 
         self.assertEqual(Product.objects.count(), 1)
-        self.assertEqual(product.name, "Coca cola")
+        self.assertEqual(product.name, "VimaCola")
         self.assertEqual(product.category, self.category)
         self.assertEqual(product.format_unit, "330 ml")
         self.assertEqual(product.vat_rate, Decimal("21.00"))
@@ -45,7 +45,7 @@ class ProductModelTests(TestCase):
 
     def test_product_format_unit_is_required(self):
         product = Product(
-            name="Coca cola",
+            name="VimaCola",
             category=self.category,
             format_unit="",
             vat_rate=Decimal("21.00"),
@@ -57,7 +57,7 @@ class ProductModelTests(TestCase):
 
     def test_product_category_is_required(self):
         product = Product(
-            name="Coca cola",
+            name="VimaCola",
             category=None,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -69,7 +69,7 @@ class ProductModelTests(TestCase):
 
     def test_sale_price_cannot_be_negative(self):
         product = Product(
-            name="Coca cola",
+            name="VimaCola",
             category=self.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -81,7 +81,7 @@ class ProductModelTests(TestCase):
 
     def test_duplicate_product_is_not_valid(self):
         Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=self.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -89,7 +89,7 @@ class ProductModelTests(TestCase):
         )
 
         duplicate = Product(
-            name="Coca cola",
+            name="VimaCola",
             category=self.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),

@@ -18,7 +18,7 @@ class ReplenishmentCreateViewTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca Cola test",
+            name="VimaCola test",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -120,7 +120,7 @@ class ReplenishmentModelTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),

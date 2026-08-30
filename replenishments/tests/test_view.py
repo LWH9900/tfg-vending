@@ -25,7 +25,7 @@ class ReplenishmentViewTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -33,7 +33,7 @@ class ReplenishmentViewTests(TestCase):
         )
 
         cls.second_product = Product.objects.create(
-            name="Nestea",
+            name="VimaTea",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -398,12 +398,12 @@ class ReplenishmentViewTests(TestCase):
 
         self.assertContains(
             response,
-            "Coca cola",
+            "VimaCola",
         )
 
         self.assertContains(
             response,
-            "Nestea",
+            "VimaTea",
         )
 
         self.assertContains(

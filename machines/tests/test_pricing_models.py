@@ -20,7 +20,7 @@ class PricingModelsTest(TestCase):
         )
 
         self.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             format_unit="Lata 330 ml",
             default_sale_price=Decimal("1.50"),
             vat_rate=Decimal("21.00"),
