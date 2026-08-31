@@ -3,6 +3,7 @@ from django.db import transaction
 
 from machines.models import (
     Machine,
+    MachineLayout,
     MachineLayoutActivation,
 )
 
@@ -12,7 +13,12 @@ def activate_machine_layout(
     layout,
     effective_from,
 ):
-    Machine.objects.select_for_update().get(pk=layout.machine_id)
+    if layout.status != MachineLayout.Status.REGISTERED:
+        raise ValidationError("Solo se puede activar una disposición registrada.")
+
+    Machine.objects.select_for_update().get(
+        pk=layout.machine_id,
+    )
 
     activation_exists = MachineLayoutActivation.objects.filter(
         layout__machine=layout.machine,
@@ -24,10 +30,15 @@ def activate_machine_layout(
             "Ya existe una disposición activada para esta máquina en esa fecha y hora."
         )
 
-    return MachineLayoutActivation.objects.create(
+    activation = MachineLayoutActivation(
         layout=layout,
         effective_from=effective_from,
     )
+
+    activation.full_clean()
+    activation.save()
+
+    return activation
 
 
 def get_machine_layout_at(

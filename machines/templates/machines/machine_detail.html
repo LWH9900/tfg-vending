@@ -33,13 +33,20 @@
             </p>
 
         </div>
-
+        
         <div class="page-header-actions">
             <a
                 href="{% url 'machines:machine_update' machine.pk %}"
                 class="btn btn-primary"
             >
                 Editar máquina
+            </a>
+
+            <a
+                href="{% url 'machines:machine_layout_list' machine.pk %}"
+                class="btn btn-primary"
+            >
+                Disposiciones
             </a>
         </div>
 

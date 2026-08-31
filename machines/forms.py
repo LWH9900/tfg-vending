@@ -1,9 +1,16 @@
 from django import forms
+from django.forms import inlineformset_factory
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
 
-from .models import Machine, MachinePriceOverride, PricingProfile
+from .models import (
+    Machine,
+    MachineLayout,
+    MachinePosition,
+    MachinePriceOverride,
+    PricingProfile,
+)
 
 
 class MachineForm(forms.ModelForm):
@@ -201,3 +208,71 @@ class PricingProfileForm(forms.ModelForm):
                 "invalid": ("Introduce una variación porcentual válida."),
             },
         }
+
+
+class MachineLayoutForm(forms.ModelForm):
+    class Meta:
+        model = MachineLayout
+        fields = ["name"]
+        labels = {
+            "name": "Nombre",
+        }
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej. Configuración principal",
+                }
+            ),
+        }
+
+
+class MachinePositionForm(forms.ModelForm):
+    class Meta:
+        model = MachinePosition
+        fields = [
+            "identifier",
+            "product",
+        ]
+        labels = {
+            "identifier": "Selección",
+            "product": "Producto",
+        }
+        widgets = {
+            "identifier": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej. A1",
+                }
+            ),
+            "product": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+        }
+
+
+MachinePositionFormSet = inlineformset_factory(
+    MachineLayout,
+    MachinePosition,
+    form=MachinePositionForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+class MachineLayoutActivationForm(forms.Form):
+    effective_from = forms.DateTimeField(
+        label="Activa desde",
+        widget=forms.DateTimeInput(
+            attrs={
+                "class": "form-control",
+                "type": "datetime-local",
+            },
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=[
+            "%Y-%m-%dT%H:%M",
+        ],
+    )

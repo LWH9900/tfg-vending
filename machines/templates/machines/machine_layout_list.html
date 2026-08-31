@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static l10n %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+
+{% block content %}
+<header class="page-header">
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">
+                    Máquinas
+                </a>
+                /
+                <a href="{% url 'machines:machine_detail' machine.pk %}">
+                    {{ machine.identifier }}
+                </a>
+                /
+                Disposiciones
+            </div>
+
+            <h1 class="page-title">
+                Disposiciones
+            </h1>
+
+            <p class="page-description">
+                Consulta las disposiciones configuradas para {{ machine.name }}.
+            </p>
+        </div>
+
+    </div>
+</header>
+
+<div class="page-container">
+
+    {% if layouts %}
+        <div class="row g-3">
+
+            {% for layout in layouts %}
+                <div class="col-12">
+                    <a
+                        href="{% url 'machines:machine_layout_detail' layout.pk %}"
+                        class="layout-summary-link"
+                    >
+                        <div class="card layout-summary-card clickable-card">
+                            <div class="card-body">
+
+                                <div class="d-flex justify-content-between align-items-center gap-3">
+
+                                    <div>
+                                        <h2 class="h5 mb-1">
+                                            {{ layout.name }}
+                                        </h2>
+
+                                        <span class="text-muted">
+                                            {{ layout.positions_count }}
+                                            posición{{ layout.positions_count|pluralize:"es" }}
+                                        </span>
+                                    </div>
+
+                                    <div class="d-flex align-items-center gap-3">
+
+                                        <div>
+                                            {% if layout.status == "DRAFT" %}
+                                                <span class="badge text-bg-secondary">
+                                                    Borrador
+                                                </span>
+                                            {% else %}
+                                                <span class="badge text-bg-primary">
+                                                    Registrada
+                                                </span>
+                                            {% endif %}
+                                        </div>
+
+                                        <div>
+                                            {% if layout.is_active %}
+                                                <span class="badge text-bg-success">
+                                                    Activa
+                                                </span>
+
+                                            {% elif layout.last_activation %}
+                                                <span class="text-muted">
+                                                    Última activación:
+                                                    {{ layout.last_activation|date:"d/m/Y H:i" }}
+                                                </span>
+
+                                            {% else %}
+                                                <span class="text-muted">
+                                                    Nunca activada
+                                                </span>
+                                            {% endif %}
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+
+        </div>
+
+    {% else %}
+        <div class="empty-state">
+            <p class="text-muted mb-0">
+                Esta máquina todavía no tiene disposiciones.
+            </p>
+        </div>
+    {% endif %}
+    <div class="detail-actions">
+
+        <a
+            href="{% url 'machines:machine_detail' machine.pk %}"
+            class="back-link"
+        >
+            ← Volver a máquinas
+        </a>
+
+    </div>  
+
+</div>
+{% endblock %}

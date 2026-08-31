@@ -9,7 +9,6 @@ from inventory.models import Category, Product
 from machines.models import (
     Machine,
     MachineLayout,
-    MachineLayoutActivation,
     MachinePosition,
 )
 from machines.services.layouts import (
@@ -25,6 +24,8 @@ class MachineLayoutServiceTests(TestCase):
             identifier="VM-001",
             name="Máquina 1",
             serial_number="SN-001",
+            rows=4,
+            columns=4,
         )
 
         self.category = Category.objects.create(
@@ -33,14 +34,14 @@ class MachineLayoutServiceTests(TestCase):
         )
 
         self.cola = Product.objects.create(
-            name="Cola",
+            name="VimaCola",
             category=self.category,
             format_unit="330 ml",
             default_sale_price=Decimal("1.50"),
             vat_rate=Decimal("21.00"),
         )
 
-        self.VimaTea = Product.objects.create(
+        self.tea = Product.objects.create(
             name="VimaTea",
             category=self.category,
             format_unit="330 ml",
@@ -56,8 +57,13 @@ class MachineLayoutServiceTests(TestCase):
         MachinePosition.objects.create(
             layout=self.layout_a,
             identifier="A3",
+            row=1,
+            column=1,
             product=self.cola,
         )
+
+        self.layout_a.status = MachineLayout.Status.REGISTERED
+        self.layout_a.save()
 
         self.layout_b = MachineLayout.objects.create(
             machine=self.machine,
@@ -67,8 +73,13 @@ class MachineLayoutServiceTests(TestCase):
         MachinePosition.objects.create(
             layout=self.layout_b,
             identifier="A3",
-            product=self.VimaTea,
+            row=1,
+            column=1,
+            product=self.tea,
         )
+
+        self.layout_b.status = MachineLayout.Status.REGISTERED
+        self.layout_b.save()
 
     def make_datetime(
         self,
@@ -76,6 +87,7 @@ class MachineLayoutServiceTests(TestCase):
         month,
         day,
         hour=0,
+        minute=0,
     ):
         return timezone.make_aware(
             datetime(
@@ -83,6 +95,7 @@ class MachineLayoutServiceTests(TestCase):
                 month,
                 day,
                 hour,
+                minute,
             )
         )
 
@@ -123,6 +136,27 @@ class MachineLayoutServiceTests(TestCase):
             layout,
             self.layout_a,
         )
+
+    def test_future_activation_is_not_active_before_effective_date(self):
+        activate_machine_layout(
+            self.layout_a,
+            self.make_datetime(
+                2026,
+                9,
+                10,
+            ),
+        )
+
+        layout = get_machine_layout_at(
+            self.machine,
+            self.make_datetime(
+                2026,
+                9,
+                5,
+            ),
+        )
+
+        self.assertIsNone(layout)
 
     def test_get_machine_layout_at_uses_historical_layout(self):
         activate_machine_layout(
@@ -213,6 +247,42 @@ class MachineLayoutServiceTests(TestCase):
             self.layout_a,
         )
 
+    def test_machine_cannot_have_two_layouts_at_same_time(self):
+        moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            10,
+            30,
+        )
+
+        activate_machine_layout(
+            self.layout_a,
+            moment,
+        )
+
+        with self.assertRaises(ValidationError):
+            activate_machine_layout(
+                self.layout_b,
+                moment,
+            )
+
+    def test_draft_layout_cannot_be_activated(self):
+        draft_layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Borrador",
+        )
+
+        with self.assertRaises(ValidationError):
+            activate_machine_layout(
+                draft_layout,
+                self.make_datetime(
+                    2026,
+                    9,
+                    1,
+                ),
+            )
+
     def test_selection_resolves_product_from_active_layout(self):
         activate_machine_layout(
             self.layout_a,
@@ -226,6 +296,31 @@ class MachineLayoutServiceTests(TestCase):
         product = get_product_for_selection(
             self.machine,
             "A3",
+            self.make_datetime(
+                2026,
+                9,
+                5,
+            ),
+        )
+
+        self.assertEqual(
+            product,
+            self.cola,
+        )
+
+    def test_selection_resolution_is_case_insensitive(self):
+        activate_machine_layout(
+            self.layout_a,
+            self.make_datetime(
+                2026,
+                9,
+                1,
+            ),
+        )
+
+        product = get_product_for_selection(
+            self.machine,
+            "a3",
             self.make_datetime(
                 2026,
                 9,
@@ -272,148 +367,37 @@ class MachineLayoutServiceTests(TestCase):
             self.cola,
         )
 
-    def test_machine_cannot_have_two_layouts_at_same_time(self):
-        moment = self.make_datetime(
-            2026,
-            9,
-            1,
+    def test_selection_returns_none_without_active_layout(self):
+        product = get_product_for_selection(
+            self.machine,
+            "A3",
+            self.make_datetime(
+                2026,
+                9,
+                1,
+            ),
         )
 
+        self.assertIsNone(product)
+
+    def test_unknown_selection_returns_none(self):
         activate_machine_layout(
             self.layout_a,
-            moment,
+            self.make_datetime(
+                2026,
+                9,
+                1,
+            ),
         )
 
-        with self.assertRaises(ValidationError):
-            activate_machine_layout(
-                self.layout_b,
-                moment,
-            )
-
-    def test_layout_that_has_never_been_activated_can_be_edited(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Original",
+        product = get_product_for_selection(
+            self.machine,
+            "Z9",
+            self.make_datetime(
+                2026,
+                9,
+                5,
+            ),
         )
 
-        layout.name = "Modificado"
-        layout.save()
-
-        layout.refresh_from_db()
-
-        self.assertEqual(
-            layout.name,
-            "Modificado",
-        )
-
-    def test_activated_layout_cannot_be_edited(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Principal",
-        )
-
-        MachineLayoutActivation.objects.create(
-            layout=layout,
-            effective_from=timezone.now(),
-        )
-
-        layout.name = "Modificado"
-
-        with self.assertRaises(ValidationError):
-            layout.save()
-
-    def test_activated_layout_cannot_be_deleted(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Principal",
-        )
-
-        MachineLayoutActivation.objects.create(
-            layout=layout,
-            effective_from=timezone.now(),
-        )
-
-        with self.assertRaises(ValidationError):
-            layout.delete()
-
-    def test_position_in_unused_layout_can_be_edited(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Principal",
-        )
-
-        position = MachinePosition.objects.create(
-            layout=layout,
-            identifier="A1",
-            product=self.cola,
-        )
-
-        position.identifier = "A2"
-        position.save()
-
-        position.refresh_from_db()
-
-        self.assertEqual(
-            position.identifier,
-            "A2",
-        )
-
-    def test_position_in_activated_layout_cannot_be_edited(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Principal",
-        )
-
-        position = MachinePosition.objects.create(
-            layout=layout,
-            identifier="A1",
-            product=self.cola,
-        )
-
-        MachineLayoutActivation.objects.create(
-            layout=layout,
-            effective_from=timezone.now(),
-        )
-
-        position.identifier = "A2"
-
-        with self.assertRaises(ValidationError):
-            position.save()
-
-    def test_position_cannot_be_added_to_activated_layout(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Principal",
-        )
-
-        MachineLayoutActivation.objects.create(
-            layout=layout,
-            effective_from=timezone.now(),
-        )
-
-        with self.assertRaises(ValidationError):
-            MachinePosition.objects.create(
-                layout=layout,
-                identifier="A1",
-                product=self.cola,
-            )
-
-    def test_position_in_activated_layout_cannot_be_deleted(self):
-        layout = MachineLayout.objects.create(
-            machine=self.machine,
-            name="Principal",
-        )
-
-        position = MachinePosition.objects.create(
-            layout=layout,
-            identifier="A1",
-            product=self.cola,
-        )
-
-        MachineLayoutActivation.objects.create(
-            layout=layout,
-            effective_from=timezone.now(),
-        )
-
-        with self.assertRaises(ValidationError):
-            position.delete()
+        self.assertIsNone(product)

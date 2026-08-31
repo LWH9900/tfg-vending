@@ -1,17 +1,11 @@
 from django.core.exceptions import ValidationError
-from django.db import models
-from django.db.models.functions import Lower
-from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
-from django.db import models
-from django.db.models import Q
-from django.db.models.functions import Lower
 from django.core.validators import (
     MaxValueValidator,
     MinValueValidator,
 )
-
-
+from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Lower
 
 MAX_MACHINE_ROWS = 20
 MAX_MACHINE_COLUMNS = 20
@@ -90,12 +84,10 @@ class Machine(models.Model):
             raise ValidationError(
                 {
                     "rows": (
-                        "Las filas y columnas deben configurarse "
-                        "al mismo tiempo."
+                        "Las filas y columnas deben configurarse al mismo tiempo."
                     ),
                     "columns": (
-                        "Las filas y columnas deben configurarse "
-                        "al mismo tiempo."
+                        "Las filas y columnas deben configurarse al mismo tiempo."
                     ),
                 }
             )
@@ -104,13 +96,11 @@ class Machine(models.Model):
             original = Machine.objects.get(pk=self.pk)
 
             dimensions_were_configured = (
-                original.rows is not None
-                and original.columns is not None
+                original.rows is not None and original.columns is not None
             )
 
             dimensions_changed = (
-                original.rows != self.rows
-                or original.columns != self.columns
+                original.rows != self.rows or original.columns != self.columns
             )
 
             if dimensions_were_configured and dimensions_changed:
@@ -303,26 +293,16 @@ class MachinePosition(models.Model):
 
         if last_row > machine.rows:
             raise ValidationError(
-                {
-                    "height": (
-                        "La posición supera el número de filas "
-                        "de la máquina."
-                    )
-                }
+                {"height": ("La posición supera el número de filas de la máquina.")}
             )
 
         if last_column > machine.columns:
             raise ValidationError(
-                {
-                    "width": (
-                        "La posición supera el número de columnas "
-                        "de la máquina."
-                    )
-                }
+                {"width": ("La posición supera el número de columnas de la máquina.")}
             )
-        
+
         other_positions = MachinePosition.objects.filter(
-        layout=self.layout,
+            layout=self.layout,
         )
 
         if self.pk:
@@ -331,39 +311,25 @@ class MachinePosition(models.Model):
             )
 
         for other in other_positions:
-            other_last_row = (
-                other.row + other.height - 1
-            )
-            other_last_column = (
-                other.column + other.width - 1
-            )
+            other_last_row = other.row + other.height - 1
+            other_last_column = other.column + other.width - 1
 
-            rows_overlap = (
-                self.row <= other_last_row
-                and last_row >= other.row
-            )
+            rows_overlap = self.row <= other_last_row and last_row >= other.row
 
             columns_overlap = (
-                self.column <= other_last_column
-                and last_column >= other.column
+                self.column <= other_last_column and last_column >= other.column
             )
 
             if rows_overlap and columns_overlap:
                 raise ValidationError(
-                    "La posición se solapa con otra posición "
-                    "de la disposición."
+                    "La posición se solapa con otra posición de la disposición."
                 )
 
     def save(self, *args, **kwargs):
         if self.pk:
-            original = MachinePosition.objects.select_related(
-                "layout"
-            ).get(pk=self.pk)
+            original = MachinePosition.objects.select_related("layout").get(pk=self.pk)
 
-            if (
-                original.layout.status
-                == MachineLayout.Status.REGISTERED
-            ):
+            if original.layout.status == MachineLayout.Status.REGISTERED:
                 raise ValidationError(
                     "Las posiciones de una disposición registrada "
                     "no pueden modificarse."
@@ -381,17 +347,13 @@ class MachinePosition(models.Model):
     def delete(self, *args, **kwargs):
         if self.layout.status == MachineLayout.Status.REGISTERED:
             raise ValidationError(
-                "Las posiciones de una disposición registrada "
-                "no pueden eliminarse."
+                "Las posiciones de una disposición registrada no pueden eliminarse."
             )
 
         return super().delete(*args, **kwargs)
 
     def __str__(self):
-        return (
-            f"{self.layout.machine.identifier} - "
-            f"{self.identifier}"
-        )
+        return f"{self.layout.machine.identifier} - {self.identifier}"
 
     class Meta:
         constraints = [
@@ -417,19 +379,11 @@ class MachineLayoutActivation(models.Model):
 
         if self.layout.status != MachineLayout.Status.REGISTERED:
             raise ValidationError(
-                {
-                    "layout": (
-                        "Solo se puede activar una disposición "
-                        "registrada."
-                    )
-                }
+                {"layout": ("Solo se puede activar una disposición registrada.")}
             )
 
     def __str__(self):
-        return (
-            f"{self.layout} - "
-            f"{self.effective_from:%d/%m/%Y %H:%M}"
-        )
+        return f"{self.layout} - {self.effective_from:%d/%m/%Y %H:%M}"
 
     class Meta:
         ordering = [
