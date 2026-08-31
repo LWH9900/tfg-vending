@@ -104,3 +104,16 @@
 .purchase-col-action {
     width: 10%;
 }
+
+
+.detail-edit-field .form-control:disabled,
+.detail-edit-field .form-control:disabled:hover,
+.detail-edit-field .form-control:disabled:focus {
+    background-color: #e9ecef;
+    color: #6c757d;
+    border-color: #ced4da;
+    box-shadow: none;
+    outline: none;
+    opacity: 1;
+    cursor: not-allowed;
+}

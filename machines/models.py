@@ -83,30 +83,34 @@ class Machine(models.Model):
         if (self.rows is None) != (self.columns is None):
             raise ValidationError(
                 {
-                    "rows": (
-                        "Las filas y columnas deben configurarse al mismo tiempo."
-                    ),
+                    "rows": ("Las filas y columnas deben configurarse conjuntamente."),
                     "columns": (
-                        "Las filas y columnas deben configurarse al mismo tiempo."
+                        "Las filas y columnas deben configurarse conjuntamente."
                     ),
                 }
             )
 
         if self.pk:
-            original = Machine.objects.get(pk=self.pk)
-
-            dimensions_were_configured = (
-                original.rows is not None and original.columns is not None
+            original = Machine.objects.get(
+                pk=self.pk,
             )
 
             dimensions_changed = (
                 original.rows != self.rows or original.columns != self.columns
             )
 
-            if dimensions_were_configured and dimensions_changed:
+            if dimensions_changed and self.layouts.exists():
                 raise ValidationError(
-                    "Las dimensiones de una máquina no pueden "
-                    "modificarse una vez establecidas."
+                    {
+                        "rows": (
+                            "No se pueden modificar las dimensiones "
+                            "mientras la máquina tenga disposiciones."
+                        ),
+                        "columns": (
+                            "No se pueden modificar las dimensiones "
+                            "mientras la máquina tenga disposiciones."
+                        ),
+                    }
                 )
 
     def save(self, *args, **kwargs):

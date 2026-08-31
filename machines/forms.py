@@ -21,6 +21,8 @@ class MachineForm(forms.ModelForm):
             "name",
             "serial_number",
             "location",
+            "rows",
+            "columns",
         ]
 
         labels = {
@@ -28,6 +30,8 @@ class MachineForm(forms.ModelForm):
             "name": "Nombre",
             "serial_number": "Número de serie",
             "location": "Ubicación",
+            "rows": "Filas",
+            "columns": "Columnas",
         }
 
         widgets = {
@@ -51,6 +55,20 @@ class MachineForm(forms.ModelForm):
                     "class": "form-control",
                 }
             ),
+            "rows": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": 1,
+                    "max": 20,
+                }
+            ),
+            "columns": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": 1,
+                    "max": 20,
+                }
+            ),
         }
 
         error_messages = {
@@ -66,6 +84,13 @@ class MachineForm(forms.ModelForm):
                 "unique": "Ya existe una máquina con este número de serie.",
             },
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.instance.pk and self.instance.layouts.exists():
+            self.fields["rows"].disabled = True
+            self.fields["columns"].disabled = True
 
 
 class MachinePricingProfileForm(forms.Form):
@@ -211,9 +236,40 @@ class PricingProfileForm(forms.ModelForm):
 
 
 class MachineLayoutForm(forms.ModelForm):
+    def __init__(
+        self,
+        *args,
+        machine=None,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        self.machine = machine
+
+    def clean_name(self):
+        name = self.cleaned_data["name"]
+
+        if (
+            self.machine
+            and MachineLayout.objects.filter(
+                machine=self.machine,
+                name__iexact=name,
+            ).exists()
+        ):
+            raise forms.ValidationError(
+                "Ya existe una disposición con este nombre para esta máquina."
+            )
+
+        return name
+
     class Meta:
         model = MachineLayout
-        fields = ["name"]
+        fields = [
+            "name",
+        ]
         labels = {
             "name": "Nombre",
         }

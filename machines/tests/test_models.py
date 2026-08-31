@@ -159,48 +159,62 @@ class MachineModelTests(TestCase):
         self.assertEqual(machine.rows, 4)
         self.assertEqual(machine.columns, 6)
 
-    def test_rows_cannot_change_once_grid_is_configured(self):
+    def test_rows_can_change_when_machine_has_no_layouts(self):
         machine = Machine.objects.create(
             identifier="VM-001",
-            name="Máquina Biblioteca",
+            name="Máquina 1",
             serial_number="SN-001",
-            rows=4,
-            columns=6,
+            rows=5,
+            columns=5,
         )
 
-        machine.rows = 5
+        machine.rows = 6
+        machine.save()
 
-        with self.assertRaises(ValidationError):
-            machine.full_clean()
+        machine.refresh_from_db()
 
-    def test_columns_cannot_change_once_grid_is_configured(self):
-        machine = Machine.objects.create(
-            identifier="VM-001",
-            name="Máquina Biblioteca",
-            serial_number="SN-001",
-            rows=4,
-            columns=6,
+        self.assertEqual(
+            machine.rows,
+            6,
         )
 
-        machine.columns = 7
-
-        with self.assertRaises(ValidationError):
-            machine.full_clean()
-
-    def test_grid_cannot_be_removed_once_configured(self):
+    def test_columns_can_change_when_machine_has_no_layouts(self):
         machine = Machine.objects.create(
             identifier="VM-001",
-            name="Máquina Biblioteca",
+            name="Máquina 1",
             serial_number="SN-001",
-            rows=4,
-            columns=6,
+            rows=5,
+            columns=5,
+        )
+
+        machine.columns = 6
+        machine.save()
+
+        machine.refresh_from_db()
+
+        self.assertEqual(
+            machine.columns,
+            6,
+        )
+
+    def test_grid_can_be_removed_when_machine_has_no_layouts(self):
+        machine = Machine.objects.create(
+            identifier="VM-001",
+            name="Máquina 1",
+            serial_number="SN-001",
+            rows=5,
+            columns=5,
         )
 
         machine.rows = None
         machine.columns = None
+        machine.save()
 
-        with self.assertRaises(ValidationError):
-            machine.full_clean()
+        machine.refresh_from_db()
+
+        self.assertIsNone(machine.rows)
+
+        self.assertIsNone(machine.columns)
 
     def test_rows_cannot_exceed_maximum(self):
         machine = Machine(
@@ -623,4 +637,94 @@ class MachineLayoutModelTests(TestCase):
         self.assertEqual(
             layout.activations.count(),
             2,
+        )
+
+    def test_rows_cannot_change_when_machine_has_layout(self):
+        machine = Machine.objects.create(
+            identifier="VM-GRID-ROWS",
+            name="Máquina grid filas",
+            serial_number="SN-GRID-ROWS",
+            rows=5,
+            columns=5,
+        )
+
+        MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición principal",
+        )
+
+        machine.rows = 6
+
+        with self.assertRaises(ValidationError):
+            machine.save()
+
+    def test_columns_cannot_change_when_machine_has_layout(self):
+        machine = Machine.objects.create(
+            identifier="VM-GRID-COLUMNS",
+            name="Máquina grid columnas",
+            serial_number="SN-GRID-COLUMNS",
+            rows=5,
+            columns=5,
+        )
+
+        MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición principal",
+        )
+
+        machine.columns = 6
+
+        with self.assertRaises(ValidationError):
+            machine.save()
+
+    def test_grid_cannot_be_removed_when_machine_has_layout(self):
+        machine = Machine.objects.create(
+            identifier="VM-GRID-REMOVE",
+            name="Máquina grid eliminación",
+            serial_number="SN-GRID-REMOVE",
+            rows=5,
+            columns=5,
+        )
+
+        MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición principal",
+        )
+
+        machine.rows = None
+        machine.columns = None
+
+        with self.assertRaises(ValidationError):
+            machine.save()
+
+    def test_grid_can_change_after_all_layouts_are_deleted(self):
+        machine = Machine.objects.create(
+            identifier="VM-GRID-DELETE",
+            name="Máquina grid borrado",
+            serial_number="SN-GRID-DELETE",
+            rows=5,
+            columns=5,
+        )
+
+        layout = MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición principal",
+        )
+
+        layout.delete()
+
+        machine.rows = 6
+        machine.columns = 6
+        machine.save()
+
+        machine.refresh_from_db()
+
+        self.assertEqual(
+            machine.rows,
+            6,
+        )
+
+        self.assertEqual(
+            machine.columns,
+            6,
         )

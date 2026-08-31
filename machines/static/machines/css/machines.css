@@ -605,3 +605,150 @@
 
     text-align: right;
 }
+
+.layout-edit-cell {
+    pointer-events: auto;
+    cursor: pointer;
+    appearance: none;
+
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.layout-edit-cell:hover:not(.is-occupied) {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 8%,
+        #fff
+    );
+
+    border-color: var(--app-primary);
+}
+
+
+.layout-edit-cell.is-occupied {
+    cursor: not-allowed;
+}
+
+.layout-edit-position {
+    pointer-events: auto;
+    cursor: pointer;
+
+    appearance: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.layout-edit-position:hover,
+.layout-edit-position.is-editing {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 8%,
+        #fff
+    );
+
+    border-color: var(--app-primary);
+}
+
+.layout-editor {
+    display: grid;
+    grid-template-columns: max-content minmax(280px, 1fr);
+    gap: 32px;
+    align-items: start;
+}
+
+.layout-editor-grid {
+    min-width: 0;
+}
+
+.layout-position-editor {
+    min-width: 0;
+    padding: 20px;
+
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 5px;
+}
+
+.layout-position-editor-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    min-height: 180px;
+
+    text-align: center;
+}
+
+@media (max-width: 1000px) {
+    .layout-editor {
+        grid-template-columns: 1fr;
+    }
+
+    .layout-position-editor {
+        width: 100%;
+    }
+}
+
+.layout-selected-areas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.layout-selected-area {
+    display: grid;
+    grid-template-columns: minmax(100px, 160px) 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+
+    background-color: #fff;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 5px;
+}
+
+.layout-selection-preview,
+.layout-selection-area {
+    z-index: 3;
+    min-width: 0;
+    min-height: 0;
+
+    border: 2px solid var(--app-primary);
+    border-radius: 5px;
+
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 16%,
+        #fff
+    );
+}
+
+.layout-selection-preview {
+    pointer-events: none;
+}
+
+.layout-selection-area {
+    appearance: none;
+    padding: 0;
+
+    cursor: pointer;
+
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.layout-selection-area:hover {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 24%,
+        #fff
+    );
+}

@@ -1,5 +1,8 @@
+import json
+
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -8,9 +11,16 @@ from inventory.services import get_machine_product_stocks
 from machines.forms import (
     MachineLayoutActivationForm,
     MachineLayoutForm,
+    MachinePositionForm,
     MachinePositionFormSet,
 )
-from machines.models import Machine, MachineLayout, MachinePriceOverride, PricingProfile
+from machines.models import (
+    Machine,
+    MachineLayout,
+    MachinePosition,
+    MachinePriceOverride,
+    PricingProfile,
+)
 from machines.services.layouts import activate_machine_layout, get_machine_layout_at
 
 from .forms import (
@@ -496,60 +506,163 @@ def pricing_profile_delete(request, pk):
     return redirect("machines:pricing_profile_list")
 
 
-def machine_layout_create(request, machine_pk):
+def machine_layout_create(
+    request,
+    machine_pk,
+):
     machine = get_object_or_404(
         Machine,
         pk=machine_pk,
     )
 
-    layout = MachineLayout(
-        machine=machine,
+    grid_configured = machine.rows is not None and machine.columns is not None
+
+    existing_layouts = machine.layouts.prefetch_related("positions__product").order_by(
+        "name"
     )
+
+    layout_templates = {}
+
+    for existing_layout in existing_layouts:
+        layout_templates[str(existing_layout.pk)] = [
+            {
+                "identifier": position.identifier,
+                "product_id": (position.product_id if position.product_id else None),
+                "row": position.row,
+                "column": position.column,
+                "width": position.width,
+                "height": position.height,
+            }
+            for position in existing_layout.positions.all()
+        ]
+
+    grid_cells = []
+
+    if grid_configured:
+        grid_cells = [
+            {
+                "row": row,
+                "column": column,
+            }
+            for row in range(1, machine.rows + 1)
+            for column in range(1, machine.columns + 1)
+        ]
+
+    positions_json = "[]"
+
+    selected_source_layout_id = None
 
     if request.method == "POST":
         form = MachineLayoutForm(
             request.POST,
-            instance=layout,
+            machine=machine,
+        )
+        source_layout_value = request.POST.get(
+            "source_layout",
+            "",
         )
 
-        formset = MachinePositionFormSet(
-            request.POST,
-            instance=layout,
+        if source_layout_value.isdigit():
+            selected_source_layout_id = int(source_layout_value)
+
+        position_form = MachinePositionForm()
+
+        positions_json = request.POST.get(
+            "positions",
+            "[]",
         )
 
-        if form.is_valid() and formset.is_valid():
-            layout = form.save()
-
-            formset.instance = layout
-            formset.save()
-
-            messages.success(
-                request,
-                "La disposición se ha creado correctamente.",
+        if not grid_configured:
+            form.add_error(
+                None,
+                "La máquina debe tener una cuadrícula configurada.",
             )
 
-            return redirect(
-                "machines:machine_detail",
-                pk=machine.pk,
+        try:
+            positions_data = json.loads(positions_json)
+        except json.JSONDecodeError:
+            positions_data = None
+
+            form.add_error(
+                None,
+                "No se ha podido interpretar la configuración de posiciones.",
             )
+
+        if form.is_valid() and positions_data is not None:
+            try:
+                with transaction.atomic():
+                    layout = form.save(
+                        commit=False,
+                    )
+
+                    layout.machine = machine
+                    layout.status = MachineLayout.Status.DRAFT
+
+                    layout.save()
+
+                    for position_data in positions_data:
+                        position = MachinePosition(
+                            layout=layout,
+                            identifier=position_data.get(
+                                "identifier",
+                                "",
+                            ),
+                            row=position_data.get("row"),
+                            column=position_data.get("column"),
+                            width=position_data.get(
+                                "width",
+                                1,
+                            ),
+                            height=position_data.get(
+                                "height",
+                                1,
+                            ),
+                            product_id=(position_data.get("product_id") or None),
+                        )
+
+                        position.save()
+
+                return redirect(
+                    "machines:machine_layout_detail",
+                    pk=layout.pk,
+                )
+
+            except (
+                ValidationError,
+                TypeError,
+                ValueError,
+            ) as error:
+                if isinstance(error, ValidationError):
+                    message = " ".join(error.messages)
+                else:
+                    message = str(error)
+
+                form.add_error(
+                    None,
+                    message,
+                )
+
     else:
         form = MachineLayoutForm(
-            instance=layout,
+            machine=machine,
         )
 
-        formset = MachinePositionFormSet(
-            instance=layout,
-        )
+        position_form = MachinePositionForm()
 
     return render(
         request,
         "machines/machine_layout_form.html",
         {
-            "machine": machine,
-            "layout": layout,
             "form": form,
-            "formset": formset,
-            "is_edit": False,
+            "position_form": position_form,
+            "machine": machine,
+            "grid_configured": grid_configured,
+            "grid_cells": grid_cells,
+            "existing_layouts": existing_layouts,
+            "layout_templates": layout_templates,
+            "positions_json": positions_json,
+            "selected_source_layout_id": selected_source_layout_id,
+            "is_editing": False,
         },
     )
 
