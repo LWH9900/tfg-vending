@@ -90,18 +90,18 @@
     >
 
         {% csrf_token %}
-
         <input
             type="hidden"
             name="positions"
             id="positionsData"
             value="{{ positions_json }}"
         >
+
         <input
             type="hidden"
-            name="positions"
-            id="positionsData"
-            value="{{ positions_json }}"
+            name="source_layout"
+            id="sourceLayoutData"
+            value="{{ selected_source_layout_id|default_if_none:'' }}"
         >
 
         {% if form.non_field_errors %}
@@ -283,14 +283,24 @@
                                 </label>
 
                                 {{ position_form.product }}
+                                <div class="mt-2">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="addWithoutProductButton"
+                                    >
+                                        Añadir sin producto
+                                    </button>
+                                </div>
 
                                 <div
                                     class="form-text"
                                     id="positionProductHelp"
                                 >
-                                    Al seleccionar el producto,
-                                    la posición se añadirá automáticamente.
+                                    Selecciona un producto para añadir la posición
+                                    o añádela sin producto asignado.
                                 </div>
+
 
                             </div>
 
@@ -366,6 +376,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const productSelect = document.getElementById(
         "{{ position_form.product.id_for_label }}"
+    );
+    const addWithoutProductButton =
+        document.getElementById(
+            "addWithoutProductButton"
     );
     const form = document.getElementById(
         "machineLayoutForm"
@@ -1129,6 +1143,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
         if (selectedAreas.length > 0) {
+            addWithoutProductButton.classList.remove(
+                "d-none"
+            );
 
             positionEditorEmpty.classList.add(
                 "d-none"
@@ -1139,6 +1156,9 @@ document.addEventListener("DOMContentLoaded", function () {
             );
 
         } else {
+            addWithoutProductButton.classList.remove(
+                "d-none"
+            );
 
             positionEditorForm.classList.add(
                 "d-none"
@@ -1154,6 +1174,9 @@ document.addEventListener("DOMContentLoaded", function () {
     function openPositionEditor(
         index
     ) {
+        addWithoutProductButton.classList.add(
+            "d-none"
+        );
         const position =
             positions[index];
 
@@ -1354,6 +1377,9 @@ closePositionEditor();
         selectedAreasList.innerHTML = "";
 
         productSelect.value = "";
+        addWithoutProductButton.classList.add(
+            "d-none"
+        );
 
         positionEditorError.classList.add(
             "d-none"
@@ -1616,7 +1642,150 @@ function identifierIsUsed(
         renderAllPositions();
     }
 
+    function validateSelectedAreas() {
 
+        const identifiers =
+            selectedAreas.map(
+                function (area) {
+                    return area.identifier.trim();
+                }
+            );
+
+
+        if (
+            identifiers.some(
+                function (identifier) {
+                    return !identifier;
+                }
+            )
+        ) {
+            positionEditorError.textContent =
+                "Todos los identificadores son obligatorios.";
+
+            positionEditorError.classList.remove(
+                "d-none"
+            );
+
+            return false;
+        }
+
+
+        const normalizedIdentifiers =
+            identifiers.map(
+                function (identifier) {
+                    return identifier.toLowerCase();
+                }
+            );
+
+
+        const identifiersAreRepeated =
+            new Set(
+                normalizedIdentifiers
+            ).size !==
+            normalizedIdentifiers.length;
+
+
+        if (identifiersAreRepeated) {
+
+            positionEditorError.textContent =
+                "No puede haber identificadores repetidos.";
+
+            positionEditorError.classList.remove(
+                "d-none"
+            );
+
+            return false;
+        }
+
+
+        const identifierAlreadyExists =
+            identifiers.some(
+                function (identifier) {
+                    return identifierExists(
+                        identifier
+                    );
+                }
+            );
+
+
+        if (identifierAlreadyExists) {
+
+            positionEditorError.textContent =
+                "Uno de los identificadores seleccionados ya está utilizado.";
+
+            positionEditorError.classList.remove(
+                "d-none"
+            );
+
+            return false;
+        }
+
+
+        return true;
+    }
+
+    function addSelectedAreas(
+        productId
+    ) {
+
+        if (
+            selectedAreas.length === 0
+        ) {
+            return;
+        }
+
+
+        if (
+            !validateSelectedAreas()
+        ) {
+            productSelect.value = "";
+            return;
+        }
+
+
+        selectedAreas.forEach(
+            function (area) {
+
+                const position = {
+                    identifier:
+                        area.identifier.trim(),
+
+                    product_id:
+                        productId || null,
+
+                    row:
+                        area.row,
+
+                    column:
+                        area.column,
+
+                    width:
+                        area.width,
+
+                    height:
+                        area.height,
+                };
+
+
+                positions.push(
+                    position
+                );
+            }
+        );
+
+
+        selectedAreas.length = 0;
+
+        clearPositionEditorError();
+
+        productSelect.value = "";
+
+        renderSelectedAreas();
+        refreshSelectionVisuals();
+        renderAllPositions();
+
+        saveDraftState();
+    }
 
     productSelect.addEventListener(
         "change",
@@ -1625,6 +1794,7 @@ function identifierIsUsed(
             if (
                 editingPositionIndex !== null
             ) {
+
                 const position =
                     positions[
                         editingPositionIndex
@@ -1634,12 +1804,14 @@ function identifierIsUsed(
                     return;
                 }
 
+
                 position.product_id =
                     productSelect.value
                         ? productSelect.value
                         : null;
 
-                syncPositionsData();
+
+                clearPositionEditorError();
 
                 renderAllPositions();
                 saveDraftState();
@@ -1647,154 +1819,36 @@ function identifierIsUsed(
                 return;
             }
 
+
             if (
-                selectedAreas.length === 0 ||
                 !productSelect.value
             ) {
                 return;
             }
 
 
-            const identifiers =
-                selectedAreas.map(
-                    function (area) {
-                        return area.identifier.trim();
-                    }
-                );
-
-
-            if (
-                identifiers.some(
-                    function (identifier) {
-                        return !identifier;
-                    }
-                )
-            ) {
-
-                positionEditorError.textContent =
-                    "Todos los identificadores son obligatorios.";
-
-                positionEditorError.classList.remove(
-                    "d-none"
-                );
-
-                productSelect.value = "";
-
-                return;
-            }
-
-
-            const normalizedIdentifiers =
-                identifiers.map(
-                    function (identifier) {
-                        return identifier.toLowerCase();
-                    }
-                );
-
-
-            const identifiersAreRepeated =
-                new Set(
-                    normalizedIdentifiers
-                ).size !==
-                normalizedIdentifiers.length;
-
-
-            if (identifiersAreRepeated) {
-
-                positionEditorError.textContent =
-                    "No puede haber identificadores repetidos.";
-
-                positionEditorError.classList.remove(
-                    "d-none"
-                );
-
-                productSelect.value = "";
-
-                return;
-            }
-
-
-            const identifierAlreadyExists =
-                identifiers.some(
-                    function (identifier) {
-                        return identifierExists(
-                            identifier
-                        );
-                    }
-                );
-
-
-            if (identifierAlreadyExists) {
-
-                positionEditorError.textContent =
-                    "Uno de los identificadores seleccionados ya está utilizado.";
-
-                positionEditorError.classList.remove(
-                    "d-none"
-                );
-
-                productSelect.value = "";
-
-                return;
-            }
-
-
-            const selectedOption =
-                productSelect.options[
-                    productSelect.selectedIndex
-                ];
-
-            const productId =
-                productSelect.value;
-
-            const productName =
-                selectedOption.text;
-
-
-            selectedAreas.forEach(
-                function (area) {
-
-                    const position = {
-                        identifier:
-                            area.identifier.trim(),
-                        product_id:
-                            productId,
-                        row:
-                            area.row,
-                        column:
-                            area.column,
-                        width:
-                            area.width,
-                        height:
-                            area.height,
-                    };
-
-
-                    positions.push(
-                        position
-                    );
-
-                }
+            addSelectedAreas(
+                productSelect.value
             );
-
-
-            syncPositionsData();
-
-            selectedAreas.length = 0;
-
-            positionEditorError.classList.add(
-                "d-none"
-            );
-
-            productSelect.value = "";
-
-            renderSelectedAreas();
-            refreshSelectionVisuals();
-            renderAllPositions();
-            saveDraftState();
         }
     );
 
+
+    addWithoutProductButton.addEventListener(
+        "click",
+        function () {
+
+            if (
+                editingPositionIndex !== null
+            ) {
+                return;
+            }
+
+            addSelectedAreas(
+                null
+            );
+        }
+    );
 
 
 });

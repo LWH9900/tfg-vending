@@ -457,3 +457,44 @@ class MachineLayoutCreateViewTests(TestCase):
             new_position.product,
             self.tea,
         )
+    def test_create_position_without_product(self):
+
+        positions = [
+            {
+                "identifier": "A1",
+                "product_id": None,
+                "row": 1,
+                "column": 1,
+                "width": 1,
+                "height": 1,
+            },
+        ]
+
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Disposición con hueco vacío",
+                "positions": json.dumps(
+                    positions
+                ),
+                "source_layout": "",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        layout = MachineLayout.objects.get(
+            machine=self.machine,
+            name="Disposición con hueco vacío",
+        )
+
+        position = layout.positions.get(
+            identifier="A1",
+        )
+
+        self.assertIsNone(
+            position.product
+        )
