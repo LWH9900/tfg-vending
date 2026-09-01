@@ -868,3 +868,170 @@ def machine_layout_detail(request, pk):
             "last_activation": last_activation,
         },
     )
+
+
+def machine_layout_update(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related("machine"),
+        pk=pk,
+    )
+
+    machine = layout.machine
+
+    if layout.status != MachineLayout.Status.DRAFT:
+        raise PermissionDenied("Las disposiciones registradas no pueden modificarse.")
+
+    grid_configured = machine.rows is not None and machine.columns is not None
+
+    grid_cells = []
+
+    if grid_configured:
+        grid_cells = [
+            {
+                "row": row,
+                "column": column,
+            }
+            for row in range(
+                1,
+                machine.rows + 1,
+            )
+            for column in range(
+                1,
+                machine.columns + 1,
+            )
+        ]
+
+    position_form = MachinePositionForm()
+
+    if request.method == "POST":
+        form = MachineLayoutForm(
+            request.POST,
+            instance=layout,
+            machine=machine,
+        )
+
+        positions_json = request.POST.get(
+            "positions",
+            "[]",
+        )
+
+        try:
+            positions_data = json.loads(positions_json)
+
+            if not isinstance(
+                positions_data,
+                list,
+            ):
+                raise ValueError("La configuración de posiciones no es válida.")
+
+        except (
+            json.JSONDecodeError,
+            ValueError,
+        ):
+            positions_data = None
+
+            form.add_error(
+                None,
+                "No se ha podido interpretar la configuración de posiciones.",
+            )
+
+        if form.is_valid() and positions_data is not None:
+            try:
+                with transaction.atomic():
+                    layout = form.save()
+
+                    layout.positions.all().delete()
+
+                    for position_data in positions_data:
+                        if not isinstance(
+                            position_data,
+                            dict,
+                        ):
+                            raise ValidationError(
+                                "La configuración de una posición no es válida."
+                            )
+
+                        position = MachinePosition(
+                            layout=layout,
+                            identifier=position_data.get(
+                                "identifier",
+                                "",
+                            ),
+                            row=position_data.get("row"),
+                            column=position_data.get("column"),
+                            width=position_data.get(
+                                "width",
+                                1,
+                            ),
+                            height=position_data.get(
+                                "height",
+                                1,
+                            ),
+                            product_id=(position_data.get("product_id") or None),
+                        )
+
+                        position.save()
+
+                return redirect(
+                    "machines:machine_layout_detail",
+                    pk=layout.pk,
+                )
+
+            except (
+                ValidationError,
+                TypeError,
+                ValueError,
+            ) as error:
+                if isinstance(
+                    error,
+                    ValidationError,
+                ):
+                    message = " ".join(error.messages)
+                else:
+                    message = str(error)
+
+                form.add_error(
+                    None,
+                    message,
+                )
+
+    else:
+        form = MachineLayoutForm(
+            instance=layout,
+            machine=machine,
+        )
+
+        positions_json = json.dumps(
+            [
+                {
+                    "identifier": position.identifier,
+                    "product_id": position.product_id,
+                    "row": position.row,
+                    "column": position.column,
+                    "width": position.width,
+                    "height": position.height,
+                }
+                for position in layout.positions.all()
+            ]
+        )
+
+    return render(
+        request,
+        "machines/machine_layout_form.html",
+        {
+            "form": form,
+            "position_form": position_form,
+            "machine": machine,
+            "layout": layout,
+            "grid_configured": grid_configured,
+            "grid_cells": grid_cells,
+            "positions_json": positions_json,
+            "existing_layouts": [],
+            "layout_templates": {},
+            "selected_source_layout_id": None,
+            "is_editing": True,
+        },
+    )

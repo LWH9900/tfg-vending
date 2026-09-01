@@ -249,30 +249,14 @@ class MachineLayoutForm(forms.ModelForm):
 
         self.machine = machine
 
-    def clean_name(self):
-        name = self.cleaned_data["name"]
-
-        if (
-            self.machine
-            and MachineLayout.objects.filter(
-                machine=self.machine,
-                name__iexact=name,
-            ).exists()
-        ):
-            raise forms.ValidationError(
-                "Ya existe una disposición con este nombre para esta máquina."
-            )
-
-        return name
-
     class Meta:
         model = MachineLayout
-        fields = [
-            "name",
-        ]
+        fields = ["name"]
+
         labels = {
             "name": "Nombre",
         }
+
         widgets = {
             "name": forms.TextInput(
                 attrs={
@@ -281,6 +265,29 @@ class MachineLayoutForm(forms.ModelForm):
                 }
             ),
         }
+
+    def clean_name(self):
+        name = self.cleaned_data["name"]
+
+        if not self.machine:
+            return name
+
+        layouts = MachineLayout.objects.filter(
+            machine=self.machine,
+            name__iexact=name,
+        )
+
+        if self.instance.pk:
+            layouts = layouts.exclude(
+                pk=self.instance.pk,
+            )
+
+        if layouts.exists():
+            raise forms.ValidationError(
+                "Ya existe una disposición con este nombre para esta máquina."
+            )
+
+        return name
 
 
 class MachinePositionForm(forms.ModelForm):

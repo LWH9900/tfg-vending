@@ -12,6 +12,7 @@
 {% block content %}
 
 <header class="page-header">
+
     <div class="page-header-row">
 
         <div class="page-header-content">
@@ -42,7 +43,22 @@
 
         </div>
 
+
+        {% if layout.status == "DRAFT" %}
+            <div class="page-header-actions">
+
+                <a
+                    href="{% url 'machines:machine_layout_update' layout.pk %}"
+                    class="btn btn-primary"
+                >
+                    Editar disposición
+                </a>
+
+            </div>
+        {% endif %}
+
     </div>
+
 </header>
 
 

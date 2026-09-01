@@ -51,8 +51,8 @@ urlpatterns = [
     ),
     path(
         "layouts/<int:pk>/edit/",
-        views.machine_layout_edit,
-        name="machine_layout_edit",
+        views.machine_layout_update,
+        name="machine_layout_update",
     ),
     path(
         "layouts/<int:pk>/activate/",

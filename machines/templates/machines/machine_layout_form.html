@@ -9,7 +9,12 @@
 {% endblock %}
 
 {% block title %}
-    Nueva disposición | Vimach
+    {% if is_editing %}
+        Editar disposición
+    {% else %}
+        Nueva disposición
+    {% endif %}
+    | Vimach
 {% endblock %}
 
 {% block content %}
@@ -33,15 +38,29 @@
                     Disposiciones
                 </a>
                 /
-                Nueva disposición
+                {% if is_editing %}
+                    Editar disposición
+                {% else %}
+                    Nueva disposición
+                {% endif %}
             </div>
 
             <h1 class="page-title">
-                Nueva disposición
+                {% if is_editing %}
+                    Editar disposición
+                {% else %}
+                    Nueva disposición
+                {% endif %}
             </h1>
 
             <p class="page-description">
-                Configura una nueva disposición para {{ machine.name }}.
+                {% if is_editing %}
+                    Modifica la disposición {{ layout.name }}
+                    de {{ machine.name }}.
+                {% else %}
+                    Configura una nueva disposición para
+                    {{ machine.name }}.
+                {% endif %}
             </p>
 
         </div>
@@ -117,17 +136,11 @@
 
             <div class="form-card">
 
-                <div class="form-card-header">
-                    <h2>
-                        Información de la disposición
-                    </h2>
-                </div>
-
                 <div class="form-card-body">
 
                     {% include "components/form_field.html" with field=form.name %}
 
-                    {% if existing_layouts %}
+                    {% if not is_editing and existing_layouts %}
 
                         <div class="mt-3">
 
@@ -191,16 +204,28 @@
 
             <div class="section-card-body">
 
-                {% if existing_layouts %}
+                {% if is_editing %}
+
                     <p class="text-secondary">
-                        Selecciona posiciones nuevas o modifica la configuración
-                        cargada como base.
+                        Modifica las posiciones de la disposición.
+                        Puedes añadir, editar o quitar posiciones
+                        antes de guardar los cambios.
                     </p>
+
+                {% elif existing_layouts %}
+
+                    <p class="text-secondary">
+                        Selecciona posiciones nuevas o modifica
+                        la configuración cargada como base.
+                    </p>
+
                 {% else %}
+
                     <p class="text-secondary">
                         Esta es la primera disposición de la máquina.
                         Selecciona las celdas para definir sus posiciones.
                     </p>
+
                 {% endif %}
 
 
@@ -329,7 +354,11 @@
                 type="submit"
                 class="btn btn-primary"
             >
-                Guardar disposición
+                {% if is_editing %}
+                    Guardar cambios
+                {% else %}
+                    Guardar disposición
+                {% endif %}
             </button>
 
         </div>
@@ -400,7 +429,7 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
     const draftStorageKey =
-        "machine-layout-create-{{ machine.pk }}";
+    "machine-layout-{% if is_editing %}update-{{ layout.pk }}{% else %}create-{{ machine.pk }}{% endif %}";
 
     const positionsData = document.getElementById(
         "positionsData"
