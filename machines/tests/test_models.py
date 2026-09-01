@@ -728,3 +728,56 @@ class MachineLayoutModelTests(TestCase):
             machine.columns,
             6,
         )
+    def test_position_in_draft_layout_can_be_deleted(self):
+        layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Principal",
+        )
+
+        position = MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        position_pk = position.pk
+
+        position.delete()
+
+        self.assertFalse(
+            MachinePosition.objects.filter(
+                pk=position_pk,
+            ).exists()
+        )
+    def test_deleting_draft_layout_deletes_positions(self):
+        layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Principal",
+        )
+
+        position = MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        position_pk = position.pk
+        layout_pk = layout.pk
+
+        layout.delete()
+
+        self.assertFalse(
+            MachineLayout.objects.filter(
+                pk=layout_pk,
+            ).exists()
+        )
+
+        self.assertFalse(
+            MachinePosition.objects.filter(
+                pk=position_pk,
+            ).exists()
+        )

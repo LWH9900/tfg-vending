@@ -222,6 +222,24 @@ class MachineLayout(models.Model):
                 )
 
         super().save(*args, **kwargs)
+        
+    def delete(
+        self,
+        *args,
+        **kwargs,
+    ):
+        if (
+            self.status
+            == self.Status.REGISTERED
+        ):
+            raise ValidationError(
+                "Una disposición registrada no puede eliminarse."
+            )
+
+        return super().delete(
+            *args,
+            **kwargs,
+        )
 
     def __str__(self):
         return f"{self.machine.identifier} - {self.name}"

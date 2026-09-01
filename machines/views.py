@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from inventory.services import get_machine_product_stocks
 from machines.forms import (
@@ -1035,3 +1036,46 @@ def machine_layout_update(
             "is_editing": True,
         },
     )
+
+
+
+@require_POST
+def machine_layout_delete(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related(
+            "machine"
+        ),
+        pk=pk,
+    )
+
+    machine = layout.machine
+
+    if (
+        layout.status
+        != MachineLayout.Status.DRAFT
+    ):
+        messages.error(
+            request,
+            "Las disposiciones registradas no pueden eliminarse.",
+        )
+
+        return redirect(
+            "machines:machine_layout_detail",
+            pk=layout.pk,
+        )
+
+    layout.delete()
+
+    messages.success(
+        request,
+        "La disposición se ha eliminado correctamente.",
+    )
+
+    return redirect(
+        "machines:machine_layout_list",
+        machine_pk=machine.pk,
+    )
+

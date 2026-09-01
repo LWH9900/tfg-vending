@@ -258,3 +258,5 @@ def purchase_cancel(request, pk):
         "purchases:purchase_detail",
         pk=purchase.pk,
     )
+
+

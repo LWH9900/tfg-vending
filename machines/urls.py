@@ -69,4 +69,9 @@ urlpatterns = [
         views.machine_layout_detail,
         name="machine_layout_detail",
     ),
+    path(
+        "layouts/<int:pk>/delete/",
+        views.machine_layout_delete,
+        name="machine_layout_delete",
+    ),
 ]
