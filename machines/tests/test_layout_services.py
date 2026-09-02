@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -9,10 +10,12 @@ from inventory.models import Category, Product
 from machines.models import (
     Machine,
     MachineLayout,
+    MachineLayoutActivation,
     MachinePosition,
 )
 from machines.services.layouts import (
     activate_machine_layout,
+    get_current_machine_layout_activation,
     get_machine_layout_at,
     get_product_for_selection,
 )
@@ -114,158 +117,166 @@ class MachineLayoutServiceTests(TestCase):
         )
 
     def test_get_machine_layout_at_returns_active_layout(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
+        activation_time = timezone.now()
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        moment = activation_time + timedelta(
+            minutes=10,
         )
 
         layout = get_machine_layout_at(
             self.machine,
-            self.make_datetime(
-                2026,
-                9,
-                5,
-            ),
-        )
-
-        self.assertEqual(
-            layout,
-            self.layout_a,
-        )
-
-    def test_future_activation_is_not_active_before_effective_date(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                10,
-            ),
-        )
-
-        layout = get_machine_layout_at(
-            self.machine,
-            self.make_datetime(
-                2026,
-                9,
-                5,
-            ),
-        )
-
-        self.assertIsNone(layout)
-
-    def test_get_machine_layout_at_uses_historical_layout(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
-        )
-
-        activate_machine_layout(
-            self.layout_b,
-            self.make_datetime(
-                2026,
-                9,
-                10,
-            ),
-        )
-
-        old_layout = get_machine_layout_at(
-            self.machine,
-            self.make_datetime(
-                2026,
-                9,
-                8,
-            ),
-        )
-
-        current_layout = get_machine_layout_at(
-            self.machine,
-            self.make_datetime(
-                2026,
-                9,
-                12,
-            ),
-        )
-
-        self.assertEqual(
-            old_layout,
-            self.layout_a,
-        )
-
-        self.assertEqual(
-            current_layout,
-            self.layout_b,
-        )
-
-    def test_old_layout_can_be_reactivated(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
-        )
-
-        activate_machine_layout(
-            self.layout_b,
-            self.make_datetime(
-                2026,
-                9,
-                10,
-            ),
-        )
-
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                20,
-            ),
-        )
-
-        layout = get_machine_layout_at(
-            self.machine,
-            self.make_datetime(
-                2026,
-                9,
-                25,
-            ),
-        )
-
-        self.assertEqual(
-            layout,
-            self.layout_a,
-        )
-
-    def test_machine_cannot_have_two_layouts_at_same_time(self):
-        moment = self.make_datetime(
-            2026,
-            9,
-            1,
-            10,
-            30,
-        )
-
-        activate_machine_layout(
-            self.layout_a,
             moment,
         )
 
-        with self.assertRaises(ValidationError):
+        self.assertEqual(
+            layout,
+            self.layout_a,
+        )
+
+    def test_activation_uses_current_time(self):
+        moment = timezone.now()
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=moment,
+        ):
+            activation = activate_machine_layout(
+                self.layout_a,
+            )
+
+        self.assertEqual(
+            activation.effective_from,
+            moment,
+        )
+
+        self.assertIsNone(
+            activation.effective_to,
+        )
+
+    def test_get_machine_layout_at_uses_historical_layout(self):
+        first_activation_time = timezone.now()
+
+        second_activation_time = first_activation_time + timedelta(hours=2)
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation_time,
+        ):
             activate_machine_layout(
                 self.layout_b,
-                moment,
             )
+
+        moment_between = first_activation_time + timedelta(hours=1)
+
+        layout = get_machine_layout_at(
+            self.machine,
+            moment_between,
+        )
+
+        self.assertEqual(
+            layout,
+            self.layout_a,
+        )
+
+    def test_old_layout_can_be_reactivated(self):
+        first_moment = timezone.now()
+        second_moment = first_moment + timedelta(hours=1)
+        third_moment = first_moment + timedelta(hours=2)
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_moment,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_moment,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=third_moment,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        current_activation = get_current_machine_layout_activation(self.machine)
+
+        self.assertEqual(
+            current_activation.layout,
+            self.layout_a,
+        )
+
+        self.assertEqual(
+            MachineLayoutActivation.objects.filter(
+                layout=self.layout_a,
+            ).count(),
+            2,
+        )
+
+    def test_activating_layout_closes_previous_activation(self):
+        first_moment = timezone.now()
+
+        second_moment = first_moment + timedelta(hours=1)
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_moment,
+        ):
+            activation_a = activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_moment,
+        ):
+            activation_b = activate_machine_layout(
+                self.layout_b,
+            )
+
+        activation_a.refresh_from_db()
+        activation_b.refresh_from_db()
+
+        self.assertEqual(
+            activation_a.effective_to,
+            activation_b.effective_from,
+        )
+
+        self.assertIsNone(
+            activation_b.effective_to,
+        )
+
+        self.assertEqual(
+            MachineLayoutActivation.objects.filter(
+                layout__machine=self.machine,
+                effective_to__isnull=True,
+            ).count(),
+            1,
+        )
 
     def test_draft_layout_cannot_be_activated(self):
         draft_layout = MachineLayout.objects.create(
@@ -276,22 +287,22 @@ class MachineLayoutServiceTests(TestCase):
         with self.assertRaises(ValidationError):
             activate_machine_layout(
                 draft_layout,
-                self.make_datetime(
-                    2026,
-                    9,
-                    1,
-                ),
             )
 
     def test_selection_resolves_product_from_active_layout(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
         )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
 
         product = get_product_for_selection(
             self.machine,
@@ -309,14 +320,19 @@ class MachineLayoutServiceTests(TestCase):
         )
 
     def test_selection_resolution_is_case_insensitive(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
         )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
 
         product = get_product_for_selection(
             self.machine,
@@ -334,23 +350,33 @@ class MachineLayoutServiceTests(TestCase):
         )
 
     def test_selection_uses_product_from_historical_layout(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
+        first_activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
         )
 
-        activate_machine_layout(
-            self.layout_b,
-            self.make_datetime(
-                2026,
-                9,
-                10,
-            ),
+        second_activation_time = self.make_datetime(
+            2026,
+            9,
+            10,
         )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
 
         product = get_product_for_selection(
             self.machine,
@@ -381,14 +407,19 @@ class MachineLayoutServiceTests(TestCase):
         self.assertIsNone(product)
 
     def test_unknown_selection_returns_none(self):
-        activate_machine_layout(
-            self.layout_a,
-            self.make_datetime(
-                2026,
-                9,
-                1,
-            ),
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
         )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
 
         product = get_product_for_selection(
             self.machine,

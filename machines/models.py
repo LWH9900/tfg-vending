@@ -222,19 +222,14 @@ class MachineLayout(models.Model):
                 )
 
         super().save(*args, **kwargs)
-        
+
     def delete(
         self,
         *args,
         **kwargs,
     ):
-        if (
-            self.status
-            == self.Status.REGISTERED
-        ):
-            raise ValidationError(
-                "Una disposición registrada no puede eliminarse."
-            )
+        if self.status == self.Status.REGISTERED:
+            raise ValidationError("Una disposición registrada no puede eliminarse.")
 
         return super().delete(
             *args,
@@ -394,7 +389,14 @@ class MachineLayoutActivation(models.Model):
         related_name="activations",
     )
 
-    effective_from = models.DateTimeField()
+    effective_from = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    effective_to = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     def clean(self):
         super().clean()
@@ -404,11 +406,72 @@ class MachineLayoutActivation(models.Model):
                 {"layout": ("Solo se puede activar una disposición registrada.")}
             )
 
+        if (
+            self.effective_to is not None
+            and self.effective_from is not None
+            and self.effective_to <= self.effective_from
+        ):
+            raise ValidationError(
+                {
+                    "effective_to": (
+                        "La fecha de desactivación debe ser posterior "
+                        "a la fecha de activación."
+                    )
+                }
+            )
+
+    def save(
+        self,
+        *args,
+        **kwargs,
+    ):
+        if self.pk:
+            original = type(self).objects.get(pk=self.pk)
+
+            if (
+                original.layout_id != self.layout_id
+                or original.effective_from != self.effective_from
+            ):
+                raise ValidationError("No se puede modificar una activación histórica.")
+
+            if original.effective_to is not None:
+                raise ValidationError(
+                    "Una activación histórica cerrada no puede modificarse."
+                )
+
+            if self.effective_to is None:
+                raise ValidationError(
+                    "Una activación existente solo puede modificarse para desactivarla."
+                )
+
+        self.full_clean()
+
+        return super().save(
+            *args,
+            **kwargs,
+        )
+
+    def delete(
+        self,
+        *args,
+        **kwargs,
+    ):
+        raise ValidationError("Una activación histórica no puede eliminarse.")
+
     def __str__(self):
-        return f"{self.layout} - {self.effective_from:%d/%m/%Y %H:%M}"
+        if self.effective_to is None:
+            return (
+                f"{self.layout} - desde {self.effective_from:%d/%m/%Y %H:%M} (activa)"
+            )
+
+        return (
+            f"{self.layout} - "
+            f"{self.effective_from:%d/%m/%Y %H:%M} "
+            f"→ {self.effective_to:%d/%m/%Y %H:%M}"
+        )
 
     class Meta:
         ordering = [
-            "effective_from",
-            "pk",
+            "-effective_from",
+            "-pk",
         ]

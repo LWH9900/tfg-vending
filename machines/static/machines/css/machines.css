@@ -752,3 +752,23 @@
         #fff
     );
 }
+
+.layout-position-list-empty {
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.layout-position-list-empty p {
+    max-width: 100%;
+    overflow-wrap: break-word;
+}
+
+.layout-position-list {
+    min-width: 0;
+}
+
+.layout-position-list-content {
+    min-width: 0;
+}

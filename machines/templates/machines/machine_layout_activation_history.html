@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Histórico de activaciones | Vimach
+{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">
+                    Máquinas
+                </a>
+                /
+                Histórico de activaciones
+            </div>
+
+            <h1 class="page-title">
+                Histórico de activaciones
+            </h1>
+
+            <p class="page-description">
+                Consulta las disposiciones utilizadas
+                por las máquinas a lo largo del tiempo.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<section class="section-card mb-4">
+
+    <div class="section-card-body">
+
+        <form
+            method="get"
+            class="row g-3 align-items-end"
+        >
+
+            <div class="col-md-3">
+
+                <label
+                    for="machineFilter"
+                    class="form-label"
+                >
+                    Máquina
+                </label>
+
+                <select
+                    id="machineFilter"
+                    name="machine"
+                    class="form-select"
+                >
+
+                    <option value="">
+                        Todas las máquinas
+                    </option>
+
+                    {% for machine in machines %}
+
+                        <option
+                            value="{{ machine.pk }}"
+                            {% if selected_machine == machine.pk|stringformat:"s" %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ machine.identifier }}
+                            ·
+                            {{ machine.name }}
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <label
+                    for="dateFromFilter"
+                    class="form-label"
+                >
+                    Desde
+                </label>
+
+                <input
+                    type="datetime-local"
+                    id="dateFromFilter"
+                    name="date_from"
+                    value="{{ date_from }}"
+                    class="form-control"
+                >
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <label
+                    for="dateToFilter"
+                    class="form-label"
+                >
+                    Hasta
+                </label>
+
+                <input
+                    type="datetime-local"
+                    id="dateToFilter"
+                    name="date_to"
+                    value="{{ date_to }}"
+                    class="form-control"
+                >
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="d-flex gap-2">
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary flex-fill"
+                    >
+                        Filtrar
+                    </button>
+
+                    <a
+                        href="{% url 'machines:machine_layout_activation_history' %}"
+                        class="btn btn-outline-secondary flex-fill"
+                    >
+                        Limpiar
+                    </a>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
+
+
+<section class="section-card">
+
+    <div class="section-card-body p-0">
+
+        <div class="table-responsive">
+
+            <table class="table mb-0">
+
+                <colgroup>
+                    <col style="width: 18%;">
+                    <col style="width: 24%;">
+                    <col style="width: 22%;">
+                    <col style="width: 22%;">
+                    <col style="width: 14%;">
+                </colgroup>
+
+                <thead>
+                    <tr>
+                        <th>Máquina</th>
+                        <th>Disposición</th>
+                        <th>Desde</th>
+                        <th>Hasta</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for activation in activations %}
+
+                        <tr{% if activation.effective_to is None %} class="table-success"{% endif %}>
+
+                            <td>
+                                <a
+                                    href="{% url 'machines:machine_detail' activation.layout.machine.pk %}"
+                                >
+                                    {{ activation.layout.machine.identifier }}
+                                </a>
+                            </td>
+
+                            <td>
+                                <a
+                                    href="{% url 'machines:machine_layout_detail' activation.layout.pk %}"
+                                >
+                                    {{ activation.layout.name }}
+                                </a>
+                            </td>
+
+                            <td>
+                                {{ activation.effective_from|date:"d/m/Y H:i" }}
+                            </td>
+
+                            <td>
+                                {% if activation.effective_to %}
+                                    {{ activation.effective_to|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    <span class="text-secondary">
+                                        —
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if activation.effective_to is None %}
+                                    <span class="badge text-bg-success">
+                                        Activa
+                                    </span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">
+                                        Finalizada
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                        </tr>
+
+                    {% empty %}
+
+                        <tr>
+                            <td
+                                colspan="5"
+                                class="text-center text-muted py-4"
+                            >
+                                No hay activaciones que coincidan con los filtros seleccionados.
+                            </td>
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}

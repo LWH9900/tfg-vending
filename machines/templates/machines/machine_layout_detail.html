@@ -43,16 +43,26 @@
 
         </div>
 
-
         {% if layout.status == "DRAFT" %}
+
             <div class="page-header-actions">
+
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#registerLayoutModal"
+                >
+                    Registrar disposición
+                </button>
 
                 <a
                     href="{% url 'machines:machine_layout_update' layout.pk %}"
-                    class="btn btn-primary"
+                    class="btn btn-outline-primary"
                 >
                     Editar disposición
                 </a>
+
                 <button
                     type="button"
                     class="btn btn-outline-danger"
@@ -61,10 +71,41 @@
                 >
                     Eliminar disposición
                 </button>
-                        
 
             </div>
-        {% endif %}
+
+            {% elif layout.status == "REGISTERED" %}
+
+                <div class="page-header-actions">
+
+                    {% if is_active %}
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-danger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deactivateLayoutModal"
+                        >
+                            Desactivar disposición
+                        </button>
+
+                    {% else %}
+
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#activateLayoutModal"
+                        >
+                            Activar disposición
+                        </button>
+
+                    {% endif %}
+
+                </div>
+
+            {% endif %}
+
 
     </div>
 
@@ -107,6 +148,12 @@
                         </span>
                     {% endif %}
                 </div>
+                {% if is_active and current_activation %}
+                    <div class="text-secondary small mt-2">
+                        Activa desde
+                        {{ current_activation.effective_from|date:"d/m/Y H:i" }}
+                    </div>
+                {% endif %}
             </div>
 
 
@@ -267,7 +314,7 @@
 
                 {% empty %}
 
-                    <div class="empty-state">
+                    <div class="layout-position-list-empty">
                         <p class="text-muted mb-0">
                             Esta disposición todavía no tiene posiciones.
                         </p>
@@ -387,14 +434,32 @@
                 <div class="modal-body">
 
                     <p>
-                        ¿Seguro que quieres eliminar
+                        ¿Quieres activar
                         <strong>{{ layout.name }}</strong>?
                     </p>
 
-                    <p class="text-secondary mb-0">
-                        La disposición y todas sus posiciones
-                        se eliminarán definitivamente.
-                    </p>
+                    {% if current_activation %}
+
+                        <div class="alert alert-warning mb-0">
+                            Actualmente está activa la disposición
+                            <strong>
+                                {{ current_activation.layout.name }}
+                            </strong>.
+
+                            Al continuar, se desactivará y
+                            <strong>{{ layout.name }}</strong>
+                            pasará a ser la disposición activa.
+                        </div>
+
+                    {% else %}
+
+                        <p class="text-secondary mb-0">
+                            Esta disposición pasará a ser
+                            la configuración activa de la máquina
+                            desde este momento.
+                        </p>
+
+                    {% endif %}
 
                 </div>
 
@@ -427,6 +492,253 @@
                     </form>
 
                 </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+{% endif %}
+{% if layout.status == "DRAFT" %}
+
+    <div
+        class="modal fade"
+        id="registerLayoutModal"
+        tabindex="-1"
+        aria-labelledby="registerLayoutModalLabel"
+        aria-hidden="true"
+    >
+
+        <div class="modal-dialog modal-dialog-centered">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="registerLayoutModalLabel"
+                    >
+                        Registrar disposición
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+
+                <div class="modal-body">
+
+                    <p>
+                        ¿Seguro que quieres registrar
+                        <strong>{{ layout.name }}</strong>?
+                    </p>
+
+                    <p class="text-secondary mb-0">
+                        Una vez registrada, la disposición
+                        y sus posiciones quedarán bloqueadas
+                        y ya no podrán modificarse ni eliminarse.
+                    </p>
+
+                </div>
+
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancelar
+                    </button>
+
+                    <form
+                        method="post"
+                        action="{% url 'machines:machine_layout_register' layout.pk %}"
+                        class="m-0"
+                    >
+
+                        {% csrf_token %}
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
+                            Registrar disposición
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+{% endif %}
+{% if layout.status == "REGISTERED" and not is_active %}
+
+    <div
+        class="modal fade"
+        id="activateLayoutModal"
+        tabindex="-1"
+        aria-labelledby="activateLayoutModalLabel"
+        aria-hidden="true"
+    >
+
+        <div class="modal-dialog modal-dialog-centered">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="activateLayoutModalLabel"
+                    >
+                        Activar disposición
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+                <form
+                    method="post"
+                    action="{% url 'machines:machine_layout_activate' layout.pk %}"
+                >
+
+                    {% csrf_token %}
+
+                    <div class="modal-body">
+
+                        <p>
+                            ¿Quieres activar
+                            <strong>{{ layout.name }}</strong>?
+                        </p>
+
+                        <p class="text-secondary mb-0">
+                            La disposición pasará a ser la configuración
+                            activa de la máquina desde este momento.
+                        </p>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
+                            Activar disposición
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </div>
+
+{% endif %}
+{% if layout.status == "REGISTERED" and is_active %}
+
+    <div
+        class="modal fade"
+        id="deactivateLayoutModal"
+        tabindex="-1"
+        aria-labelledby="deactivateLayoutModalLabel"
+        aria-hidden="true"
+    >
+
+        <div class="modal-dialog modal-dialog-centered">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="deactivateLayoutModalLabel"
+                    >
+                        Desactivar disposición
+                    </h2>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+
+                </div>
+
+                <form
+                    method="post"
+                    action="{% url 'machines:machine_layout_deactivate' layout.pk %}"
+                >
+
+                    {% csrf_token %}
+
+                    <div class="modal-body">
+
+                        <p>
+                            ¿Quieres desactivar
+                            <strong>{{ layout.name }}</strong>?
+                        </p>
+
+                        <div class="alert alert-warning mb-0">
+                            La máquina quedará sin ninguna
+                            disposición activa hasta que se active otra.
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            type="submit"
+                            class="btn btn-danger"
+                        >
+                            Desactivar disposición
+                        </button>
+
+                    </div>
+
+                </form>
 
             </div>
 

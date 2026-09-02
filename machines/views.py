@@ -6,23 +6,27 @@ from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from inventory.services import get_machine_product_stocks
 from machines.forms import (
-    MachineLayoutActivationForm,
     MachineLayoutForm,
     MachinePositionForm,
-    MachinePositionFormSet,
 )
 from machines.models import (
     Machine,
     MachineLayout,
+    MachineLayoutActivation,
     MachinePosition,
     MachinePriceOverride,
     PricingProfile,
 )
-from machines.services.layouts import activate_machine_layout, get_machine_layout_at
+from machines.services.layouts import (
+    activate_machine_layout,
+    deactivate_machine_layout,
+    get_current_machine_layout_activation,
+)
 
 from .forms import (
     MachineForm,
@@ -668,116 +672,76 @@ def machine_layout_create(
     )
 
 
-def machine_layout_edit(request, pk):
+@require_POST
+def machine_layout_activate(
+    request,
+    pk,
+):
     layout = get_object_or_404(
         MachineLayout.objects.select_related("machine"),
         pk=pk,
     )
 
-    if layout.has_been_activated:
-        raise PermissionDenied(
-            "Una disposición que ya ha sido activada no puede modificarse."
+    try:
+        activate_machine_layout(layout)
+
+    except ValidationError as error:
+        messages.error(
+            request,
+            " ".join(error.messages),
         )
 
-    if request.method == "POST":
-        form = MachineLayoutForm(
-            request.POST,
-            instance=layout,
-        )
-
-        formset = MachinePositionFormSet(
-            request.POST,
-            instance=layout,
-        )
-
-        if form.is_valid() and formset.is_valid():
-            form.save()
-            formset.save()
-
-            messages.success(
-                request,
-                "La disposición se ha actualizado correctamente.",
-            )
-
-            return redirect(
-                "machines:machine_detail",
-                pk=layout.machine.pk,
-            )
     else:
-        form = MachineLayoutForm(
-            instance=layout,
+        messages.success(
+            request,
+            "La disposición se ha activado correctamente.",
         )
 
-        formset = MachinePositionFormSet(
-            instance=layout,
-        )
-
-    return render(
-        request,
-        "machines/machine_layout_form.html",
-        {
-            "machine": layout.machine,
-            "layout": layout,
-            "form": form,
-            "formset": formset,
-            "is_edit": True,
-        },
+    return redirect(
+        "machines:machine_layout_detail",
+        pk=layout.pk,
     )
 
 
-def machine_layout_activate(request, pk):
+@require_POST
+def machine_layout_deactivate(
+    request,
+    pk,
+):
     layout = get_object_or_404(
         MachineLayout.objects.select_related("machine"),
         pk=pk,
     )
 
-    if request.method == "POST":
-        form = MachineLayoutActivationForm(
-            request.POST,
+    try:
+        deactivate_machine_layout(layout)
+
+    except ValidationError as error:
+        messages.error(
+            request,
+            " ".join(error.messages),
         )
 
-        if form.is_valid():
-            try:
-                activate_machine_layout(
-                    layout=layout,
-                    effective_from=form.cleaned_data["effective_from"],
-                )
-            except ValidationError as exc:
-                form.add_error(
-                    None,
-                    exc,
-                )
-            else:
-                messages.success(
-                    request,
-                    "La disposición se ha activado correctamente.",
-                )
-
-                return redirect(
-                    "machines:machine_detail",
-                    pk=layout.machine.pk,
-                )
     else:
-        form = MachineLayoutActivationForm()
+        messages.success(
+            request,
+            "La disposición se ha desactivado correctamente.",
+        )
 
-    return render(
-        request,
-        "machines/machine_layout_activate.html",
-        {
-            "machine": layout.machine,
-            "layout": layout,
-            "form": form,
-        },
+    return redirect(
+        "machines:machine_layout_detail",
+        pk=layout.pk,
     )
 
 
-def machine_layout_list(request, machine_pk):
+def machine_layout_list(
+    request,
+    machine_pk,
+):
     machine = get_object_or_404(
         Machine,
         pk=machine_pk,
     )
-
-    now = timezone.now()
 
     layouts = list(
         machine.layouts.annotate(
@@ -787,17 +751,13 @@ def machine_layout_list(request, machine_pk):
             ),
             last_activation=Max(
                 "activations__effective_from",
-                filter=Q(
-                    activations__effective_from__lte=now,
-                ),
             ),
         ).order_by("name")
     )
 
-    current_layout = get_machine_layout_at(
-        machine,
-        now,
-    )
+    current_activation = get_current_machine_layout_activation(machine)
+
+    current_layout = current_activation.layout if current_activation else None
 
     for layout in layouts:
         layout.is_active = current_layout is not None and current_layout.pk == layout.pk
@@ -808,17 +768,24 @@ def machine_layout_list(request, machine_pk):
         {
             "machine": machine,
             "layouts": layouts,
+            "current_layout": current_layout,
+            "current_activation": current_activation,
         },
     )
 
 
-def machine_layout_detail(request, pk):
+def machine_layout_detail(
+    request,
+    pk,
+):
     layout = get_object_or_404(
         MachineLayout.objects.select_related("machine").prefetch_related(
             "positions__product"
         ),
         pk=pk,
     )
+
+    machine = layout.machine
 
     positions = list(
         layout.positions.select_related("product").order_by(
@@ -828,44 +795,45 @@ def machine_layout_detail(request, pk):
         )
     )
 
-    now = timezone.now()
+    current_activation = get_current_machine_layout_activation(machine)
 
-    current_layout = get_machine_layout_at(
-        layout.machine,
-        now,
+    is_active = (
+        current_activation is not None and current_activation.layout_id == layout.pk
     )
 
-    is_active = current_layout is not None and current_layout.pk == layout.pk
-
-    last_activation = (
-        layout.activations.filter(
-            effective_from__lte=now,
-        )
-        .order_by("-effective_from")
-        .first()
-    )
+    last_activation = layout.activations.order_by(
+        "-effective_from",
+        "-pk",
+    ).first()
 
     grid_cells = []
 
-    if layout.machine.rows and layout.machine.columns:
+    if machine.rows and machine.columns:
         grid_cells = [
             {
                 "row": row,
                 "column": column,
             }
-            for row in range(1, layout.machine.rows + 1)
-            for column in range(1, layout.machine.columns + 1)
+            for row in range(
+                1,
+                machine.rows + 1,
+            )
+            for column in range(
+                1,
+                machine.columns + 1,
+            )
         ]
 
     return render(
         request,
         "machines/machine_layout_detail.html",
         {
-            "machine": layout.machine,
+            "machine": machine,
             "layout": layout,
             "positions": positions,
             "grid_cells": grid_cells,
             "is_active": is_active,
+            "current_activation": current_activation,
             "last_activation": last_activation,
         },
     )
@@ -1038,25 +1006,19 @@ def machine_layout_update(
     )
 
 
-
 @require_POST
 def machine_layout_delete(
     request,
     pk,
 ):
     layout = get_object_or_404(
-        MachineLayout.objects.select_related(
-            "machine"
-        ),
+        MachineLayout.objects.select_related("machine"),
         pk=pk,
     )
 
     machine = layout.machine
 
-    if (
-        layout.status
-        != MachineLayout.Status.DRAFT
-    ):
+    if layout.status != MachineLayout.Status.DRAFT:
         messages.error(
             request,
             "Las disposiciones registradas no pueden eliminarse.",
@@ -1079,3 +1041,100 @@ def machine_layout_delete(
         machine_pk=machine.pk,
     )
 
+
+@require_POST
+def machine_layout_register(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout,
+        pk=pk,
+    )
+
+    if layout.status != MachineLayout.Status.DRAFT:
+        messages.error(
+            request,
+            "Esta disposición ya está registrada.",
+        )
+
+        return redirect(
+            "machines:machine_layout_detail",
+            pk=layout.pk,
+        )
+
+    layout.status = MachineLayout.Status.REGISTERED
+
+    layout.save()
+
+    messages.success(
+        request,
+        "La disposición se ha registrado correctamente.",
+    )
+
+    return redirect(
+        "machines:machine_layout_detail",
+        pk=layout.pk,
+    )
+
+
+def machine_layout_activation_history(
+    request,
+):
+    activations = MachineLayoutActivation.objects.select_related(
+        "layout",
+        "layout__machine",
+    ).order_by(
+        "-effective_from",
+        "-pk",
+    )
+
+    machines = Machine.objects.order_by("identifier")
+
+    machine_id = request.GET.get(
+        "machine",
+        "",
+    )
+
+    date_from_value = request.GET.get(
+        "date_from",
+        "",
+    )
+
+    date_to_value = request.GET.get(
+        "date_to",
+        "",
+    )
+
+    if machine_id.isdigit():
+        activations = activations.filter(layout__machine_id=machine_id)
+
+    date_from = parse_datetime(date_from_value)
+
+    if date_from:
+        if timezone.is_naive(date_from):
+            date_from = timezone.make_aware(date_from)
+
+        activations = activations.filter(
+            Q(effective_to__isnull=True) | Q(effective_to__gte=date_from)
+        )
+
+    date_to = parse_datetime(date_to_value)
+
+    if date_to:
+        if timezone.is_naive(date_to):
+            date_to = timezone.make_aware(date_to)
+
+        activations = activations.filter(effective_from__lte=date_to)
+
+    return render(
+        request,
+        "machines/machine_layout_activation_history.html",
+        {
+            "activations": activations,
+            "machines": machines,
+            "selected_machine": machine_id,
+            "date_from": date_from_value,
+            "date_to": date_to_value,
+        },
+    )

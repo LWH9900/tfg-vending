@@ -37,6 +37,13 @@
 
         <div class="page-header-actions">
             <a
+            href="{% url 'machines:machine_layout_activation_history' %}?machine={{ machine.pk }}"
+            class="btn btn-outline-secondary"
+            >
+                Histórico de activaciones
+            </a>
+
+            <a
                 href="{% url 'machines:machine_layout_create' machine.pk %}"
                 class="btn btn-primary"
             >
@@ -86,24 +93,24 @@
                                                     Registrada
                                                 </span>
                                             {% endif %}
-                                        </div>
-
-                                        <div>
                                             {% if layout.is_active %}
                                                 <span class="badge text-bg-success">
                                                     Activa
                                                 </span>
+                                            {% endif %}
+                                        </div>
 
+                                        <div>
+                                            {% if layout.is_active and current_activation %}
+                                                <div class="text-secondary small mt-2">
+                                                    Activa desde
+                                                    {{ current_activation.effective_from|date:"d/m/Y H:i" }}
+                                                </div>
                                             {% elif layout.last_activation %}
-                                                <span class="text-muted">
-                                                    Última activación:
+                                                <div class="text-secondary small mt-2">
+                                                    Última activación
                                                     {{ layout.last_activation|date:"d/m/Y H:i" }}
-                                                </span>
-
-                                            {% else %}
-                                                <span class="text-muted">
-                                                    Nunca activada
-                                                </span>
+                                                </div>
                                             {% endif %}
                                         </div>
 

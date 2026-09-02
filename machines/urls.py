@@ -60,6 +60,11 @@ urlpatterns = [
         name="machine_layout_activate",
     ),
     path(
+        "layouts/<int:pk>/register/",
+        views.machine_layout_register,
+        name="machine_layout_register",
+    ),
+    path(
         "<int:machine_pk>/layouts/",
         views.machine_layout_list,
         name="machine_layout_list",
@@ -73,5 +78,15 @@ urlpatterns = [
         "layouts/<int:pk>/delete/",
         views.machine_layout_delete,
         name="machine_layout_delete",
+    ),
+    path(
+        "layout-activations/",
+        views.machine_layout_activation_history,
+        name="machine_layout_activation_history",
+    ),
+    path(
+        "layouts/<int:pk>/deactivate/",
+        views.machine_layout_deactivate,
+        name="machine_layout_deactivate",
     ),
 ]

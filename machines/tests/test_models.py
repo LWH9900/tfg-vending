@@ -728,6 +728,7 @@ class MachineLayoutModelTests(TestCase):
             machine.columns,
             6,
         )
+
     def test_position_in_draft_layout_can_be_deleted(self):
         layout = MachineLayout.objects.create(
             machine=self.machine,
@@ -751,6 +752,7 @@ class MachineLayoutModelTests(TestCase):
                 pk=position_pk,
             ).exists()
         )
+
     def test_deleting_draft_layout_deletes_positions(self):
         layout = MachineLayout.objects.create(
             machine=self.machine,

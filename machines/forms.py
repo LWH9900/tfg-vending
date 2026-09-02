@@ -323,19 +323,3 @@ MachinePositionFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
 )
-
-
-class MachineLayoutActivationForm(forms.Form):
-    effective_from = forms.DateTimeField(
-        label="Activa desde",
-        widget=forms.DateTimeInput(
-            attrs={
-                "class": "form-control",
-                "type": "datetime-local",
-            },
-            format="%Y-%m-%dT%H:%M",
-        ),
-        input_formats=[
-            "%Y-%m-%dT%H:%M",
-        ],
-    )

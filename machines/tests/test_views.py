@@ -178,7 +178,6 @@ class EmptyMachineListTests(TestCase):
         )
 
 
-
 class MachineLayoutDeleteViewTests(TestCase):
     def setUp(self):
         self.machine = Machine.objects.create(
@@ -213,6 +212,7 @@ class MachineLayoutDeleteViewTests(TestCase):
             "machines:machine_layout_delete",
             args=[self.layout.pk],
         )
+
     def test_delete_requires_post(self):
         response = self.client.get(
             self.url,
@@ -249,16 +249,13 @@ class MachineLayoutDeleteViewTests(TestCase):
                 pk=layout_pk,
             ).exists()
         )
+
     def test_deleting_draft_layout_deletes_its_positions(self):
         layout_pk = self.layout.pk
 
-        position_a1_pk = (
-            self.position_a1.pk
-        )
+        position_a1_pk = self.position_a1.pk
 
-        position_a2_pk = (
-            self.position_a2.pk
-        )
+        position_a2_pk = self.position_a2.pk
 
         self.client.post(
             self.url,
@@ -281,10 +278,9 @@ class MachineLayoutDeleteViewTests(TestCase):
                 pk=position_a2_pk,
             ).exists()
         )
+
     def test_registered_layout_cannot_be_deleted(self):
-        self.layout.status = (
-            MachineLayout.Status.REGISTERED
-        )
+        self.layout.status = MachineLayout.Status.REGISTERED
 
         self.layout.save()
 
@@ -312,10 +308,9 @@ class MachineLayoutDeleteViewTests(TestCase):
                 pk=self.layout.pk,
             ).exists()
         )
+
     def test_rejected_registered_layout_delete_keeps_positions(self):
-        self.layout.status = (
-            MachineLayout.Status.REGISTERED
-        )
+        self.layout.status = MachineLayout.Status.REGISTERED
 
         self.layout.save()
 

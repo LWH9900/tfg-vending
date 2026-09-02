@@ -1,5 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
+from django.utils import timezone
 
 from machines.models import (
     Machine,
@@ -11,51 +13,38 @@ from machines.models import (
 @transaction.atomic
 def activate_machine_layout(
     layout,
-    effective_from,
 ):
     if layout.status != MachineLayout.Status.REGISTERED:
         raise ValidationError("Solo se puede activar una disposición registrada.")
 
-    Machine.objects.select_for_update().get(
-        pk=layout.machine_id,
-    )
+    machine = Machine.objects.select_for_update().get(pk=layout.machine_id)
 
-    activation_exists = MachineLayoutActivation.objects.filter(
-        layout__machine=layout.machine,
-        effective_from=effective_from,
-    ).exists()
+    current_activation = get_current_machine_layout_activation(machine)
 
-    if activation_exists:
-        raise ValidationError(
-            "Ya existe una disposición activada para esta máquina en esa fecha y hora."
-        )
+    if current_activation is not None and current_activation.layout_id == layout.pk:
+        raise ValidationError("Esta disposición ya está activa.")
 
-    activation = MachineLayoutActivation(
+    new_activation = MachineLayoutActivation(
         layout=layout,
-        effective_from=effective_from,
     )
 
-    activation.full_clean()
-    activation.save()
+    new_activation.save()
 
-    return activation
+    if current_activation is not None:
+        current_activation.effective_to = new_activation.effective_from
+
+        current_activation.save()
+
+    return new_activation
 
 
 def get_machine_layout_at(
     machine,
     moment,
 ):
-    activation = (
-        MachineLayoutActivation.objects.filter(
-            layout__machine=machine,
-            effective_from__lte=moment,
-        )
-        .select_related("layout")
-        .order_by(
-            "-effective_from",
-            "-pk",
-        )
-        .first()
+    activation = get_machine_layout_activation_at(
+        machine,
+        moment,
     )
 
     if activation is None:
@@ -89,3 +78,65 @@ def get_product_for_selection(
         return None
 
     return position.product
+
+
+def get_current_machine_layout_activation(
+    machine,
+):
+    return (
+        MachineLayoutActivation.objects.filter(
+            layout__machine=machine,
+            effective_to__isnull=True,
+        )
+        .select_related(
+            "layout",
+            "layout__machine",
+        )
+        .order_by(
+            "-effective_from",
+            "-pk",
+        )
+        .first()
+    )
+
+
+@transaction.atomic
+def deactivate_machine_layout(
+    layout,
+):
+    machine = Machine.objects.select_for_update().get(pk=layout.machine_id)
+
+    current_activation = get_current_machine_layout_activation(machine)
+
+    if current_activation is None:
+        raise ValidationError("La máquina no tiene ninguna disposición activa.")
+
+    if current_activation.layout_id != layout.pk:
+        raise ValidationError("Esta disposición no está activa.")
+
+    current_activation.effective_to = timezone.now()
+
+    current_activation.save()
+
+    return current_activation
+
+
+def get_machine_layout_activation_at(
+    machine,
+    moment,
+):
+    return (
+        MachineLayoutActivation.objects.filter(
+            layout__machine=machine,
+            effective_from__lte=moment,
+        )
+        .filter(Q(effective_to__isnull=True) | Q(effective_to__gt=moment))
+        .select_related(
+            "layout",
+        )
+        .order_by(
+            "-effective_from",
+            "-pk",
+        )
+        .first()
+    )
