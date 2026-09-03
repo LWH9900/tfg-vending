@@ -1,3 +1,5 @@
+import hashlib
+import json
 from copy import deepcopy
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -12,6 +14,57 @@ from machines.services.layouts import (
     get_product_for_selection,
 )
 from sales.models import Sale
+
+
+def _get_payload_hash(payload):
+    try:
+        canonical_payload = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(
+                ",",
+                ":",
+            ),
+            ensure_ascii=False,
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        raise ValidationError("El contenido de la venta debe ser JSON válido.")
+
+    return hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
+
+
+def _get_reference_sale(
+    event_id,
+):
+    resolved_sale = (
+        Sale.objects.filter(
+            event_id=event_id,
+            status=Sale.Status.RESOLVED,
+        )
+        .order_by(
+            "received_at",
+            "pk",
+        )
+        .first()
+    )
+
+    if resolved_sale is not None:
+        return resolved_sale
+
+    return (
+        Sale.objects.filter(
+            event_id=event_id,
+        )
+        .order_by(
+            "received_at",
+            "pk",
+        )
+        .first()
+    )
 
 
 def _get_required_value(
@@ -129,12 +182,16 @@ def receive_sale(
         )
     ).strip()
 
-    existing_sale = Sale.objects.filter(
+    payload_hash = _get_payload_hash(payload)
+
+    exact_sale = Sale.objects.filter(
+        source=Sale.Source.TELEMETRY,
         event_id=event_id,
+        payload_hash=payload_hash,
     ).first()
 
-    if existing_sale is not None:
-        return existing_sale, False
+    if exact_sale is not None:
+        return exact_sale, False
 
     machine_identifier = str(
         _get_required_value(
@@ -214,34 +271,194 @@ def receive_sale(
             occurred_at,
         )
 
-    if machine is not None and product is not None:
+    reference_sale = _get_reference_sale(event_id)
+
+    if reference_sale is not None:
+        status = Sale.Status.CONFLICT
+
+    elif machine is not None and product is not None:
         status = Sale.Status.RESOLVED
 
     else:
         status = Sale.Status.PENDING
 
+    sale_data = {
+        "source": Sale.Source.TELEMETRY,
+        "event_id": event_id,
+        "payload_hash": payload_hash,
+        "machine_identifier": machine_identifier,
+        "machine": machine,
+        "selection": selection,
+        "product": product,
+        "occurred_at": occurred_at,
+        "quantity": quantity,
+        "dispense_type": dispense_type,
+        "unit_price": unit_price,
+        "amount_received": amount_received,
+        "payment_method": payment_method,
+        "status": status,
+        "raw_payload": deepcopy(payload),
+    }
+
+    if status == Sale.Status.CONFLICT:
+        sale_data["conflicts_with"] = reference_sale
+
     try:
-        sale = Sale.objects.create(
-            event_id=event_id,
-            machine_identifier=machine_identifier,
-            machine=machine,
-            selection=selection,
-            product=product,
-            occurred_at=occurred_at,
-            quantity=quantity,
-            dispense_type=dispense_type,
-            unit_price=unit_price,
-            amount_received=amount_received,
-            payment_method=payment_method,
-            status=status,
-            raw_payload=deepcopy(payload),
-        )
+        with transaction.atomic():
+            sale = Sale.objects.create(**sale_data)
 
     except IntegrityError:
-        sale = Sale.objects.get(
+        exact_sale = Sale.objects.filter(
+            source=Sale.Source.TELEMETRY,
             event_id=event_id,
-        )
+            payload_hash=payload_hash,
+        ).first()
 
-        return sale, False
+        if exact_sale is not None:
+            return exact_sale, False
+
+        reference_sale = _get_reference_sale(event_id)
+
+        if reference_sale is None:
+            raise
+
+        sale_data["status"] = Sale.Status.CONFLICT
+
+        sale_data["conflicts_with"] = reference_sale
+
+        with transaction.atomic():
+            sale = Sale.objects.create(**sale_data)
 
     return sale, True
+
+
+@transaction.atomic
+def void_sale(
+    sale,
+    reason,
+):
+    if sale.pk is None:
+        raise ValidationError("La venta debe estar guardada antes de poder anularla.")
+
+    reason = str(reason or "").strip()
+
+    if not reason:
+        raise ValidationError(
+            {"void_reason": ("Debe indicarse el motivo de la anulación.")}
+        )
+
+    locked_sale = Sale.objects.select_for_update().get(pk=sale.pk)
+
+    if locked_sale.status != Sale.Status.RESOLVED:
+        raise ValidationError("Solo se puede anular una venta resuelta.")
+
+    locked_sale.status = Sale.Status.VOIDED
+
+    locked_sale.void_reason = reason
+
+    locked_sale.voided_at = timezone.now()
+
+    locked_sale.save()
+
+    return locked_sale
+
+
+@transaction.atomic
+def reject_sale_conflict(
+    sale,
+):
+    if sale.pk is None:
+        raise ValidationError("La venta debe estar guardada antes de poder revisarla.")
+
+    locked_sale = Sale.objects.select_for_update().get(pk=sale.pk)
+
+    if locked_sale.status != Sale.Status.CONFLICT:
+        raise ValidationError("Solo se puede descartar una venta en conflicto.")
+
+    locked_sale.status = Sale.Status.REJECTED
+
+    locked_sale.save()
+
+    return locked_sale
+
+
+@transaction.atomic
+def accept_sale_conflict(
+    sale,
+):
+    if sale.pk is None:
+        raise ValidationError("La venta debe estar guardada antes de poder revisarla.")
+
+    if not sale.event_id:
+        raise ValidationError(
+            "Una venta en conflicto debe tener un identificador de evento."
+        )
+
+    event_sales = list(
+        Sale.objects.select_for_update()
+        .filter(
+            event_id=sale.event_id,
+        )
+        .order_by("pk")
+    )
+
+    locked_sale = next(
+        (event_sale for event_sale in event_sales if event_sale.pk == sale.pk),
+        None,
+    )
+
+    if locked_sale is None:
+        raise ValidationError("La venta en conflicto no existe.")
+
+    if locked_sale.status != Sale.Status.CONFLICT:
+        raise ValidationError("Solo se puede aceptar una venta en conflicto.")
+
+    if locked_sale.machine_id is None:
+        raise ValidationError(
+            {
+                "machine": (
+                    "No se puede aceptar el conflicto sin haber resuelto la máquina."
+                )
+            }
+        )
+
+    if locked_sale.product_id is None:
+        raise ValidationError(
+            {
+                "product": (
+                    "No se puede aceptar el conflicto sin haber resuelto el producto."
+                )
+            }
+        )
+
+    current_sale = next(
+        (
+            event_sale
+            for event_sale in event_sales
+            if (
+                event_sale.status == Sale.Status.RESOLVED
+                and event_sale.pk != locked_sale.pk
+            )
+        ),
+        None,
+    )
+
+    if current_sale is not None:
+        current_sale.status = Sale.Status.VOIDED
+
+        current_sale.void_reason = (
+            f"Anulada al aceptar la venta en conflicto #{locked_sale.pk}."
+        )
+
+        current_sale.voided_at = timezone.now()
+
+        current_sale.save()
+
+    locked_sale.status = Sale.Status.RESOLVED
+
+    locked_sale.save()
+
+    return (
+        locked_sale,
+        current_sale,
+    )

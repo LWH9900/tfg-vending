@@ -7,6 +7,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from inventory.models import Category, Product
+from inventory.services import (
+    get_machine_stock,
+    get_machines_stock,
+    get_total_stock,
+    get_warehouse_stock,
+)
 from machines.models import (
     Machine,
     MachineLayout,
@@ -15,8 +21,15 @@ from machines.models import (
 from machines.services.layouts import (
     activate_machine_layout,
 )
+from purchases.models import Purchase, PurchaseLine
+from replenishments.models import Replenishment, ReplenishmentLine
 from sales.models import Sale
-from sales.services import receive_sale
+from sales.services import (
+    accept_sale_conflict,
+    receive_sale,
+    reject_sale_conflict,
+    void_sale,
+)
 
 
 class SaleServiceTests(TestCase):
@@ -131,6 +144,35 @@ class SaleServiceTests(TestCase):
             "amount_received": amount_received,
             "payment_method": payment_method,
         }
+
+    def create_stock(
+        self,
+        product,
+        purchased_quantity=10,
+        replenished_quantity=6,
+    ):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor A",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=product,
+            quantity=purchased_quantity,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=product,
+            quantity=replenished_quantity,
+        )
 
     def test_receive_sale_resolves_machine_and_product(self):
         activation_time = self.make_datetime(
@@ -547,3 +589,1304 @@ class SaleServiceTests(TestCase):
                 event_id="evt-naive-date",
             ).exists()
         )
+
+    def test_resolved_paid_sale_reduces_total_and_machine_stock(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            10,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            6,
+        )
+
+        payload = self.make_payload(
+            event_id="evt-stock-paid",
+            occurred_at=sale_time.isoformat(),
+            quantity=2,
+        )
+
+        sale, created = receive_sale(payload)
+
+        self.assertTrue(created)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            8,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            4,
+        )
+
+        self.assertEqual(
+            get_machines_stock(self.product_a),
+            4,
+        )
+
+    def test_resolved_free_sale_also_reduces_inventory(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-stock-free",
+            occurred_at=sale_time.isoformat(),
+            quantity=1,
+            dispense_type="free",
+            amount_received=None,
+        )
+
+        sale, created = receive_sale(payload)
+
+        self.assertTrue(created)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            sale.amount_received,
+            Decimal("0.00"),
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            9,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
+
+    def test_pending_sale_does_not_reduce_inventory(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        payload = self.make_payload(
+            event_id="evt-stock-pending",
+        )
+
+        sale, created = receive_sale(payload)
+
+        self.assertTrue(created)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            10,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            6,
+        )
+
+    def test_repeated_event_does_not_reduce_inventory_twice(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-stock-idempotent",
+            occurred_at=sale_time.isoformat(),
+            quantity=2,
+        )
+
+        first_sale, first_created = receive_sale(payload)
+
+        second_sale, second_created = receive_sale(payload)
+
+        self.assertTrue(first_created)
+
+        self.assertFalse(second_created)
+
+        self.assertEqual(
+            first_sale.pk,
+            second_sale.pk,
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-stock-idempotent",
+            ).count(),
+            1,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            8,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            4,
+        )
+
+    def test_same_event_with_different_payload_creates_conflict(self):
+        first_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        second_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        first_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        second_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        first_payload = self.make_payload(
+            event_id="evt-conflict",
+            occurred_at=first_sale_time.isoformat(),
+            unit_price="1.50",
+            amount_received="1.50",
+        )
+
+        first_sale, first_created = receive_sale(first_payload)
+
+        second_payload = self.make_payload(
+            event_id="evt-conflict",
+            occurred_at=second_sale_time.isoformat(),
+            unit_price="1.60",
+            amount_received="1.60",
+        )
+
+        conflict_sale, conflict_created = receive_sale(second_payload)
+
+        self.assertTrue(first_created)
+
+        self.assertTrue(conflict_created)
+
+        self.assertEqual(
+            first_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            first_sale.product,
+            self.product_a,
+        )
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            conflict_sale.product,
+            self.product_b,
+        )
+
+        self.assertEqual(
+            conflict_sale.conflicts_with,
+            first_sale,
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-conflict",
+            ).count(),
+            2,
+        )
+
+    def test_conflict_sale_does_not_reduce_inventory(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        self.create_stock(
+            self.product_b,
+        )
+
+        first_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        second_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        first_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        second_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        first_payload = self.make_payload(
+            event_id="evt-conflict-stock",
+            occurred_at=first_sale_time.isoformat(),
+        )
+
+        first_sale, _ = receive_sale(first_payload)
+
+        conflict_payload = self.make_payload(
+            event_id="evt-conflict-stock",
+            occurred_at=second_sale_time.isoformat(),
+            unit_price="1.60",
+            amount_received="1.60",
+        )
+
+        conflict_sale, _ = receive_sale(conflict_payload)
+
+        self.assertEqual(
+            first_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            9,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_b),
+            10,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_b,
+                self.machine,
+            ),
+            6,
+        )
+
+    def test_repeated_conflicting_payload_is_idempotent(self):
+        first_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        second_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        first_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        second_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        first_payload = self.make_payload(
+            event_id="evt-repeat-conflict",
+            occurred_at=first_sale_time.isoformat(),
+        )
+
+        receive_sale(first_payload)
+
+        conflict_payload = self.make_payload(
+            event_id="evt-repeat-conflict",
+            occurred_at=second_sale_time.isoformat(),
+            unit_price="1.60",
+            amount_received="1.60",
+        )
+
+        first_conflict, first_created = receive_sale(conflict_payload)
+
+        repeated_conflict, repeated_created = receive_sale(conflict_payload)
+
+        self.assertTrue(first_created)
+
+        self.assertFalse(repeated_created)
+
+        self.assertEqual(
+            first_conflict.pk,
+            repeated_conflict.pk,
+        )
+
+        self.assertEqual(
+            first_conflict.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-repeat-conflict",
+            ).count(),
+            2,
+        )
+
+    def test_multiple_different_conflicts_are_preserved(self):
+        first_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        second_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        first_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        second_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            0,
+        )
+
+        third_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            5,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        original_payload = self.make_payload(
+            event_id="evt-multiple-conflicts",
+            occurred_at=first_sale_time.isoformat(),
+        )
+
+        original_sale, _ = receive_sale(original_payload)
+
+        second_payload = self.make_payload(
+            event_id="evt-multiple-conflicts",
+            occurred_at=second_sale_time.isoformat(),
+            unit_price="1.60",
+            amount_received="1.60",
+        )
+
+        second_sale, _ = receive_sale(second_payload)
+
+        third_payload = self.make_payload(
+            event_id="evt-multiple-conflicts",
+            occurred_at=third_sale_time.isoformat(),
+            quantity=2,
+            unit_price="1.60",
+            amount_received="3.20",
+        )
+
+        third_sale, _ = receive_sale(third_payload)
+
+        self.assertEqual(
+            original_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            second_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            third_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            second_sale.conflicts_with,
+            original_sale,
+        )
+
+        self.assertEqual(
+            third_sale.conflicts_with,
+            original_sale,
+        )
+
+        self.assertNotEqual(
+            second_sale.payload_hash,
+            third_sale.payload_hash,
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-multiple-conflicts",
+            ).count(),
+            3,
+        )
+
+    def test_payload_key_order_does_not_create_conflict(self):
+        payload = self.make_payload(
+            event_id="evt-key-order",
+        )
+
+        first_sale, first_created = receive_sale(payload)
+
+        reordered_payload = dict(reversed(list(payload.items())))
+
+        second_sale, second_created = receive_sale(reordered_payload)
+
+        self.assertTrue(first_created)
+
+        self.assertFalse(second_created)
+
+        self.assertEqual(
+            first_sale.pk,
+            second_sale.pk,
+        )
+
+        self.assertEqual(
+            first_sale.payload_hash,
+            second_sale.payload_hash,
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-key-order",
+            ).count(),
+            1,
+        )
+
+    def test_void_resolved_sale_restores_inventory(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-void",
+            occurred_at=sale_time.isoformat(),
+        )
+
+        sale, _ = receive_sale(payload)
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            9,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
+
+        void_time = self.make_datetime(
+            2026,
+            9,
+            3,
+            10,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=void_time,
+        ):
+            voided_sale = void_sale(
+                sale,
+                "Dispensación registrada por error.",
+            )
+
+        self.assertEqual(
+            voided_sale.status,
+            Sale.Status.VOIDED,
+        )
+
+        self.assertEqual(
+            voided_sale.void_reason,
+            "Dispensación registrada por error.",
+        )
+
+        self.assertEqual(
+            voided_sale.voided_at,
+            void_time,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            10,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            6,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+    def test_void_sale_requires_reason(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-void-no-reason",
+            occurred_at=sale_time.isoformat(),
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            void_sale(
+                sale,
+                "",
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+    def test_voided_sale_cannot_be_voided_again(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-double-void",
+            occurred_at=sale_time.isoformat(),
+        )
+
+        sale, _ = receive_sale(payload)
+
+        void_sale(
+            sale,
+            "Primera anulación.",
+        )
+
+        with self.assertRaises(ValidationError):
+            void_sale(
+                sale,
+                "Segunda anulación.",
+            )
+
+    def test_reject_conflict_keeps_original_sale_effective(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        self.create_stock(
+            self.product_b,
+        )
+
+        first_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        second_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        first_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        second_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        original_payload = self.make_payload(
+            event_id="evt-reject-conflict",
+            occurred_at=first_sale_time.isoformat(),
+        )
+
+        original_sale, _ = receive_sale(original_payload)
+
+        conflict_payload = self.make_payload(
+            event_id="evt-reject-conflict",
+            occurred_at=second_sale_time.isoformat(),
+            unit_price="1.60",
+            amount_received="1.60",
+        )
+
+        conflict_sale, _ = receive_sale(conflict_payload)
+
+        rejected_sale = reject_sale_conflict(conflict_sale)
+
+        original_sale.refresh_from_db()
+
+        self.assertEqual(
+            original_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            rejected_sale.status,
+            Sale.Status.REJECTED,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            9,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_b),
+            10,
+        )
+
+    def test_accept_conflict_switches_effective_inventory_sale(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        self.create_stock(
+            self.product_b,
+        )
+
+        first_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        second_activation = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        first_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        second_sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        original_payload = self.make_payload(
+            event_id="evt-accept-conflict",
+            occurred_at=first_sale_time.isoformat(),
+            unit_price="1.50",
+            amount_received="1.50",
+        )
+
+        original_sale, _ = receive_sale(original_payload)
+
+        conflict_payload = self.make_payload(
+            event_id="evt-accept-conflict",
+            occurred_at=second_sale_time.isoformat(),
+            unit_price="1.60",
+            amount_received="1.60",
+        )
+
+        conflict_sale, _ = receive_sale(conflict_payload)
+
+        self.assertEqual(
+            original_sale.product,
+            self.product_a,
+        )
+
+        self.assertEqual(
+            conflict_sale.product,
+            self.product_b,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            9,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_b),
+            10,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_b,
+                self.machine,
+            ),
+            6,
+        )
+
+        review_time = self.make_datetime(
+            2026,
+            9,
+            3,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=review_time,
+        ):
+            accepted_sale, voided_sale = accept_sale_conflict(conflict_sale)
+
+        self.assertEqual(
+            accepted_sale.pk,
+            conflict_sale.pk,
+        )
+
+        self.assertEqual(
+            accepted_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            accepted_sale.product,
+            self.product_b,
+        )
+
+        self.assertEqual(
+            voided_sale.pk,
+            original_sale.pk,
+        )
+
+        self.assertEqual(
+            voided_sale.status,
+            Sale.Status.VOIDED,
+        )
+
+        self.assertEqual(
+            voided_sale.voided_at,
+            review_time,
+        )
+
+        self.assertTrue(voided_sale.void_reason)
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            10,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_b),
+            9,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            6,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_b,
+                self.machine,
+            ),
+            5,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_b),
+            4,
+        )
+
+    def test_conflict_without_product_cannot_be_accepted(self):
+        first_payload = self.make_payload(
+            event_id="evt-unresolved-conflict",
+            selection="Z9",
+        )
+
+        original_sale, _ = receive_sale(first_payload)
+
+        second_payload = self.make_payload(
+            event_id="evt-unresolved-conflict",
+            selection="Z8",
+        )
+
+        conflict_sale, _ = receive_sale(second_payload)
+
+        self.assertEqual(
+            original_sale.status,
+            Sale.Status.PENDING,
+        )
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertIsNone(
+            conflict_sale.product,
+        )
+
+        with self.assertRaises(ValidationError):
+            accept_sale_conflict(conflict_sale)
+
+        conflict_sale.refresh_from_db()
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+    def test_resolved_sale_cannot_be_rejected_as_conflict(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-not-conflict",
+            occurred_at=sale_time.isoformat(),
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            reject_sale_conflict(sale)
+
+    def test_resolved_sale_cannot_be_accepted_as_conflict(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-not-acceptable-conflict",
+            occurred_at=sale_time.isoformat(),
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            accept_sale_conflict(sale)
