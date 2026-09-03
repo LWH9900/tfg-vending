@@ -189,9 +189,15 @@
                                 Compras
                             </a>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'sales' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'sales:sale_list' %}"
+                            >
                                 Ventas
-                            </span>
+                            </a>
 
                             <a
                                 class="sidebar-link sidebar-sublink
@@ -303,7 +309,8 @@
                         "operationsMenu",
                         "operationsMenuOpen",
                         currentApp === "purchases" ||
-                            currentApp === "replenishments"
+                        currentApp === "sales" ||
+                        currentApp === "replenishments"
                     );
                 })();
             </script>

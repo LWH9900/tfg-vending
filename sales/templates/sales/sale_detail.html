@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+
+{% block title %}Venta #{{ sale.pk }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'sales:sale_list' %}">
+                    Ventas
+                </a>
+                /
+                #{{ sale.pk }}
+            </div>
+
+            <h1 class="page-title">
+                Detalle de venta
+            </h1>
+
+            <p class="page-description">
+                Consulta los datos recibidos, la resolución realizada
+                por Vimach y la información de trazabilidad.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+{% if sale.status == "pending" %}
+
+    <div class="alert alert-warning">
+        <strong>Venta pendiente de revisión.</strong>
+        Vimach ha conservado la recepción, pero no ha podido
+        resolver automáticamente todos los datos necesarios.
+        Esta venta no afecta al inventario.
+    </div>
+
+{% elif sale.status == "conflict" %}
+
+    <div class="alert alert-danger">
+        <strong>Recepción en conflicto.</strong>
+        Se ha recibido otro contenido con el mismo identificador
+        de evento. Esta recepción no afecta al inventario mientras
+        no sea revisada.
+    </div>
+
+{% elif sale.status == "rejected" %}
+
+    <div class="alert alert-secondary">
+        <strong>Recepción descartada.</strong>
+        Esta recepción fue revisada y descartada, por lo que
+        no afecta al inventario.
+    </div>
+
+{% elif sale.status == "voided" %}
+
+    <div class="alert alert-warning">
+        <strong>Venta anulada.</strong>
+        Esta venta fue efectiva anteriormente, pero ha sido
+        invalidada y ya no se tiene en cuenta en el inventario.
+    </div>
+
+{% endif %}
+
+
+<section class="detail-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Venta</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Estado</dt>
+
+            <dd>
+                {% if sale.status == "resolved" %}
+                    <span class="badge text-bg-success">
+                        Resuelta
+                    </span>
+
+                {% elif sale.status == "pending" %}
+                    <span class="badge text-bg-warning">
+                        Pendiente
+                    </span>
+
+                {% elif sale.status == "conflict" %}
+                    <span class="badge text-bg-danger">
+                        En conflicto
+                    </span>
+
+                {% elif sale.status == "rejected" %}
+                    <span class="badge text-bg-secondary">
+                        Descartada
+                    </span>
+
+                {% elif sale.status == "voided" %}
+                    <span class="badge text-bg-dark">
+                        Anulada
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Fecha / hora de venta</dt>
+            <dd>
+                {{ sale.occurred_at|date:"d/m/Y H:i:s" }}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Fecha / hora de recepción</dt>
+            <dd>
+                {{ sale.received_at|date:"d/m/Y H:i:s" }}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Origen</dt>
+            <dd>
+                {{ sale.get_source_display }}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Event ID</dt>
+            <dd>
+                {% if sale.event_id %}
+                    <span class="font-monospace">
+                        {{ sale.event_id }}
+                    </span>
+                {% else %}
+                    <span class="text-secondary">
+                        —
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Máquina</dt>
+            <dd>
+                {% if sale.machine %}
+
+                    <a href="{% url 'machines:machine_detail' sale.machine.pk %}">
+                        {{ sale.machine.identifier }}
+                    </a>
+
+                {% else %}
+
+                    <span class="text-secondary">
+                        No resuelta
+                    </span>
+
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Identificador externo de máquina</dt>
+            <dd>
+                {{ sale.machine_identifier }}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Selección</dt>
+            <dd>
+                {% if sale.selection %}
+                    <span class="font-monospace">
+                        {{ sale.selection }}
+                    </span>
+                {% else %}
+                    <span class="text-secondary">
+                        —
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Producto</dt>
+            <dd>
+                {% if sale.product %}
+                    {{ sale.product.name }}
+                {% else %}
+                    <span class="text-secondary">
+                        No resuelto
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Cantidad</dt>
+            <dd>
+                {{ sale.quantity }} uds.
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Tipo de dispensación</dt>
+            <dd>
+                {{ sale.get_dispense_type_display }}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+
+<section class="detail-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Datos económicos</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Precio unitario</dt>
+            <dd>
+                {% if sale.unit_price is not None %}
+                    {{ sale.unit_price|floatformat:2 }} €
+                {% else %}
+                    <span class="text-secondary">
+                        No disponible
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Importe recibido</dt>
+            <dd>
+                {% if sale.amount_received is not None %}
+                    {{ sale.amount_received|floatformat:2 }} €
+                {% else %}
+                    <span class="text-secondary">
+                        No disponible
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Medio de pago</dt>
+            <dd>
+                {% if sale.payment_method %}
+                    {{ sale.payment_method }}
+                {% else %}
+                    <span class="text-secondary">
+                        No disponible
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+
+{% if sale.status == "voided" %}
+
+<section class="detail-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Anulación</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Fecha de anulación</dt>
+            <dd>
+                {% if sale.voided_at %}
+                    {{ sale.voided_at|date:"d/m/Y H:i:s" }}
+                {% else %}
+                    <span class="text-secondary">
+                        —
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Motivo</dt>
+            <dd>
+                {{ sale.void_reason }}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+{% endif %}
+
+
+{% if sale.conflicts_with %}
+
+<section class="detail-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Conflicto</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Venta de referencia</dt>
+            <dd>
+                <a href="{% url 'sales:sale_detail' sale.conflicts_with.pk %}">
+                    Venta #{{ sale.conflicts_with.pk }}
+                </a>
+            </dd>
+        </div>
+
+
+        <div class="detail-row">
+            <dt>Estado de la referencia</dt>
+            <dd>
+                {{ sale.conflicts_with.get_status_display }}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+{% endif %}
+
+
+{% if conflicting_sales %}
+
+<section class="mb-4">
+
+    <div class="section-heading">
+        <div>
+            <h2 class="section-title">
+                Recepciones relacionadas
+            </h2>
+
+            <p class="section-description">
+                Otras recepciones que utilizaron el mismo
+                identificador de evento con contenido diferente.
+            </p>
+        </div>
+    </div>
+
+    <div class="card border-0">
+
+        <div class="table-responsive">
+
+            <table class="table align-middle mb-0">
+
+                <thead>
+                    <tr>
+                        <th>Recepción</th>
+                        <th>Fecha / hora</th>
+                        <th>Máquina</th>
+                        <th>Producto</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for conflicting_sale in conflicting_sales %}
+
+                        <tr
+                            class="clickable-row"
+                            data-href="{% url 'sales:sale_detail' conflicting_sale.pk %}"
+                            tabindex="0"
+                            role="link"
+                        >
+
+                            <td>
+                                #{{ conflicting_sale.pk }}
+                            </td>
+
+                            <td>
+                                {{ conflicting_sale.received_at|date:"d/m/Y H:i" }}
+                            </td>
+
+                            <td>
+                                {% if conflicting_sale.machine %}
+                                    {{ conflicting_sale.machine.identifier }}
+                                {% else %}
+                                    {{ conflicting_sale.machine_identifier }}
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if conflicting_sale.product %}
+                                    {{ conflicting_sale.product.name }}
+                                {% else %}
+                                    <span class="text-secondary">
+                                        —
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {{ conflicting_sale.get_status_display }}
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endif %}
+
+
+<section class="detail-card">
+
+    <div class="form-card-header">
+        <h2>Trazabilidad</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Hash del payload</dt>
+            <dd>
+                {% if sale.payload_hash %}
+                    <span class="font-monospace small text-break">
+                        {{ sale.payload_hash }}
+                    </span>
+                {% else %}
+                    <span class="text-secondary">
+                        —
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+
+    </dl>
+
+
+    <div class="p-3 border-top">
+
+        <div
+            class="d-flex justify-content-between
+                align-items-center mb-2"
+        >
+
+            <div class="fw-semibold">
+                Payload original
+            </div>
+
+            {% if sale.raw_payload %}
+
+                <a
+                    href="{% url 'sales:sale_payload_download' sale.pk %}"
+                    class="btn btn-sm btn-outline-primary"
+                >
+                    Descargar JSON
+                </a>
+
+            {% endif %}
+
+        </div>
+
+
+        {% if pretty_payload %}
+
+            <pre
+                class="mb-0 p-3 bg-light border rounded small"
+                style="white-space: pre-wrap; overflow-x: auto;"
+            >{{ pretty_payload }}</pre>
+
+        {% else %}
+
+            <span class="text-secondary">
+                Esta venta no dispone de un payload de telemetría.
+            </span>
+
+        {% endif %}
+
+    </div>
+
+</section>
+
+{% endblock %}
