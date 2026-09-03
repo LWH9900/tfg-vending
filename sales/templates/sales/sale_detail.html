@@ -29,6 +29,38 @@
             </p>
 
         </div>
+        <div class="page-header-actions">
+
+            {% if sale.status == "pending" %}
+
+                <a
+                    href="{% url 'sales:sale_resolve' sale.pk %}"
+                    class="btn btn-primary"
+                >
+                    Resolver venta
+                </a>
+
+            {% elif sale.status == "conflict" %}
+
+                <a
+                    href="{% url 'sales:sale_conflict_review' sale.pk %}"
+                    class="btn btn-danger"
+                >
+                    Revisar conflicto
+                </a>
+
+            {% elif sale.status == "resolved" %}
+
+                <a
+                    href="{% url 'sales:sale_void' sale.pk %}"
+                    class="btn btn-outline-danger"
+                >
+                    Anular venta
+                </a>
+
+            {% endif %}
+
+        </div>
 
     </div>
 
@@ -200,13 +232,7 @@
         <div class="detail-row">
             <dt>Producto</dt>
             <dd>
-                {% if sale.product %}
-                    {{ sale.product.name }}
-                {% else %}
-                    <span class="text-secondary">
-                        No resuelto
-                    </span>
-                {% endif %}
+                {% include "components/product_label.html" with product=sale.product %}
             </dd>
         </div>
 
@@ -418,13 +444,7 @@
                             </td>
 
                             <td>
-                                {% if conflicting_sale.product %}
-                                    {{ conflicting_sale.product.name }}
-                                {% else %}
-                                    <span class="text-secondary">
-                                        —
-                                    </span>
-                                {% endif %}
+                                {% include "components/product_label.html" with product=conflicting_sale.product %}
                             </td>
 
                             <td>

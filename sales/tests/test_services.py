@@ -28,6 +28,7 @@ from sales.services import (
     accept_sale_conflict,
     receive_sale,
     reject_sale_conflict,
+    resolve_pending_sale,
     void_sale,
 )
 
@@ -1890,3 +1891,247 @@ class SaleServiceTests(TestCase):
 
         with self.assertRaises(ValidationError):
             accept_sale_conflict(sale)
+
+    def test_pending_sale_can_be_resolved_manually(self):
+        payload = self.make_payload(
+            event_id="evt-manual-resolution",
+            machine_identifier="VM-EXTERNAL-ERROR",
+            selection="Z9",
+        )
+
+        sale, _ = receive_sale(payload)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+        self.assertIsNone(
+            sale.machine,
+        )
+
+        self.assertIsNone(
+            sale.product,
+        )
+
+        resolved_sale = resolve_pending_sale(
+            sale,
+            self.machine,
+            self.product_a,
+        )
+
+        self.assertEqual(
+            resolved_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            resolved_sale.machine,
+            self.machine,
+        )
+
+        self.assertEqual(
+            resolved_sale.product,
+            self.product_a,
+        )
+
+    def test_resolving_pending_sale_preserves_telemetry_data(self):
+        payload = self.make_payload(
+            event_id="evt-preserve-resolution",
+            machine_identifier="VM-EXTERNAL-ERROR",
+            selection="Z9",
+            quantity=2,
+        )
+
+        sale, _ = receive_sale(payload)
+
+        original_raw_payload = sale.raw_payload.copy()
+
+        resolve_pending_sale(
+            sale,
+            self.machine,
+            self.product_a,
+        )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.machine_identifier,
+            "VM-EXTERNAL-ERROR",
+        )
+
+        self.assertEqual(
+            sale.selection,
+            "Z9",
+        )
+
+        self.assertEqual(
+            sale.quantity,
+            2,
+        )
+
+        self.assertEqual(
+            sale.raw_payload,
+            original_raw_payload,
+        )
+
+        self.assertEqual(
+            sale.event_id,
+            "evt-preserve-resolution",
+        )
+
+    def test_resolving_pending_sale_makes_it_affect_inventory(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        payload = self.make_payload(
+            event_id="evt-pending-inventory",
+            machine_identifier="VM-EXTERNAL-ERROR",
+            selection="Z9",
+            quantity=2,
+        )
+
+        sale, _ = receive_sale(payload)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            10,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            6,
+        )
+
+        resolved_sale = resolve_pending_sale(
+            sale,
+            self.machine,
+            self.product_a,
+        )
+
+        self.assertEqual(
+            resolved_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            8,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            4,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+    def test_pending_sale_cannot_be_resolved_without_machine(self):
+        payload = self.make_payload(
+            event_id="evt-resolution-no-machine",
+            machine_identifier="VM-UNKNOWN",
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            resolve_pending_sale(
+                sale,
+                None,
+                self.product_a,
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+    def test_pending_sale_cannot_be_resolved_without_product(self):
+        payload = self.make_payload(
+            event_id="evt-resolution-no-product",
+            machine_identifier="VM-UNKNOWN",
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                None,
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+    def test_resolved_sale_cannot_be_resolved_manually(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-already-resolved",
+            occurred_at=sale_time.isoformat(),
+        )
+
+        sale, _ = receive_sale(payload)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        with self.assertRaises(ValidationError):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_b,
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.product,
+            self.product_a,
+        )

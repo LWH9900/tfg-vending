@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Anular venta #{{ sale.pk }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'sales:sale_list' %}">
+                    Ventas
+                </a>
+                /
+                <a href="{% url 'sales:sale_detail' sale.pk %}">
+                    #{{ sale.pk }}
+                </a>
+                /
+                Anular
+            </div>
+
+            <h1 class="page-title">
+                Anular venta
+            </h1>
+
+            <p class="page-description">
+                La venta permanecerá en el histórico, pero dejará
+                de tener efecto sobre el inventario.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<div class="alert alert-danger">
+
+    <strong>Esta acción es irreversible.</strong>
+
+    La venta pasará de
+    <strong>Resuelta</strong>
+    a
+    <strong>Anulada</strong>.
+
+    Sus datos originales se conservarán.
+
+</div>
+
+
+<section class="detail-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Venta</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Event ID</dt>
+            <dd>
+                {% if sale.event_id %}
+                    {{ sale.event_id }}
+                {% else %}
+                    Manual #{{ sale.pk }}
+                {% endif %}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Máquina</dt>
+            <dd>
+                {{ sale.machine.identifier }}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Producto</dt>
+            <dd>
+                {% include "components/product_label.html" with product=sale.product %}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Cantidad</dt>
+            <dd>
+                {{ sale.quantity }} uds.
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Fecha / hora</dt>
+            <dd>
+                {{ sale.occurred_at|date:"d/m/Y H:i:s" }}
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+
+<section class="form-card">
+
+    <div class="form-card-header">
+        <h2>Confirmar anulación</h2>
+    </div>
+
+    <div class="form-card-body">
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% include "components/form_field.html" with field=form.reason %}
+
+            <div class="form-actions">
+
+                <a
+                    href="{% url 'sales:sale_detail' sale.pk %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    class="btn btn-danger"
+                >
+                    Confirmar anulación
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
+
+{% endblock %}

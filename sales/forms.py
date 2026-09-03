@@ -136,3 +136,48 @@ class SaleFilterForm(forms.Form):
             )
 
         return cleaned_data
+
+
+class ResolvePendingSaleForm(forms.Form):
+    machine = forms.ModelChoiceField(
+        queryset=Machine.objects.order_by("identifier"),
+        label="Máquina",
+        empty_label="Selecciona una máquina",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
+    product = ProductChoiceField(
+        queryset=Product.objects.select_related("category").order_by("name"),
+        label="Producto",
+        empty_label="Selecciona un producto",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
+
+class VoidSaleForm(forms.Form):
+    reason = forms.CharField(
+        label="Motivo de anulación",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 4,
+                "placeholder": ("Indica por qué debe anularse esta venta."),
+            }
+        ),
+    )
+
+    def clean_reason(self):
+        reason = self.cleaned_data["reason"].strip()
+
+        if not reason:
+            raise forms.ValidationError("Debe indicarse el motivo de la anulación.")
+
+        return reason

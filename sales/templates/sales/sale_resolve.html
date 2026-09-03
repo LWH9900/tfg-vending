@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Resolver venta #{{ sale.pk }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'sales:sale_list' %}">
+                    Ventas
+                </a>
+                /
+                <a href="{% url 'sales:sale_detail' sale.pk %}">
+                    #{{ sale.pk }}
+                </a>
+                /
+                Resolver
+            </div>
+
+            <h1 class="page-title">
+                Resolver venta pendiente
+            </h1>
+
+            <p class="page-description">
+                Asocia manualmente la máquina y el producto sin modificar
+                los datos originales recibidos por telemetría.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<div class="alert alert-warning">
+    <strong>Resolución manual.</strong>
+    Los datos recibidos originalmente se conservarán sin cambios.
+    Al resolver la venta, comenzará a afectar al inventario.
+</div>
+
+
+<section class="detail-card mb-4">
+
+    <div class="form-card-header">
+        <h2>Datos recibidos</h2>
+    </div>
+
+    <dl class="detail-list">
+
+        <div class="detail-row">
+            <dt>Event ID</dt>
+            <dd>
+                {{ sale.event_id }}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Máquina recibida</dt>
+            <dd>
+                {{ sale.machine_identifier }}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Selección recibida</dt>
+            <dd>
+                {{ sale.selection }}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Fecha / hora</dt>
+            <dd>
+                {{ sale.occurred_at|date:"d/m/Y H:i:s" }}
+            </dd>
+        </div>
+
+        <div class="detail-row">
+            <dt>Cantidad</dt>
+            <dd>
+                {{ sale.quantity }} uds.
+            </dd>
+        </div>
+
+    </dl>
+
+</section>
+
+
+<section class="form-card">
+
+    <div class="form-card-header">
+        <h2>Resolución</h2>
+    </div>
+
+    <div class="form-card-body">
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.machine %}
+                </div>
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.product %}
+                </div>
+
+            </div>
+
+            <div class="form-actions">
+
+                <a
+                    href="{% url 'sales:sale_detail' sale.pk %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Resolver venta
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
+
+{% endblock %}

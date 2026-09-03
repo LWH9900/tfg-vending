@@ -462,3 +462,32 @@ def accept_sale_conflict(
         locked_sale,
         current_sale,
     )
+
+
+@transaction.atomic
+def resolve_pending_sale(
+    sale,
+    machine,
+    product,
+):
+    if sale.pk is None:
+        raise ValidationError("La venta debe estar guardada antes de poder resolverla.")
+
+    if machine is None:
+        raise ValidationError({"machine": ("Debe seleccionarse una máquina.")})
+
+    if product is None:
+        raise ValidationError({"product": ("Debe seleccionarse un producto.")})
+
+    locked_sale = Sale.objects.select_for_update().get(pk=sale.pk)
+
+    if locked_sale.status != Sale.Status.PENDING:
+        raise ValidationError("Solo se puede resolver manualmente una venta pendiente.")
+
+    locked_sale.machine = machine
+    locked_sale.product = product
+    locked_sale.status = Sale.Status.RESOLVED
+
+    locked_sale.save()
+
+    return locked_sale
