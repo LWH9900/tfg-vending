@@ -138,7 +138,110 @@ class SaleFilterForm(forms.Form):
         return cleaned_data
 
 
+class MachineResolutionChoiceField(forms.ModelChoiceField):
+    def label_from_instance(
+        self,
+        machine,
+    ):
+        label = f"{machine.identifier} · {machine.name}"
+
+        if machine.location:
+            label += f" · {machine.location}"
+
+        return label
+
+
+class ResolvePendingMachineForm(forms.Form):
+    machine = MachineResolutionChoiceField(
+        queryset=Machine.objects.order_by("identifier"),
+        label="Máquina",
+        empty_label="Selecciona una máquina",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
+
 class ResolvePendingSaleForm(forms.Form):
+    machine = forms.ModelChoiceField(
+        queryset=Machine.objects.all(),
+        widget=forms.HiddenInput(),
+    )
+
+    product = ProductChoiceField(
+        queryset=Product.objects.none(),
+        label="Producto",
+        empty_label="Selecciona un producto",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
+    def __init__(
+        self,
+        *args,
+        machine=None,
+        candidate_products=None,
+        automatic_product=None,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        if machine is not None:
+            self.fields["machine"].initial = machine
+
+        if candidate_products is not None:
+            self.fields["product"].queryset = candidate_products
+
+        if automatic_product is not None:
+            self.fields["product"].initial = automatic_product
+
+            self.fields["product"].widget = forms.HiddenInput()
+
+
+class VoidSaleForm(forms.Form):
+    reason = forms.CharField(
+        label="Motivo de anulación",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 4,
+                "placeholder": ("Indica por qué debe anularse esta venta."),
+            }
+        ),
+    )
+
+    def clean_reason(self):
+        reason = self.cleaned_data["reason"].strip()
+
+        if not reason:
+            raise forms.ValidationError("Debe indicarse el motivo de la anulación.")
+
+        return reason
+
+
+class ManualSaleForm(forms.Form):
+    event_id = forms.CharField(
+        required=False,
+        label="Event ID",
+        help_text=(
+            "Déjalo vacío si la venta no dispone de un evento externo de telemetría."
+        ),
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": ("Opcional"),
+            }
+        ),
+    )
+
     machine = forms.ModelChoiceField(
         queryset=Machine.objects.order_by("identifier"),
         label="Máquina",
@@ -161,23 +264,90 @@ class ResolvePendingSaleForm(forms.Form):
         ),
     )
 
-
-class VoidSaleForm(forms.Form):
-    reason = forms.CharField(
-        label="Motivo de anulación",
-        widget=forms.Textarea(
+    selection = forms.CharField(
+        required=False,
+        label="Selección",
+        help_text=("Opcional si no se conoce qué selección originó la dispensación."),
+        widget=forms.TextInput(
             attrs={
                 "class": "form-control",
-                "rows": 4,
-                "placeholder": ("Indica por qué debe anularse esta venta."),
+                "placeholder": "Ej. A1",
             }
         ),
     )
 
-    def clean_reason(self):
-        reason = self.cleaned_data["reason"].strip()
+    occurred_at = forms.DateTimeField(
+        label="Fecha y hora de la venta",
+        input_formats=[
+            "%Y-%m-%dT%H:%M",
+        ],
+        widget=forms.DateTimeInput(
+            attrs={
+                "class": "form-control",
+                "type": "datetime-local",
+            },
+            format="%Y-%m-%dT%H:%M",
+        ),
+    )
 
-        if not reason:
-            raise forms.ValidationError("Debe indicarse el motivo de la anulación.")
+    quantity = forms.IntegerField(
+        min_value=1,
+        initial=1,
+        label="Cantidad",
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "min": 1,
+            }
+        ),
+    )
 
-        return reason
+    dispense_type = forms.ChoiceField(
+        label="Tipo de dispensación",
+        choices=Sale.DispenseType.choices,
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
+    unit_price = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label="Precio unitario",
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "step": "0.01",
+                "min": "0",
+            }
+        ),
+    )
+
+    amount_received = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label="Importe recibido",
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "step": "0.01",
+                "min": "0",
+            }
+        ),
+    )
+
+    payment_method = forms.CharField(
+        required=False,
+        label="Medio de pago",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+            }
+        ),
+    )

@@ -525,7 +525,7 @@ class SaleHistoryViewTests(TestCase):
             "VM-HIST-001",
         )
 
-    def test_sale_detail_displays_pretty_payload(self):
+    def test_sale_detail_displays_payload(self):
         url = reverse(
             "sales:sale_detail",
             args=[
@@ -535,18 +535,18 @@ class SaleHistoryViewTests(TestCase):
 
         response = self.client.get(url)
 
-        pretty_payload = response.context["pretty_payload"]
+        payload = response.context["payload"]
 
-        self.assertIsNotNone(pretty_payload)
+        self.assertIsNotNone(payload)
 
         self.assertIn(
             "\n",
-            pretty_payload,
+            payload,
         )
 
         self.assertIn(
             '"event_id": "evt-history-001"',
-            pretty_payload,
+            payload,
         )
 
     def test_conflict_detail_shows_reference_sale(self):

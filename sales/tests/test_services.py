@@ -26,6 +26,7 @@ from replenishments.models import Replenishment, ReplenishmentLine
 from sales.models import Sale
 from sales.services import (
     accept_sale_conflict,
+    create_manual_sale,
     receive_sale,
     reject_sale_conflict,
     resolve_pending_sale,
@@ -1893,10 +1894,33 @@ class SaleServiceTests(TestCase):
             accept_sale_conflict(sale)
 
     def test_pending_sale_can_be_resolved_manually(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
         payload = self.make_payload(
             event_id="evt-manual-resolution",
             machine_identifier="VM-EXTERNAL-ERROR",
-            selection="Z9",
+            selection="A1",
+            occurred_at=sale_time.isoformat(),
         )
 
         sale, _ = receive_sale(payload)
@@ -1936,10 +1960,34 @@ class SaleServiceTests(TestCase):
         )
 
     def test_resolving_pending_sale_preserves_telemetry_data(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
         payload = self.make_payload(
             event_id="evt-preserve-resolution",
             machine_identifier="VM-EXTERNAL-ERROR",
-            selection="Z9",
+            selection="A1",
+            occurred_at=sale_time.isoformat(),
             quantity=2,
         )
 
@@ -1959,10 +2007,9 @@ class SaleServiceTests(TestCase):
             sale.machine_identifier,
             "VM-EXTERNAL-ERROR",
         )
-
         self.assertEqual(
             sale.selection,
-            "Z9",
+            "A1",
         )
 
         self.assertEqual(
@@ -1984,11 +2031,35 @@ class SaleServiceTests(TestCase):
         self.create_stock(
             self.product_a,
         )
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
 
         payload = self.make_payload(
             event_id="evt-pending-inventory",
             machine_identifier="VM-EXTERNAL-ERROR",
-            selection="Z9",
+            selection="A1",
+            occurred_at=sale_time.isoformat(),
             quantity=2,
         )
 
@@ -2134,4 +2205,407 @@ class SaleServiceTests(TestCase):
         self.assertEqual(
             sale.product,
             self.product_a,
+        )
+
+    def test_pending_sale_cannot_resolve_with_product_outside_layout(self):
+        product_outside_layout = Product.objects.create(
+            name="VimaExtra Sale",
+            category=self.category,
+            format_unit="500 ml",
+            default_sale_price=Decimal("2.00"),
+            vat_rate=Decimal("21.00"),
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-product-outside-layout",
+            machine_identifier="VM-EXTERNAL-ERROR",
+            selection="Z9",
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                product_outside_layout,
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+        self.assertIsNone(
+            sale.product,
+        )
+
+    def test_pending_sale_cannot_override_product_resolved_by_selection(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-selection-product",
+            machine_identifier="VM-EXTERNAL-ERROR",
+            selection="A1",
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_b,
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+    def test_pending_sale_cannot_resolve_without_historical_layout(self):
+        payload = self.make_payload(
+            event_id="evt-no-historical-layout-resolution",
+            machine_identifier="VM-EXTERNAL-ERROR",
+            selection="A1",
+        )
+
+        sale, _ = receive_sale(payload)
+
+        with self.assertRaises(ValidationError):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_a,
+            )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+    def test_manual_sale_can_be_created_without_event_id(self):
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="cash",
+        )
+
+        self.assertEqual(
+            sale.source,
+            Sale.Source.MANUAL,
+        )
+
+        self.assertIsNone(
+            sale.event_id,
+        )
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            sale.machine,
+            self.machine,
+        )
+
+        self.assertEqual(
+            sale.product,
+            self.product_a,
+        )
+
+        self.assertEqual(
+            sale.machine_identifier,
+            self.machine.identifier,
+        )
+
+        self.assertIsNone(
+            sale.raw_payload,
+        )
+
+    def test_manual_sale_can_store_external_event_id(self):
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        sale = create_manual_sale(
+            event_id="evt-manual-known",
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+        )
+
+        self.assertEqual(
+            sale.source,
+            Sale.Source.MANUAL,
+        )
+
+        self.assertEqual(
+            sale.event_id,
+            "evt-manual-known",
+        )
+
+    def test_manual_sale_cannot_use_existing_event_id(self):
+        payload = self.make_payload(
+            event_id="evt-already-received",
+            machine_identifier="VM-NO-EXISTE",
+        )
+
+        existing_sale, _ = receive_sale(payload)
+
+        self.assertEqual(
+            existing_sale.status,
+            Sale.Status.PENDING,
+        )
+
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        with self.assertRaises(ValidationError):
+            create_manual_sale(
+                event_id="evt-already-received",
+                machine=self.machine,
+                product=self.product_a,
+                occurred_at=occurred_at,
+                quantity=1,
+                dispense_type=Sale.DispenseType.PAID,
+            )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-already-received",
+            ).count(),
+            1,
+        )
+
+    def test_manual_free_sale_uses_zero_amount_received(self):
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=1,
+            dispense_type=Sale.DispenseType.FREE,
+            amount_received=None,
+        )
+
+        self.assertEqual(
+            sale.dispense_type,
+            Sale.DispenseType.FREE,
+        )
+
+        self.assertEqual(
+            sale.amount_received,
+            Decimal("0.00"),
+        )
+
+    def test_manual_sale_affects_inventory(self):
+        self.create_stock(
+            self.product_a,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            10,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            6,
+        )
+
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=2,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("3.00"),
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            8,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            4,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+    def test_manual_sale_can_be_created_without_selection(self):
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+            selection="",
+        )
+
+        self.assertEqual(
+            sale.selection,
+            "",
+        )
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+    def test_resolved_manual_sale_cannot_be_modified(self):
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+        )
+
+        sale.quantity = 5
+
+        with self.assertRaises(ValidationError):
+            sale.save()
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.quantity,
+            1,
+        )
+
+    def test_resolved_manual_sale_can_be_voided(self):
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=occurred_at,
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+        )
+
+        voided_sale = void_sale(
+            sale,
+            "Registro manual incorrecto.",
+        )
+
+        self.assertEqual(
+            voided_sale.status,
+            Sale.Status.VOIDED,
+        )
+
+        self.assertEqual(
+            voided_sale.void_reason,
+            "Registro manual incorrecto.",
         )

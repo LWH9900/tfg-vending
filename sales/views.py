@@ -11,7 +11,19 @@ from django.shortcuts import (
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from inventory.models import Product
+from inventory.services import get_machine_stock
+from machines.models import Machine
+from machines.services.layouts import (
+    get_machine_layout_at,
+    get_product_for_selection,
+)
+from machines.services.pricing import (
+    get_product_price_for_machine,
+)
 from sales.forms import (
+    ManualSaleForm,
+    ResolvePendingMachineForm,
     ResolvePendingSaleForm,
     SaleFilterForm,
     VoidSaleForm,
@@ -19,6 +31,7 @@ from sales.forms import (
 from sales.models import Sale
 from sales.services import (
     accept_sale_conflict,
+    create_manual_sale,
     receive_sale,
     reject_sale_conflict,
     resolve_pending_sale,
@@ -116,10 +129,10 @@ def sale_detail(
         "pk",
     )
 
-    pretty_payload = None
+    payload = None
 
     if sale.raw_payload is not None:
-        pretty_payload = json.dumps(
+        payload = json.dumps(
             sale.raw_payload,
             indent=2,
             ensure_ascii=False,
@@ -132,7 +145,7 @@ def sale_detail(
         {
             "sale": sale,
             "conflicting_sales": (conflicting_sales),
-            "pretty_payload": (pretty_payload),
+            "payload": (payload),
         },
     )
 
@@ -142,14 +155,17 @@ def sale_resolve(
     pk,
 ):
     sale = get_object_or_404(
-        Sale,
+        Sale.objects.select_related(
+            "machine",
+            "product",
+        ),
         pk=pk,
     )
 
     if sale.status != Sale.Status.PENDING:
         messages.error(
             request,
-            "Solo se pueden resolver ventas pendientes.",
+            ("Solo se pueden resolver ventas pendientes."),
         )
 
         return redirect(
@@ -157,39 +173,161 @@ def sale_resolve(
             pk=sale.pk,
         )
 
-    form = ResolvePendingSaleForm(request.POST or None)
+    formatted_payload = None
 
-    if request.method == "POST" and form.is_valid():
-        try:
-            resolved_sale = resolve_pending_sale(
-                sale,
-                form.cleaned_data["machine"],
-                form.cleaned_data["product"],
+    if sale.raw_payload is not None:
+        formatted_payload = json.dumps(
+            sale.raw_payload,
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+
+    machine_form = None
+    selected_machine = sale.machine
+
+    if selected_machine is None:
+        machine_form = ResolvePendingMachineForm(request.GET or None)
+
+        if machine_form.is_valid():
+            selected_machine = machine_form.cleaned_data["machine"]
+
+        elif request.method == "POST":
+            machine_id = request.POST.get("machine")
+
+            if machine_id:
+                selected_machine = Machine.objects.filter(pk=machine_id).first()
+
+    layout = None
+    automatic_product = None
+    candidate_products = Product.objects.none()
+    candidate_positions = []
+
+    if selected_machine is not None:
+        layout = get_machine_layout_at(
+            selected_machine,
+            sale.occurred_at,
+        )
+
+    if layout is not None:
+        automatic_product = get_product_for_selection(
+            selected_machine,
+            sale.selection,
+            sale.occurred_at,
+        )
+
+        candidate_products = (
+            Product.objects.filter(
+                machine_positions__layout=layout,
+            )
+            .select_related("category")
+            .distinct()
+            .order_by(
+                "name",
+                "category__name",
+                "format_unit",
+            )
+        )
+
+        positions = (
+            layout.positions.filter(
+                product__isnull=False,
+            )
+            .select_related(
+                "product",
+                "product__category",
+            )
+            .order_by(
+                "row",
+                "column",
+                "identifier",
+            )
+        )
+
+        for position in positions:
+            candidate_positions.append(
+                {
+                    "position": position,
+                    "product": position.product,
+                    "current_price": (
+                        get_product_price_for_machine(
+                            selected_machine,
+                            position.product,
+                        )
+                    ),
+                    "machine_stock": (
+                        get_machine_stock(
+                            position.product,
+                            selected_machine,
+                        )
+                    ),
+                }
             )
 
-        except ValidationError as error:
-            form.add_error(
-                None,
-                error,
-            )
+    form = None
 
-        else:
-            messages.success(
-                request,
-                "La venta se ha resuelto correctamente.",
-            )
+    if layout is not None:
+        form = ResolvePendingSaleForm(
+            request.POST or None,
+            machine=selected_machine,
+            candidate_products=(candidate_products),
+            automatic_product=(automatic_product),
+        )
 
-            return redirect(
-                "sales:sale_detail",
-                pk=resolved_sale.pk,
-            )
+        if request.method == "POST" and form.is_valid():
+            try:
+                resolved_sale = resolve_pending_sale(
+                    sale,
+                    form.cleaned_data["machine"],
+                    form.cleaned_data["product"],
+                )
+
+            except ValidationError as error:
+                if hasattr(
+                    error,
+                    "message_dict",
+                ):
+                    for (
+                        field,
+                        error_messages,
+                    ) in error.message_dict.items():
+                        target_field = field if field in form.fields else None
+
+                        for message in error_messages:
+                            form.add_error(
+                                target_field,
+                                message,
+                            )
+
+                else:
+                    form.add_error(
+                        None,
+                        error,
+                    )
+
+            else:
+                messages.success(
+                    request,
+                    ("La venta se ha resuelto correctamente."),
+                )
+
+                return redirect(
+                    "sales:sale_detail",
+                    pk=resolved_sale.pk,
+                )
 
     return render(
         request,
         "sales/sale_resolve.html",
         {
             "sale": sale,
+            "machine_form": machine_form,
+            "selected_machine": (selected_machine),
+            "layout": layout,
+            "automatic_product": (automatic_product),
+            "candidate_positions": (candidate_positions),
             "form": form,
+            "formatted_payload": (formatted_payload),
         },
     )
 
@@ -499,4 +637,64 @@ def sale_receive(
     return JsonResponse(
         response_data,
         status=200,
+    )
+
+
+def sale_manual_create(
+    request,
+):
+    form = ManualSaleForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            sale = create_manual_sale(
+                event_id=(form.cleaned_data["event_id"]),
+                machine=(form.cleaned_data["machine"]),
+                product=(form.cleaned_data["product"]),
+                selection=(form.cleaned_data["selection"]),
+                occurred_at=(form.cleaned_data["occurred_at"]),
+                quantity=(form.cleaned_data["quantity"]),
+                dispense_type=(form.cleaned_data["dispense_type"]),
+                unit_price=(form.cleaned_data["unit_price"]),
+                amount_received=(form.cleaned_data["amount_received"]),
+                payment_method=(form.cleaned_data["payment_method"]),
+            )
+
+        except ValidationError as error:
+            if hasattr(
+                error,
+                "message_dict",
+            ):
+                for field, messages_list in error.message_dict.items():
+                    target_field = field if field in form.fields else None
+
+                    for message in messages_list:
+                        form.add_error(
+                            target_field,
+                            message,
+                        )
+
+            else:
+                form.add_error(
+                    None,
+                    error,
+                )
+
+        else:
+            messages.success(
+                request,
+                "La venta manual se ha registrado correctamente.",
+            )
+
+            return redirect(
+                "sales:sale_detail",
+                pk=sale.pk,
+            )
+
+    return render(
+        request,
+        "sales/sale_manual_create.html",
+        {
+            "form": form,
+        },
     )

@@ -309,6 +309,8 @@
         <button
             type="submit"
             class="btn btn-outline-danger"
+            onclick="return confirm('¿Seguro que deseas descartar esta recepción conflictiva? Esta decisión no podrá revertirse.')"
+
         >
             Mantener original y descartar esta recepción
         </button>
@@ -321,6 +323,7 @@
             method="post"
             action="{% url 'sales:sale_conflict_accept' sale.pk %}"
             class="d-inline"
+            onclick="return confirm('¿Seguro que deseas aceptar esta recepción como venta efectiva? La venta efectiva actual será anulada.')"
         >
             {% csrf_token %}
 

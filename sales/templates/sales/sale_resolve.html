@@ -92,7 +92,36 @@
     </dl>
 
 </section>
+{% if formatted_payload %}
 
+<section class="detail-card mb-4">
+
+    <div
+        class="form-card-header d-flex
+               justify-content-between align-items-center"
+    >
+        <h2>Payload original</h2>
+
+        <a
+            href="{% url 'sales:sale_payload_download' sale.pk %}"
+            class="btn btn-sm btn-outline-primary"
+        >
+            Descargar JSON
+        </a>
+    </div>
+
+    <div class="p-3">
+
+        <pre
+            class="mb-0 p-3 bg-light border rounded small"
+            style="white-space: pre-wrap; overflow-x: auto;"
+        >{{ formatted_payload }}</pre>
+
+    </div>
+
+</section>
+
+{% endif %}
 
 <section class="form-card">
 
@@ -102,49 +131,358 @@
 
     <div class="form-card-body">
 
-        <form method="post">
+        {% if not sale.machine %}
 
-            {% csrf_token %}
+            <div class="mb-4">
 
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger">
-                    {% for error in form.non_field_errors %}
-                        {{ error }}
-                    {% endfor %}
+                <h3 class="h6">
+                    Identificar máquina
+                </h3>
+
+                <p class="text-secondary">
+                    El identificador recibido no ha permitido
+                    resolver automáticamente la máquina.
+                    Selecciona la máquina real utilizando los
+                    datos disponibles en la telemetría.
+                </p>
+
+                <form method="get">
+
+                    {% include "components/form_field.html" with field=machine_form.machine %}
+
+                    <div class="form-actions">
+
+                        <a
+                            href="{% url 'sales:sale_detail' sale.pk %}"
+                            class="btn btn-outline-secondary"
+                        >
+                            Cancelar
+                        </a>
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
+                            Usar esta máquina
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+        {% endif %}
+
+
+        {% if selected_machine %}
+
+            <div class="mb-4">
+
+                <h3 class="h6">
+                    Máquina seleccionada
+                </h3>
+
+                <div class="border rounded p-3 bg-light">
+
+                    <div class="fw-semibold">
+                        {{ selected_machine.identifier }}
+                        ·
+                        {{ selected_machine.name }}
+                    </div>
+
+                    {% if selected_machine.location %}
+
+                        <div class="text-secondary mt-1">
+                            {{ selected_machine.location }}
+                        </div>
+
+                    {% else %}
+
+                        <div class="text-secondary mt-1">
+                            Sin ubicación registrada.
+                        </div>
+
+                    {% endif %}
+
                 </div>
+
+            </div>
+
+
+            {% if layout %}
+
+                <div class="mb-4">
+
+                    <h3 class="h6">
+                        Disposición en el momento de la venta
+                    </h3>
+
+                    <div class="border rounded p-3">
+
+                        <div>
+                            <strong>
+                                {{ layout.name }}
+                            </strong>
+                        </div>
+
+                        <div class="text-secondary mt-1">
+                            Selección recibida:
+                            <span class="font-monospace">
+                                {{ sale.selection }}
+                            </span>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                {% if automatic_product %}
+
+                    <div class="alert alert-success">
+
+                        <strong>
+                            La selección puede resolverse.
+                        </strong>
+
+                        La selección
+                        <span class="font-monospace">
+                            {{ sale.selection }}
+                        </span>
+                        corresponde a:
+
+                        <div class="mt-2">
+                            {% include "components/product_label.html" with product=automatic_product %}
+                        </div>
+
+                    </div>
+
+
+                    <form method="post">
+
+                        {% csrf_token %}
+
+                        {{ form.machine }}
+                        {{ form.product }}
+
+                        {% if form.non_field_errors %}
+
+                            <div class="alert alert-danger">
+
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+
+                            </div>
+
+                        {% endif %}
+
+                        <div class="form-actions">
+
+                            <a
+                                href="{% url 'sales:sale_detail' sale.pk %}"
+                                class="btn btn-outline-secondary"
+                            >
+                                Cancelar
+                            </a>
+
+                            <button
+                                type="submit"
+                                class="btn btn-primary"
+                            >
+                                Confirmar resolución
+                            </button>
+
+                        </div>
+
+                    </form>
+
+
+                {% else %}
+
+                    <div class="alert alert-warning">
+
+                        <strong>
+                            La selección recibida no existe
+                            en esta disposición.
+                        </strong>
+
+                        Revisa la telemetría y selecciona únicamente
+                        un producto que estuviera disponible en esta
+                        disposición.
+
+                        {% if sale.unit_price is not None %}
+
+                            <div class="mt-2">
+                                Precio unitario recibido:
+                                <strong>
+                                    {{ sale.unit_price|floatformat:2 }} €
+                                </strong>
+                            </div>
+
+                        {% endif %}
+
+                    </div>
+
+
+                    {% if candidate_positions %}
+
+                        <div class="mb-4">
+
+                            <h3 class="h6">
+                                Productos de la disposición
+                            </h3>
+
+                            <div class="table-responsive">
+
+                                <table class="table align-middle">
+
+                                    <thead>
+                                    <tr>
+                                        <th>Selección</th>
+                                        <th>Producto</th>
+                                        <th>Stock en máquina</th>
+                                        <th>Precio configurado actual</th>
+                                    </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        {% for candidate in candidate_positions %}
+
+                                            <tr>
+
+                                                <td>
+                                                    <span class="font-monospace">
+                                                        {{ candidate.position.identifier }}
+                                                    </span>
+                                                </td>
+
+                                                <td>
+                                                    {% include "components/product_label.html" with product=candidate.product %}
+                                                </td>
+
+                                                <td>
+                                                    {% if candidate.machine_stock > 0 %}
+
+                                                        {{ candidate.machine_stock }} uds.
+
+                                                    {% elif candidate.machine_stock == 0 %}
+
+                                                        <span class="text-secondary">
+                                                            0 uds.
+                                                        </span>
+
+                                                    {% else %}
+
+                                                        <span class="text-danger fw-semibold">
+                                                            {{ candidate.machine_stock }} uds.
+                                                        </span>
+
+                                                    {% endif %}
+                                                </td>
+
+                                                <td>
+                                                    {{ candidate.current_price|floatformat:2 }} €
+                                                </td>
+
+                                            </tr>
+
+                                        {% endfor %}
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                            <small class="text-secondary">
+                                El stock y los precios mostrados corresponden al estado
+                                actual de Vimach y se utilizan únicamente como ayuda para
+                                la revisión. No representan necesariamente el stock ni el
+                                precio existentes en el momento histórico de la venta.
+                            </small>
+
+                        </div>
+
+
+                        <form method="post">
+
+                            {% csrf_token %}
+
+                            {{ form.machine }}
+
+                            {% if form.non_field_errors %}
+
+                                <div class="alert alert-danger">
+
+                                    {% for error in form.non_field_errors %}
+                                        {{ error }}
+                                    {% endfor %}
+
+                                </div>
+
+                            {% endif %}
+
+                            {% include "components/form_field.html" with field=form.product %}
+
+                            <div class="form-actions">
+
+                                <a
+                                    href="{% url 'sales:sale_detail' sale.pk %}"
+                                    class="btn btn-outline-secondary"
+                                >
+                                    Cancelar
+                                </a>
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-primary"
+                                >
+                                    Resolver venta
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                    {% else %}
+
+                        <div class="alert alert-danger">
+                            La disposición no contiene ningún
+                            producto que pueda utilizarse para
+                            resolver esta venta.
+                        </div>
+
+                    {% endif %}
+
+                {% endif %}
+
+
+            {% else %}
+
+                <div class="alert alert-danger">
+
+                    <strong>
+                        No existe una disposición histórica.
+                    </strong>
+
+                    La máquina seleccionada no tenía ninguna
+                    disposición activa en:
+
+                    <strong>
+                        {{ sale.occurred_at|date:"d/m/Y H:i:s" }}
+                    </strong>.
+
+                    Esta venta no puede resolverse mediante
+                    una asociación arbitraria de producto.
+
+                </div>
+
             {% endif %}
 
-            <div class="row g-3">
-
-                <div class="col-md-6">
-                    {% include "components/form_field.html" with field=form.machine %}
-                </div>
-
-                <div class="col-md-6">
-                    {% include "components/form_field.html" with field=form.product %}
-                </div>
-
-            </div>
-
-            <div class="form-actions">
-
-                <a
-                    href="{% url 'sales:sale_detail' sale.pk %}"
-                    class="btn btn-outline-secondary"
-                >
-                    Cancelar
-                </a>
-
-                <button
-                    type="submit"
-                    class="btn btn-primary"
-                >
-                    Resolver venta
-                </button>
-
-            </div>
-
-        </form>
+        {% endif %}
 
     </div>
 

@@ -51,4 +51,9 @@ urlpatterns = [
         views.sale_conflict_reject,
         name="sale_conflict_reject",
     ),
+    path(
+        "manual/new/",
+        views.sale_manual_create,
+        name="sale_manual_create",
+    ),
 ]

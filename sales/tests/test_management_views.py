@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -11,7 +12,8 @@ from inventory.services import (
     get_total_stock,
     get_warehouse_stock,
 )
-from machines.models import Machine
+from machines.models import Machine, MachineLayout, MachinePosition
+from machines.services.layouts import activate_machine_layout
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import (
     Replenishment,
@@ -168,6 +170,46 @@ class SaleManagementViewTests(TestCase):
             },
         )
 
+        self.layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Disposición gestión",
+        )
+
+        MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product_a,
+        )
+
+        MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="A2",
+            row=1,
+            column=2,
+            product=self.product_b,
+        )
+
+        self.layout.status = MachineLayout.Status.REGISTERED
+        self.layout.save()
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            3,
+            9,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout,
+            )
+
     def make_datetime(
         self,
         year,
@@ -248,6 +290,10 @@ class SaleManagementViewTests(TestCase):
         self.assertContains(
             response,
             "Z9",
+        )
+        self.assertContains(
+            response,
+            "Identificar máquina",
         )
 
     def test_resolved_sale_cannot_open_pending_resolution(self):
@@ -876,4 +922,198 @@ class SaleManagementViewTests(TestCase):
         self.assertContains(
             response,
             "Revisar conflicto",
+        )
+
+    def test_pending_resolution_shows_historical_layout_candidates(self):
+        url = reverse(
+            "sales:sale_resolve",
+            args=[
+                self.pending_sale.pk,
+            ],
+        )
+
+        response = self.client.get(
+            url,
+            {
+                "machine": self.machine.pk,
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.context["selected_machine"],
+            self.machine,
+        )
+
+        self.assertEqual(
+            response.context["layout"],
+            self.layout,
+        )
+
+        self.assertContains(
+            response,
+            "Disposición gestión",
+        )
+
+        self.assertContains(
+            response,
+            self.product_a.name,
+        )
+
+        self.assertContains(
+            response,
+            self.product_b.name,
+        )
+
+        self.assertContains(
+            response,
+            self.category.name,
+        )
+
+    def test_pending_resolution_product_choices_are_limited_to_layout(self):
+        outside_product = Product.objects.create(
+            name="VimaOutside Gestión",
+            category=self.category,
+            format_unit="500 ml",
+            default_sale_price=Decimal("2.00"),
+            vat_rate=Decimal("21.00"),
+        )
+
+        url = reverse(
+            "sales:sale_resolve",
+            args=[
+                self.pending_sale.pk,
+            ],
+        )
+
+        response = self.client.get(
+            url,
+            {
+                "machine": self.machine.pk,
+            },
+        )
+
+        form = response.context["form"]
+
+        products = list(form.fields["product"].queryset)
+
+        self.assertIn(
+            self.product_a,
+            products,
+        )
+
+        self.assertIn(
+            self.product_b,
+            products,
+        )
+
+        self.assertNotIn(
+            outside_product,
+            products,
+        )
+
+    def test_pending_resolution_rejects_product_outside_layout(self):
+        outside_product = Product.objects.create(
+            name="VimaOutside POST",
+            category=self.category,
+            format_unit="500 ml",
+            default_sale_price=Decimal("2.00"),
+            vat_rate=Decimal("21.00"),
+        )
+
+        url = reverse(
+            "sales:sale_resolve",
+            args=[
+                self.pending_sale.pk,
+            ],
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "machine": self.machine.pk,
+                "product": outside_product.pk,
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.pending_sale.refresh_from_db()
+
+        self.assertEqual(
+            self.pending_sale.status,
+            Sale.Status.PENDING,
+        )
+
+        self.assertIsNone(
+            self.pending_sale.product,
+        )
+
+    def test_pending_sale_with_known_machine_does_not_ask_machine_again(self):
+        sale = Sale.objects.create(
+            source=Sale.Source.TELEMETRY,
+            event_id="evt-known-machine",
+            payload_hash="f" * 64,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            selection="000000",
+            product=None,
+            occurred_at=self.make_datetime(
+                2026,
+                9,
+                3,
+                10,
+                30,
+            ),
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.60"),
+            amount_received=Decimal("1.60"),
+            payment_method="cash",
+            status=Sale.Status.PENDING,
+            raw_payload={
+                "event_id": "evt-known-machine",
+                "machine_identifier": (self.machine.identifier),
+                "selection": "000000",
+            },
+        )
+
+        url = reverse(
+            "sales:sale_resolve",
+            args=[
+                sale.pk,
+            ],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.context["selected_machine"],
+            self.machine,
+        )
+
+        self.assertIsNone(
+            response.context["machine_form"],
+        )
+
+        self.assertEqual(
+            response.context["layout"],
+            self.layout,
+        )
+
+        self.assertContains(
+            response,
+            "000000",
+        )
+
+        self.assertContains(
+            response,
+            "La selección recibida no existe",
         )

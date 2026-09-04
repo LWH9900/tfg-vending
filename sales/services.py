@@ -11,6 +11,7 @@ from django.utils.dateparse import parse_datetime
 
 from machines.models import Machine
 from machines.services.layouts import (
+    get_machine_layout_at,
     get_product_for_selection,
 )
 from sales.models import Sale
@@ -484,6 +485,67 @@ def resolve_pending_sale(
     if locked_sale.status != Sale.Status.PENDING:
         raise ValidationError("Solo se puede resolver manualmente una venta pendiente.")
 
+    if locked_sale.machine_id is not None and locked_sale.machine_id != machine.pk:
+        raise ValidationError(
+            {
+                "machine": (
+                    "La máquina de esta venta "
+                    "ya estaba resuelta y no "
+                    "puede sustituirse."
+                )
+            }
+        )
+
+    layout = get_machine_layout_at(
+        machine,
+        locked_sale.occurred_at,
+    )
+
+    if layout is None:
+        raise ValidationError(
+            {
+                "machine": (
+                    "La máquina seleccionada no "
+                    "tenía ninguna disposición "
+                    "activa en el momento de "
+                    "la venta."
+                )
+            }
+        )
+
+    product_in_layout = layout.positions.filter(
+        product=product,
+    ).exists()
+
+    if not product_in_layout:
+        raise ValidationError(
+            {
+                "product": (
+                    "El producto seleccionado "
+                    "no pertenecía a la disposición "
+                    "activa de la máquina en el "
+                    "momento de la venta."
+                )
+            }
+        )
+
+    selection_product = get_product_for_selection(
+        machine,
+        locked_sale.selection,
+        locked_sale.occurred_at,
+    )
+
+    if selection_product is not None and selection_product.pk != product.pk:
+        raise ValidationError(
+            {
+                "product": (
+                    "La selección recibida identifica "
+                    "un producto concreto y no puede "
+                    "sustituirse por otro."
+                )
+            }
+        )
+
     locked_sale.machine = machine
     locked_sale.product = product
     locked_sale.status = Sale.Status.RESOLVED
@@ -491,3 +553,98 @@ def resolve_pending_sale(
     locked_sale.save()
 
     return locked_sale
+
+
+@transaction.atomic
+def create_manual_sale(
+    *,
+    machine,
+    product,
+    occurred_at,
+    quantity,
+    dispense_type,
+    selection="",
+    event_id=None,
+    unit_price=None,
+    amount_received=None,
+    payment_method="",
+):
+    if machine is None:
+        raise ValidationError({"machine": ("Debe seleccionarse una máquina.")})
+
+    if product is None:
+        raise ValidationError({"product": ("Debe seleccionarse un producto.")})
+
+    if occurred_at is None:
+        raise ValidationError(
+            {"occurred_at": ("Debe indicarse la fecha y hora real de la venta.")}
+        )
+
+    quantity = _parse_positive_integer(
+        quantity,
+        "quantity",
+    )
+
+    if dispense_type not in (
+        Sale.DispenseType.PAID,
+        Sale.DispenseType.FREE,
+    ):
+        raise ValidationError(
+            {"dispense_type": ("El tipo de dispensación debe ser 'paid' o 'free'.")}
+        )
+
+    unit_price = _parse_optional_decimal(
+        unit_price,
+        "unit_price",
+    )
+
+    amount_received = _parse_optional_decimal(
+        amount_received,
+        "amount_received",
+    )
+
+    if dispense_type == Sale.DispenseType.FREE and amount_received is None:
+        amount_received = Decimal("0.00")
+
+    event_id = str(event_id).strip() if event_id else None
+
+    selection = str(selection or "").strip()
+
+    payment_method = str(payment_method or "").strip()
+
+    if event_id:
+        existing_sale = Sale.objects.filter(
+            event_id=event_id,
+        ).first()
+
+        if existing_sale is not None:
+            raise ValidationError(
+                {
+                    "event_id": (
+                        "Ya existe una recepción con este "
+                        "identificador de evento. Debe revisarse "
+                        "la venta existente en lugar de crear "
+                        "una nueva venta manual."
+                    )
+                }
+            )
+
+    sale = Sale.objects.create(
+        source=Sale.Source.MANUAL,
+        event_id=event_id,
+        payload_hash="",
+        machine_identifier=(machine.identifier),
+        machine=machine,
+        selection=selection,
+        product=product,
+        occurred_at=occurred_at,
+        quantity=quantity,
+        dispense_type=dispense_type,
+        unit_price=unit_price,
+        amount_received=amount_received,
+        payment_method=payment_method,
+        status=Sale.Status.RESOLVED,
+        raw_payload=None,
+    )
+
+    return sale

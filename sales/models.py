@@ -279,14 +279,29 @@ class Sale(models.Model):
                         "controlada."
                     )
 
-                if (
-                    original.machine_id != self.machine_id
-                    or original.product_id != self.product_id
-                    or original.conflicts_with_id != self.conflicts_with_id
-                ):
-                    raise ValidationError(
-                        "Los datos de una venta resuelta no pueden modificarse."
-                    )
+                resolved_immutable_fields = (
+                    "source",
+                    "event_id",
+                    "payload_hash",
+                    "machine_identifier",
+                    "machine_id",
+                    "selection",
+                    "product_id",
+                    "occurred_at",
+                    "quantity",
+                    "dispense_type",
+                    "unit_price",
+                    "amount_received",
+                    "payment_method",
+                    "raw_payload",
+                    "conflicts_with_id",
+                )
+
+                for field in resolved_immutable_fields:
+                    if getattr(original, field) != getattr(self, field):
+                        raise ValidationError(
+                            "Los datos de una venta resuelta no pueden modificarse."
+                        )
 
             if original.status in (
                 self.Status.REJECTED,
