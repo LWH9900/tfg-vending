@@ -43,7 +43,9 @@ from .services.pricing import (
 )
 
 
-def build_machine_inventory_items(machine):
+def build_machine_inventory_items(
+    machine,
+):
     machine_product_stocks = get_machine_product_stocks(machine)
 
     overrides = {
@@ -61,12 +63,19 @@ def build_machine_inventory_items(machine):
             override,
         )
 
+        machine_stock = product.machine_stock
+
         items.append(
             {
                 "product": product,
-                "machine_stock": product.machine_stock,
+                "machine_stock": machine_stock,
+                "is_stock_discrepancy": (machine_stock < 0),
                 "potential_sale_value": (
-                    product.machine_stock * price_details["final_price"]
+                    max(
+                        machine_stock,
+                        0,
+                    )
+                    * price_details["final_price"]
                 ),
                 **price_details,
             }

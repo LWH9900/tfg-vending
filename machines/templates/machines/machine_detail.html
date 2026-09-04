@@ -338,7 +338,17 @@
                         </td>
 
                         <td>
-                            {{ item.machine_stock }} uds.
+                           {% if item.is_stock_discrepancy %}
+
+                                <div class="text-danger fw-semibold">
+                                    {{ item.machine_stock }} uds.
+                                </div>
+
+                            {% else %}
+
+                                {{ item.machine_stock }} uds.
+
+                            {% endif %}
                         </td>
 
                         <td>

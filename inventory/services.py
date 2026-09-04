@@ -172,7 +172,9 @@ def get_product_machine_stocks(
             ),
         )
         .annotate(product_stock=(F("replenished_quantity") - F("sold_quantity")))
-        .filter(product_stock__gt=0)
+        .exclude(
+            product_stock=0,
+        )
         .order_by("identifier")
     )
 
@@ -217,7 +219,9 @@ def get_machine_product_stocks(
             ),
         )
         .annotate(machine_stock=(F("replenished_quantity") - F("sold_quantity")))
-        .filter(machine_stock__gt=0)
+        .exclude(
+            machine_stock=0,
+        )
         .order_by("name")
     )
 
@@ -225,7 +229,15 @@ def get_machine_product_stocks(
 def get_potential_sale_value(product):
     warehouse_stock = get_warehouse_stock(product)
 
-    value = Decimal(warehouse_stock) * product.default_sale_price
+    value = (
+        Decimal(
+            max(
+                warehouse_stock,
+                0,
+            )
+        )
+        * product.default_sale_price
+    )
 
     machine_stocks = get_product_machine_stocks(product)
 
@@ -235,6 +247,14 @@ def get_potential_sale_value(product):
             product,
         )
 
-        value += Decimal(machine.product_stock) * final_price
+        value += (
+            Decimal(
+                max(
+                    machine.product_stock,
+                    0,
+                )
+            )
+            * final_price
+        )
 
     return value.quantize(Decimal("0.01"))

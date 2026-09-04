@@ -2,12 +2,14 @@ from decimal import Decimal
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from inventory.models import Category, Product
 from inventory.services import (
     get_inventory_cost_value,
     get_machine_product_stocks,
     get_machine_stock,
+    get_potential_sale_value,
     get_product_machine_stocks,
     get_total_stock,
     get_warehouse_stock,
@@ -15,6 +17,7 @@ from inventory.services import (
 from machines.models import Machine
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
+from sales.models import Sale
 
 
 class StockServiceTests(TestCase):
@@ -576,3 +579,176 @@ class StockServiceTests(TestCase):
         self.assertIn("warehouse_stock", response.context)
         self.assertIn("machines_stock", response.context)
         self.assertIn("machine_stocks", response.context)
+
+    def test_machine_stock_can_be_negative_after_resolved_sale(
+        self,
+    ):
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            event_id=None,
+            machine_identifier=(self.machine.identifier),
+            machine=self.machine,
+            selection="",
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=2,
+            dispense_type=(Sale.DispenseType.PAID),
+            status=Sale.Status.RESOLVED,
+            raw_payload=None,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            -2,
+        )
+
+    def test_negative_stock_product_is_included_in_machine_stocks(
+        self,
+    ):
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            event_id=None,
+            machine_identifier=(self.machine.identifier),
+            machine=self.machine,
+            selection="",
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=1,
+            dispense_type=(Sale.DispenseType.PAID),
+            status=Sale.Status.RESOLVED,
+            raw_payload=None,
+        )
+
+        products = get_machine_product_stocks(self.machine)
+
+        product = products.get(pk=self.product.pk)
+
+        self.assertEqual(
+            product.machine_stock,
+            -1,
+        )
+
+    def test_negative_stock_machine_is_included_in_product_stocks(
+        self,
+    ):
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            event_id=None,
+            machine_identifier=(self.machine.identifier),
+            machine=self.machine,
+            selection="",
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=1,
+            dispense_type=(Sale.DispenseType.PAID),
+            status=Sale.Status.RESOLVED,
+            raw_payload=None,
+        )
+
+        machines = get_product_machine_stocks(self.product)
+
+        machine = machines.get(pk=self.machine.pk)
+
+        self.assertEqual(
+            machine.product_stock,
+            -1,
+        )
+
+    def test_negative_machine_stock_does_not_reduce_potential_sale_value(
+        self,
+    ):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor valor potencial",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=6,
+        )
+
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            event_id=None,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            selection="",
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=8,
+            dispense_type=Sale.DispenseType.PAID,
+            status=Sale.Status.RESOLVED,
+            raw_payload=None,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            -2,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(
+                self.product,
+            ),
+            4,
+        )
+
+        potential_value = get_potential_sale_value(self.product)
+
+        expected_value = (Decimal("4") * self.product.default_sale_price).quantize(
+            Decimal("0.01")
+        )
+
+        self.assertEqual(
+            potential_value,
+            expected_value,
+        )
+
+    def test_potential_sale_value_is_zero_when_only_stock_is_negative(
+        self,
+    ):
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            event_id=None,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            selection="",
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=3,
+            dispense_type=Sale.DispenseType.PAID,
+            status=Sale.Status.RESOLVED,
+            raw_payload=None,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            -3,
+        )
+
+        self.assertEqual(
+            get_potential_sale_value(self.product),
+            Decimal("0.00"),
+        )
