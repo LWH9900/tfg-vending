@@ -11,6 +11,7 @@ from inventory.models import (
     Category,
     Product,
 )
+from inventory.services import get_machine_stock, get_total_stock, get_warehouse_stock
 from machines.models import (
     Machine,
     MachineLayout,
@@ -19,6 +20,8 @@ from machines.models import (
 from machines.services.layouts import (
     activate_machine_layout,
 )
+from purchases.models import Purchase, PurchaseLine
+from replenishments.models import Replenishment, ReplenishmentLine
 from sales.models import Sale
 
 
@@ -614,4 +617,120 @@ class SaleReceiveViewTests(TestCase):
                 event_id="evt-api-repeat-conflict",
             ).count(),
             2,
+        )
+
+    def test_received_sale_flows_to_inventory_and_history(
+        self,
+    ):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor integración",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            replenished_at=self.make_datetime(
+                2026,
+                9,
+                2,
+                9,
+                30,
+            ),
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=6,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout,
+            )
+
+        payload = self.make_payload(
+            event_id="evt-complete-flow",
+        )
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            201,
+        )
+
+        sale = Sale.objects.get(
+            event_id="evt-complete-flow",
+        )
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            sale.unit_price,
+            Decimal("1.50"),
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product),
+            9,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            5,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product),
+            4,
+        )
+
+        history_response = self.client.get(
+            reverse("sales:sale_list"),
+            {
+                "event_id": "evt-complete-flow",
+                "machine": self.machine.pk,
+                "product": self.product.pk,
+                "status": Sale.Status.RESOLVED,
+            },
+        )
+
+        self.assertEqual(
+            history_response.status_code,
+            200,
+        )
+
+        self.assertIn(
+            sale,
+            history_response.context["sales"],
         )

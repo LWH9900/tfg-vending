@@ -1,4 +1,5 @@
 from inventory.services import get_warehouse_stock
+from machines.services.layouts import get_machine_layout_at
 
 
 def get_replenishment_stock_errors(replenishment):
@@ -15,6 +16,52 @@ def get_replenishment_stock_errors(replenishment):
                     "product": line.product,
                     "requested_quantity": line.quantity,
                     "available_stock": available_stock,
+                }
+            )
+
+    return errors
+
+
+def get_replenishment_layout_errors(
+    replenishment,
+):
+    layout = get_machine_layout_at(
+        replenishment.machine,
+        replenishment.replenished_at,
+    )
+
+    if layout is None:
+        return [
+            {
+                "code": "no_layout",
+                "layout": None,
+                "product": None,
+            }
+        ]
+
+    layout_product_ids = set(
+        layout.positions.filter(
+            product__isnull=False,
+        ).values_list(
+            "product_id",
+            flat=True,
+        )
+    )
+
+    errors = []
+
+    lines = replenishment.lines.select_related(
+        "product",
+        "product__category",
+    )
+
+    for line in lines:
+        if line.product_id not in layout_product_ids:
+            errors.append(
+                {
+                    "code": ("product_not_in_layout"),
+                    "layout": layout,
+                    "product": line.product,
                 }
             )
 

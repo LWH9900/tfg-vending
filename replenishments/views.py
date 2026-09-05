@@ -11,7 +11,7 @@ from .forms import (
     ReplenishmentLineFormSet,
 )
 from .models import Replenishment
-from .services import get_replenishment_stock_errors
+from .services import get_replenishment_layout_errors, get_replenishment_stock_errors
 
 
 def replenishment_list(request):
@@ -66,11 +66,16 @@ def replenishment_detail(request, pk):
     )
 
     stock_warnings = []
+    layout_warnings = []
 
     if replenishment.status == Replenishment.Status.DRAFT:
         stock_warnings = get_replenishment_stock_errors(replenishment)
 
+        layout_warnings = get_replenishment_layout_errors(replenishment)
+
     stock_error = request.GET.get("stock_error") == "1"
+
+    layout_error = request.GET.get("layout_error") == "1"
 
     return render(
         request,
@@ -78,7 +83,9 @@ def replenishment_detail(request, pk):
         {
             "replenishment": replenishment,
             "stock_warnings": stock_warnings,
+            "layout_warnings": layout_warnings,
             "stock_error": stock_error,
+            "layout_error": layout_error,
         },
     )
 
@@ -199,16 +206,25 @@ def replenishment_register(request, pk):
 
     stock_errors = get_replenishment_stock_errors(replenishment)
 
+    layout_errors = get_replenishment_layout_errors(replenishment)
+
+    error_params = []
+
     if stock_errors:
-        return redirect(
-            f"{reverse('replenishments:replenishment_detail', args=[replenishment.pk])}"
-            "?stock_error=1"
+        error_params.append("stock_error=1")
+
+    if layout_errors:
+        error_params.append("layout_error=1")
+
+    if error_params:
+        detail_url = reverse(
+            "replenishments:replenishment_detail",
+            args=[
+                replenishment.pk,
+            ],
         )
 
-        return redirect(
-            "replenishments:replenishment_detail",
-            pk=replenishment.pk,
-        )
+        return redirect(f"{detail_url}?{'&'.join(error_params)}")
 
     replenishment.status = Replenishment.Status.REGISTERED
     replenishment.save(update_fields=["status"])

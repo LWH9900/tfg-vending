@@ -1,5 +1,9 @@
-from datetime import timedelta
+from datetime import (
+    datetime,
+    timedelta,
+)
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -10,7 +14,8 @@ from inventory.services import (
     get_machine_stock,
     get_warehouse_stock,
 )
-from machines.models import Machine
+from machines.models import Machine, MachineLayout, MachinePosition
+from machines.services.layouts import activate_machine_layout
 from purchases.models import Purchase, PurchaseLine
 from replenishments.forms import ReplenishmentLineFormSet
 from replenishments.models import Replenishment, ReplenishmentLine
@@ -44,6 +49,8 @@ class ReplenishmentViewTests(TestCase):
             identifier="M-001",
             name="Máquina 1",
             serial_number="SN-001",
+            rows=2,
+            columns=2,
         )
 
         cls.second_machine = Machine.objects.create(
@@ -51,6 +58,45 @@ class ReplenishmentViewTests(TestCase):
             name="Máquina 2",
             serial_number="SN-002",
         )
+        cls.layout = MachineLayout.objects.create(
+            machine=cls.machine,
+            name="Disposición inicial",
+        )
+
+        MachinePosition.objects.create(
+            layout=cls.layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=cls.product,
+        )
+
+        MachinePosition.objects.create(
+            layout=cls.layout,
+            identifier="A2",
+            row=1,
+            column=2,
+            product=cls.second_product,
+        )
+
+        cls.layout.status = MachineLayout.Status.REGISTERED
+        cls.layout.save()
+
+        activation_time = timezone.make_aware(
+            datetime(
+                2026,
+                8,
+                25,
+                8,
+                0,
+            )
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(cls.layout)
 
     def replenishment_post_data(self, lines, machine=None):
         prefix = ReplenishmentLineFormSet.get_default_prefix()
@@ -910,4 +956,204 @@ class ReplenishmentViewTests(TestCase):
                 self.machine,
             ),
             0,
+        )
+
+    def test_product_outside_historical_layout_cannot_be_registered(
+        self,
+    ):
+        outside_product = Product.objects.create(
+            name="VimaOutside",
+            category=self.category,
+            format_unit="500 ml",
+            vat_rate=Decimal("21.00"),
+            default_sale_price=Decimal("2.00"),
+        )
+
+        self.create_registered_purchase(
+            outside_product,
+            10,
+        )
+
+        replenishment = self.create_draft_replenishment(
+            outside_product,
+            5,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[
+                    replenishment.pk,
+                ],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertRedirects(
+            response,
+            (
+                reverse(
+                    "replenishments:replenishment_detail",
+                    args=[
+                        replenishment.pk,
+                    ],
+                )
+                + "?layout_error=1"
+            ),
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.DRAFT,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(outside_product),
+            10,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                outside_product,
+                self.machine,
+            ),
+            0,
+        )
+
+    def test_replenishment_without_historical_layout_cannot_be_registered(
+        self,
+    ):
+        self.create_registered_purchase(
+            self.product,
+            10,
+        )
+
+        replenishment = self.create_draft_replenishment(
+            self.product,
+            5,
+            machine=self.second_machine,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[
+                    replenishment.pk,
+                ],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertRedirects(
+            response,
+            (
+                reverse(
+                    "replenishments:replenishment_detail",
+                    args=[
+                        replenishment.pk,
+                    ],
+                )
+                + "?layout_error=1"
+            ),
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.DRAFT,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.second_machine,
+            ),
+            0,
+        )
+
+    def test_replenishment_uses_layout_active_at_replenished_at(
+        self,
+    ):
+        later_product = Product.objects.create(
+            name="VimaLater",
+            category=self.category,
+            format_unit="500 ml",
+            vat_rate=Decimal("21.00"),
+            default_sale_price=Decimal("2.00"),
+        )
+
+        later_layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Disposición posterior",
+        )
+
+        MachinePosition.objects.create(
+            layout=later_layout,
+            identifier="B1",
+            row=1,
+            column=1,
+            product=later_product,
+        )
+
+        later_layout.status = MachineLayout.Status.REGISTERED
+        later_layout.save()
+
+        later_activation_time = timezone.make_aware(
+            datetime(
+                2026,
+                9,
+                1,
+                8,
+                0,
+            )
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=(later_activation_time),
+        ):
+            activate_machine_layout(later_layout)
+
+        self.create_registered_purchase(
+            self.product,
+            10,
+        )
+
+        historical_replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            replenished_at=(
+                timezone.make_aware(
+                    datetime(
+                        2026,
+                        8,
+                        26,
+                        10,
+                        30,
+                    )
+                )
+            ),
+            status=(Replenishment.Status.DRAFT),
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=(historical_replenishment),
+            product=self.product,
+            quantity=5,
+        )
+
+        self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[
+                    historical_replenishment.pk,
+                ],
+            )
+        )
+
+        historical_replenishment.refresh_from_db()
+
+        self.assertEqual(
+            historical_replenishment.status,
+            Replenishment.Status.REGISTERED,
         )

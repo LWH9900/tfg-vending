@@ -393,30 +393,47 @@
         <span class="summary-label">
             Stock total
         </span>
-
-        <strong class="summary-value">
-            {{ total_stock }} uds.
-        </strong>
+        {% if total_stock < 0 %}
+            <strong class="text-danger fw-semibold">
+                {{ total_stock }} uds.
+            </strong>
+        {% else %}
+            <strong>
+                {{ total_stock }} uds.
+            </strong>
+        {% endif %}
+        
     </div>
 
     <div class="summary-card">
         <span class="summary-label">
             Stock en almacén
         </span>
-
-        <strong class="summary-value">
-            {{ warehouse_stock }} uds.
-        </strong>
+        {% if  warehouse_stock < 0 %}
+            <strong class="text-danger fw-semibold">
+                {{  warehouse_stock }} uds.
+            </strong>
+        {% else %}
+            <strong>
+                {{  warehouse_stock }} uds.
+            </strong>
+        {% endif %}
     </div>
 
     <div class="summary-card">
         <span class="summary-label">
             Stock en máquinas
         </span>
+        {% if machines_stock < 0 %}
+            <strong class="text-danger fw-semibold">
+                {{  machines_stock }} uds.
+            </strong>
+        {% else %}
+            <strong>
+                {{  machines_stock }} uds.
+            </strong>
+        {% endif %}
 
-        <strong class="summary-value">
-            {{ machines_stock }} uds.
-        </strong>
     </div>
 
     <div class="summary-card">
@@ -424,7 +441,7 @@
             Valor de existencias
         </span>
 
-        <strong class="summary-value">
+        <strong >
             {{ inventory_value|floatformat:2 }} €
         </strong>
     </div>
@@ -437,7 +454,7 @@
             </span>
         </span>
 
-        <strong class="summary-value">
+        <strong >
             {{ potential_sale_value|floatformat:2 }} €
         </strong>
     </div>

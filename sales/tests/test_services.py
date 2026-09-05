@@ -2609,3 +2609,255 @@ class SaleServiceTests(TestCase):
             voided_sale.void_reason,
             "Registro manual incorrecto.",
         )
+
+    def test_multiple_distinct_sales_accumulate_inventory_effect(
+        self,
+    ):
+        self.create_stock(
+            self.product_a,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        for index in range(3):
+            sale, created = receive_sale(
+                self.make_payload(
+                    event_id=(f"evt-multiple-{index}"),
+                    occurred_at=(sale_time.isoformat()),
+                )
+            )
+
+            self.assertTrue(created)
+
+            self.assertEqual(
+                sale.status,
+                Sale.Status.RESOLVED,
+            )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            7,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            3,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            4,
+        )
+
+    def test_sale_only_affects_its_product_and_machine(
+        self,
+    ):
+        other_machine = Machine.objects.create(
+            identifier="VM-SALE-002",
+            name="Máquina ventas 2",
+            serial_number="SN-SALE-002",
+            rows=4,
+            columns=4,
+        )
+
+        purchase_a = Purchase.objects.create(
+            supplier="Proveedor A",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase_a,
+            product=self.product_a,
+            quantity=20,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment_a = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment_a,
+            product=self.product_a,
+            quantity=6,
+        )
+
+        other_replenishment = Replenishment.objects.create(
+            machine=other_machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=other_replenishment,
+            product=self.product_a,
+            quantity=5,
+        )
+
+        purchase_b = Purchase.objects.create(
+            supplier="Proveedor B",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase_b,
+            product=self.product_b,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment_b = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment_b,
+            product=self.product_b,
+            quantity=4,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        receive_sale(
+            self.make_payload(
+                event_id="evt-isolation",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                other_machine,
+            ),
+            5,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_b,
+                self.machine,
+            ),
+            4,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_b),
+            10,
+        )
+
+    def test_received_sale_is_resolved_when_stock_becomes_negative(
+        self,
+    ):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        sale, created = receive_sale(
+            self.make_payload(
+                event_id="evt-negative-integration",
+                occurred_at=sale_time.isoformat(),
+                quantity=2,
+            )
+        )
+
+        self.assertTrue(created)
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product_a),
+            -2,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            -2,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product_a),
+            0,
+        )
