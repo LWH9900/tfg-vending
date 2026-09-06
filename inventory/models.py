@@ -97,7 +97,7 @@ class Product(models.Model):
         return total_cost / Decimal(total_quantity)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.format_unit}"
 
     class Meta:
         constraints = [

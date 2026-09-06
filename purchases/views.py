@@ -10,7 +10,10 @@ from .forms import (
     PurchaseLineFormSet,
 )
 from .models import Purchase
-from .services import get_purchase_cancellation_stock_errors
+from .services import (
+    get_purchase_cancellation_stock_errors,
+    get_purchase_profitability_warning,
+)
 
 
 def purchase_list(request):
@@ -72,6 +75,10 @@ def purchase_detail(request, pk):
         ),
         pk=pk,
     )
+    profitability_warning = None
+
+    if purchase.status != Purchase.Status.CANCELLED:
+        profitability_warning = get_purchase_profitability_warning(purchase)
 
     return render(
         request,
@@ -79,6 +86,7 @@ def purchase_detail(request, pk):
         {
             "purchase": purchase,
             "is_edit": False,
+            "profitability_warning": (profitability_warning),
         },
     )
 

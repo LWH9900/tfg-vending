@@ -40,7 +40,7 @@ class ProductForm(forms.ModelForm):
             "name": "Nombre",
             "category": "Categoría",
             "format_unit": "Formato / unidad",
-            "default_sale_price": "Precio de venta por defecto",
+            "default_sale_price": ("Precio base de venta (sin IVA)"),
         }
 
         error_messages = {
@@ -54,7 +54,7 @@ class ProductForm(forms.ModelForm):
                 "required": "Introduce el formato o unidad del producto.",
             },
             "default_sale_price": {
-                "required": "Introduce el precio de venta por defecto.",
+                "required": "Introduce el precio base de venta.",
                 "invalid": "Introduce un precio válido.",
                 "min_value": "El precio de venta no puede ser negativo.",
             },

@@ -1,6 +1,32 @@
+import json
+
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
+from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from django.views.decorators.http import require_POST
 
 from inventory.services import get_machine_product_stocks
+from machines.forms import (
+    MachineLayoutForm,
+    MachinePositionForm,
+)
+from machines.models import (
+    Machine,
+    MachineLayout,
+    MachineLayoutActivation,
+    MachinePosition,
+    MachinePriceOverride,
+    PricingProfile,
+)
+from machines.services.layouts import (
+    activate_machine_layout,
+    deactivate_machine_layout,
+    get_current_machine_layout_activation,
+)
 
 from .forms import (
     MachineForm,
@@ -9,16 +35,16 @@ from .forms import (
     MachinePricingProfileForm,
     PricingProfileForm,
 )
-from .models import Machine, MachinePriceOverride, PricingProfile
 from .services.pricing import (
     build_product_price_details,
-    calculate_adjusted_price,
     change_machine_pricing_profile,
     get_redundant_price_overrides,
 )
 
 
-def build_machine_inventory_items(machine):
+def build_machine_inventory_items(
+    machine,
+):
     machine_product_stocks = get_machine_product_stocks(machine)
 
     overrides = {
@@ -36,12 +62,19 @@ def build_machine_inventory_items(machine):
             override,
         )
 
+        machine_stock = product.machine_stock
+
         items.append(
             {
                 "product": product,
-                "machine_stock": product.machine_stock,
+                "machine_stock": machine_stock,
+                "is_stock_discrepancy": (machine_stock < 0),
                 "potential_sale_value": (
-                    product.machine_stock * price_details["final_price"]
+                    max(
+                        machine_stock,
+                        0,
+                    )
+                    * price_details["final_price"]
                 ),
                 **price_details,
             }
@@ -134,9 +167,12 @@ def machine_detail(request, pk):
     price_overrides = [
         {
             "override": override,
-            "effective_price": calculate_adjusted_price(
-                override.product.default_sale_price,
-                override.percentage_adjustment,
+            "effective_price": (
+                build_product_price_details(
+                    machine,
+                    override.product,
+                    override,
+                )["final_price"]
             ),
         }
         for override in overrides
@@ -147,7 +183,10 @@ def machine_detail(request, pk):
     )
 
     product_prices = {
-        str(product.pk): str(product.default_sale_price)
+        str(product.pk): {
+            "base_price": str(product.default_sale_price),
+            "vat_rate": str(product.vat_rate),
+        }
         for product in override_form.fields["product"].queryset
     }
 
@@ -204,9 +243,12 @@ def machine_price_override_create(request, pk):
     price_overrides = [
         {
             "override": override,
-            "effective_price": calculate_adjusted_price(
-                override.product.default_sale_price,
-                override.percentage_adjustment,
+            "effective_price": (
+                build_product_price_details(
+                    machine,
+                    override.product,
+                    override,
+                )["final_price"]
             ),
         }
         for override in overrides
@@ -219,7 +261,10 @@ def machine_price_override_create(request, pk):
     )
 
     product_prices = {
-        str(product.pk): str(product.default_sale_price)
+        str(product.pk): {
+            "base_price": str(product.default_sale_price),
+            "vat_rate": str(product.vat_rate),
+        }
         for product in form.fields["product"].queryset
     }
     machine_inventory_items = build_machine_inventory_items(machine)
@@ -271,9 +316,12 @@ def machine_pricing_profile_update(request, pk):
             price_overrides = [
                 {
                     "override": override,
-                    "effective_price": calculate_adjusted_price(
-                        override.product.default_sale_price,
-                        override.percentage_adjustment,
+                    "effective_price": (
+                        build_product_price_details(
+                            machine,
+                            override.product,
+                            override,
+                        )["final_price"]
                     ),
                 }
                 for override in overrides
@@ -284,7 +332,10 @@ def machine_pricing_profile_update(request, pk):
             )
 
             product_prices = {
-                str(product.pk): str(product.default_sale_price)
+                str(product.pk): {
+                    "base_price": str(product.default_sale_price),
+                    "vat_rate": str(product.vat_rate),
+                }
                 for product in override_form.fields["product"].queryset
             }
             machine_inventory_items = build_machine_inventory_items(machine)
@@ -361,9 +412,12 @@ def machine_price_override_update(
     price_overrides = [
         {
             "override": item,
-            "effective_price": calculate_adjusted_price(
-                item.product.default_sale_price,
-                item.percentage_adjustment,
+            "effective_price": (
+                build_product_price_details(
+                    machine,
+                    item.product,
+                    item,
+                )["final_price"]
             ),
         }
         for item in overrides
@@ -380,7 +434,10 @@ def machine_price_override_update(
     )
 
     product_prices = {
-        str(product.pk): str(product.default_sale_price)
+        str(product.pk): {
+            "base_price": str(product.default_sale_price),
+            "vat_rate": str(product.vat_rate),
+        }
         for product in override_form.fields["product"].queryset
     }
     machine_inventory_items = build_machine_inventory_items(machine)
@@ -484,3 +541,632 @@ def pricing_profile_delete(request, pk):
     pricing_profile.delete()
 
     return redirect("machines:pricing_profile_list")
+
+
+def machine_layout_create(
+    request,
+    machine_pk,
+):
+    machine = get_object_or_404(
+        Machine,
+        pk=machine_pk,
+    )
+
+    grid_configured = machine.rows is not None and machine.columns is not None
+
+    existing_layouts = machine.layouts.prefetch_related("positions__product").order_by(
+        "name"
+    )
+
+    layout_templates = {}
+
+    for existing_layout in existing_layouts:
+        layout_templates[str(existing_layout.pk)] = [
+            {
+                "identifier": position.identifier,
+                "product_id": (position.product_id if position.product_id else None),
+                "row": position.row,
+                "column": position.column,
+                "width": position.width,
+                "height": position.height,
+            }
+            for position in existing_layout.positions.all()
+        ]
+
+    grid_cells = []
+
+    if grid_configured:
+        grid_cells = [
+            {
+                "row": row,
+                "column": column,
+            }
+            for row in range(1, machine.rows + 1)
+            for column in range(1, machine.columns + 1)
+        ]
+
+    positions_json = "[]"
+
+    selected_source_layout_id = None
+
+    if request.method == "POST":
+        form = MachineLayoutForm(
+            request.POST,
+            machine=machine,
+        )
+        source_layout_value = request.POST.get(
+            "source_layout",
+            "",
+        )
+
+        if source_layout_value.isdigit():
+            selected_source_layout_id = int(source_layout_value)
+
+        position_form = MachinePositionForm()
+
+        positions_json = request.POST.get(
+            "positions",
+            "[]",
+        )
+
+        if not grid_configured:
+            form.add_error(
+                None,
+                "La máquina debe tener una cuadrícula configurada.",
+            )
+
+        try:
+            positions_data = json.loads(positions_json)
+        except json.JSONDecodeError:
+            positions_data = None
+
+            form.add_error(
+                None,
+                "No se ha podido interpretar la configuración de posiciones.",
+            )
+
+        if form.is_valid() and positions_data is not None:
+            try:
+                with transaction.atomic():
+                    layout = form.save(
+                        commit=False,
+                    )
+
+                    layout.machine = machine
+                    layout.status = MachineLayout.Status.DRAFT
+
+                    layout.save()
+
+                    for position_data in positions_data:
+                        position = MachinePosition(
+                            layout=layout,
+                            identifier=position_data.get(
+                                "identifier",
+                                "",
+                            ),
+                            row=position_data.get("row"),
+                            column=position_data.get("column"),
+                            width=position_data.get(
+                                "width",
+                                1,
+                            ),
+                            height=position_data.get(
+                                "height",
+                                1,
+                            ),
+                            product_id=(position_data.get("product_id") or None),
+                        )
+
+                        position.save()
+
+                return redirect(
+                    "machines:machine_layout_detail",
+                    pk=layout.pk,
+                )
+
+            except (
+                ValidationError,
+                TypeError,
+                ValueError,
+            ) as error:
+                if isinstance(error, ValidationError):
+                    message = " ".join(error.messages)
+                else:
+                    message = str(error)
+
+                form.add_error(
+                    None,
+                    message,
+                )
+
+    else:
+        form = MachineLayoutForm(
+            machine=machine,
+        )
+
+        position_form = MachinePositionForm()
+
+    return render(
+        request,
+        "machines/machine_layout_form.html",
+        {
+            "form": form,
+            "position_form": position_form,
+            "machine": machine,
+            "grid_configured": grid_configured,
+            "grid_cells": grid_cells,
+            "existing_layouts": existing_layouts,
+            "layout_templates": layout_templates,
+            "positions_json": positions_json,
+            "selected_source_layout_id": selected_source_layout_id,
+            "is_editing": False,
+        },
+    )
+
+
+@require_POST
+def machine_layout_activate(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related("machine"),
+        pk=pk,
+    )
+
+    try:
+        activate_machine_layout(layout)
+
+    except ValidationError as error:
+        messages.error(
+            request,
+            " ".join(error.messages),
+        )
+
+    else:
+        messages.success(
+            request,
+            "La disposición se ha activado correctamente.",
+        )
+
+    return redirect(
+        "machines:machine_layout_detail",
+        pk=layout.pk,
+    )
+
+
+@require_POST
+def machine_layout_deactivate(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related("machine"),
+        pk=pk,
+    )
+
+    try:
+        deactivate_machine_layout(layout)
+
+    except ValidationError as error:
+        messages.error(
+            request,
+            " ".join(error.messages),
+        )
+
+    else:
+        messages.success(
+            request,
+            "La disposición se ha desactivado correctamente.",
+        )
+
+    return redirect(
+        "machines:machine_layout_detail",
+        pk=layout.pk,
+    )
+
+
+def machine_layout_list(
+    request,
+    machine_pk,
+):
+    machine = get_object_or_404(
+        Machine,
+        pk=machine_pk,
+    )
+
+    layouts = list(
+        machine.layouts.annotate(
+            positions_count=Count(
+                "positions",
+                distinct=True,
+            ),
+            last_activation=Max(
+                "activations__effective_from",
+            ),
+        ).order_by("name")
+    )
+
+    current_activation = get_current_machine_layout_activation(machine)
+
+    current_layout = current_activation.layout if current_activation else None
+
+    for layout in layouts:
+        layout.is_active = current_layout is not None and current_layout.pk == layout.pk
+
+    return render(
+        request,
+        "machines/machine_layout_list.html",
+        {
+            "machine": machine,
+            "layouts": layouts,
+            "current_layout": current_layout,
+            "current_activation": current_activation,
+        },
+    )
+
+
+def machine_layout_detail(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related("machine").prefetch_related(
+            "positions__product"
+        ),
+        pk=pk,
+    )
+
+    machine = layout.machine
+
+    positions = list(
+        layout.positions.select_related("product").order_by(
+            "row",
+            "column",
+            "identifier",
+        )
+    )
+
+    current_activation = get_current_machine_layout_activation(machine)
+
+    is_active = (
+        current_activation is not None and current_activation.layout_id == layout.pk
+    )
+
+    last_activation = layout.activations.order_by(
+        "-effective_from",
+        "-pk",
+    ).first()
+
+    grid_cells = []
+
+    if machine.rows and machine.columns:
+        grid_cells = [
+            {
+                "row": row,
+                "column": column,
+            }
+            for row in range(
+                1,
+                machine.rows + 1,
+            )
+            for column in range(
+                1,
+                machine.columns + 1,
+            )
+        ]
+
+    return render(
+        request,
+        "machines/machine_layout_detail.html",
+        {
+            "machine": machine,
+            "layout": layout,
+            "positions": positions,
+            "grid_cells": grid_cells,
+            "is_active": is_active,
+            "current_activation": current_activation,
+            "last_activation": last_activation,
+        },
+    )
+
+
+def machine_layout_update(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related("machine"),
+        pk=pk,
+    )
+
+    machine = layout.machine
+
+    if layout.status != MachineLayout.Status.DRAFT:
+        raise PermissionDenied("Las disposiciones registradas no pueden modificarse.")
+
+    grid_configured = machine.rows is not None and machine.columns is not None
+
+    grid_cells = []
+
+    if grid_configured:
+        grid_cells = [
+            {
+                "row": row,
+                "column": column,
+            }
+            for row in range(
+                1,
+                machine.rows + 1,
+            )
+            for column in range(
+                1,
+                machine.columns + 1,
+            )
+        ]
+
+    position_form = MachinePositionForm()
+
+    if request.method == "POST":
+        form = MachineLayoutForm(
+            request.POST,
+            instance=layout,
+            machine=machine,
+        )
+
+        positions_json = request.POST.get(
+            "positions",
+            "[]",
+        )
+
+        try:
+            positions_data = json.loads(positions_json)
+
+            if not isinstance(
+                positions_data,
+                list,
+            ):
+                raise ValueError("La configuración de posiciones no es válida.")
+
+        except (
+            json.JSONDecodeError,
+            ValueError,
+        ):
+            positions_data = None
+
+            form.add_error(
+                None,
+                "No se ha podido interpretar la configuración de posiciones.",
+            )
+
+        if form.is_valid() and positions_data is not None:
+            try:
+                with transaction.atomic():
+                    layout = form.save()
+
+                    layout.positions.all().delete()
+
+                    for position_data in positions_data:
+                        if not isinstance(
+                            position_data,
+                            dict,
+                        ):
+                            raise ValidationError(
+                                "La configuración de una posición no es válida."
+                            )
+
+                        position = MachinePosition(
+                            layout=layout,
+                            identifier=position_data.get(
+                                "identifier",
+                                "",
+                            ),
+                            row=position_data.get("row"),
+                            column=position_data.get("column"),
+                            width=position_data.get(
+                                "width",
+                                1,
+                            ),
+                            height=position_data.get(
+                                "height",
+                                1,
+                            ),
+                            product_id=(position_data.get("product_id") or None),
+                        )
+
+                        position.save()
+
+                return redirect(
+                    "machines:machine_layout_detail",
+                    pk=layout.pk,
+                )
+
+            except (
+                ValidationError,
+                TypeError,
+                ValueError,
+            ) as error:
+                if isinstance(
+                    error,
+                    ValidationError,
+                ):
+                    message = " ".join(error.messages)
+                else:
+                    message = str(error)
+
+                form.add_error(
+                    None,
+                    message,
+                )
+
+    else:
+        form = MachineLayoutForm(
+            instance=layout,
+            machine=machine,
+        )
+
+        positions_json = json.dumps(
+            [
+                {
+                    "identifier": position.identifier,
+                    "product_id": position.product_id,
+                    "row": position.row,
+                    "column": position.column,
+                    "width": position.width,
+                    "height": position.height,
+                }
+                for position in layout.positions.all()
+            ]
+        )
+
+    return render(
+        request,
+        "machines/machine_layout_form.html",
+        {
+            "form": form,
+            "position_form": position_form,
+            "machine": machine,
+            "layout": layout,
+            "grid_configured": grid_configured,
+            "grid_cells": grid_cells,
+            "positions_json": positions_json,
+            "existing_layouts": [],
+            "layout_templates": {},
+            "selected_source_layout_id": None,
+            "is_editing": True,
+        },
+    )
+
+
+@require_POST
+def machine_layout_delete(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout.objects.select_related("machine"),
+        pk=pk,
+    )
+
+    machine = layout.machine
+
+    if layout.status != MachineLayout.Status.DRAFT:
+        messages.error(
+            request,
+            "Las disposiciones registradas no pueden eliminarse.",
+        )
+
+        return redirect(
+            "machines:machine_layout_detail",
+            pk=layout.pk,
+        )
+
+    layout.delete()
+
+    messages.success(
+        request,
+        "La disposición se ha eliminado correctamente.",
+    )
+
+    return redirect(
+        "machines:machine_layout_list",
+        machine_pk=machine.pk,
+    )
+
+
+@require_POST
+def machine_layout_register(
+    request,
+    pk,
+):
+    layout = get_object_or_404(
+        MachineLayout,
+        pk=pk,
+    )
+
+    if layout.status != MachineLayout.Status.DRAFT:
+        messages.error(
+            request,
+            "Esta disposición ya está registrada.",
+        )
+
+        return redirect(
+            "machines:machine_layout_detail",
+            pk=layout.pk,
+        )
+
+    layout.status = MachineLayout.Status.REGISTERED
+
+    layout.save()
+
+    messages.success(
+        request,
+        "La disposición se ha registrado correctamente.",
+    )
+
+    return redirect(
+        "machines:machine_layout_detail",
+        pk=layout.pk,
+    )
+
+
+def machine_layout_activation_history(
+    request,
+):
+    activations = MachineLayoutActivation.objects.select_related(
+        "layout",
+        "layout__machine",
+    ).order_by(
+        "-effective_from",
+        "-pk",
+    )
+
+    machines = Machine.objects.order_by("identifier")
+
+    machine_id = request.GET.get(
+        "machine",
+        "",
+    )
+
+    date_from_value = request.GET.get(
+        "date_from",
+        "",
+    )
+
+    date_to_value = request.GET.get(
+        "date_to",
+        "",
+    )
+
+    if machine_id.isdigit():
+        activations = activations.filter(layout__machine_id=machine_id)
+
+    date_from = parse_datetime(date_from_value)
+
+    if date_from:
+        if timezone.is_naive(date_from):
+            date_from = timezone.make_aware(date_from)
+
+        activations = activations.filter(
+            Q(effective_to__isnull=True) | Q(effective_to__gte=date_from)
+        )
+
+    date_to = parse_datetime(date_to_value)
+
+    if date_to:
+        if timezone.is_naive(date_to):
+            date_to = timezone.make_aware(date_to)
+
+        activations = activations.filter(effective_from__lte=date_to)
+
+    return render(
+        request,
+        "machines/machine_layout_activation_history.html",
+        {
+            "activations": activations,
+            "machines": machines,
+            "selected_machine": machine_id,
+            "date_from": date_from_value,
+            "date_to": date_to_value,
+        },
+    )

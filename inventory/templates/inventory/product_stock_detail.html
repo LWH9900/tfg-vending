@@ -65,29 +65,46 @@
             Stock total
         </span>
 
-        <strong class="summary-value">
-            {{ total_stock }} uds.
-        </strong>
+        {% if total_stock < 0 %}
+            <strong class="text-danger fw-semibold">
+                {{ total_stock }} uds.
+            </strong>
+        {% else %}
+            <strong>
+                {{ total_stock }} uds.
+            </strong>
+        {% endif %}
     </div>
 
     <div class="summary-card">
         <span class="summary-label">
             Stock en almacén
         </span>
-
-        <strong class="summary-value">
-            {{ warehouse_stock }} uds.
-        </strong>
+        {% if warehouse_stock < 0 %}
+            <strong class="text-danger fw-semibold">
+                {{ warehouse_stock }} uds.
+            </strong>
+        {% else %}
+            <strong>
+                {{ warehouse_stock }} uds.
+            </strong>
+        {% endif %}
     </div>
 
     <div class="summary-card">
         <span class="summary-label">
             Stock en máquinas
         </span>
-
-        <strong class="summary-value">
-            {{ machines_stock }} uds.
-        </strong>
+        {% if machines_stock < 0 %}
+            <strong class="text-danger fw-semibold">
+                {{ machines_stock }} uds.
+            </strong>
+        {% else %}
+            <strong>
+                {{ machines_stock }} uds.
+            </strong>
+        {% endif %}
+        
     </div>
 
     <div class="summary-card">
@@ -316,9 +333,13 @@
                         </td>
 
                         <td>
-                            <strong>
-                                {{ machine.product_stock }} uds.
-                            </strong>
+                            {% if machine.product_stock < 0 %}
+                                <span class="text-danger fw-semibold">
+                                    {{ machine.product_stock }}
+                                </span>
+                            {% else %}
+                                {{ machine.product_stock }}
+                            {% endif %}
                         </td>
 
                     </tr>

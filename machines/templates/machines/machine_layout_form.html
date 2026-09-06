@@ -1,0 +1,1887 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link
+    rel="stylesheet"
+    href="{% static 'machines/css/machines.css' %}"
+>
+{% endblock %}
+
+{% block title %}
+    {% if is_editing %}
+        Editar disposición
+    {% else %}
+        Nueva disposición
+    {% endif %}
+    | Vimach
+{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                <a href="{% url 'machines:machine_list' %}">
+                    Máquinas
+                </a>
+                /
+                <a href="{% url 'machines:machine_detail' machine.pk %}">
+                    {{ machine.identifier }}
+                </a>
+                /
+                <a href="{% url 'machines:machine_layout_list' machine.pk %}">
+                    Disposiciones
+                </a>
+                /
+                {% if is_editing %}
+                    Editar disposición
+                {% else %}
+                    Nueva disposición
+                {% endif %}
+            </div>
+
+            <h1 class="page-title">
+                {% if is_editing %}
+                    Editar disposición
+                {% else %}
+                    Nueva disposición
+                {% endif %}
+            </h1>
+
+            <p class="page-description">
+                {% if is_editing %}
+                    Modifica la disposición {{ layout.name }}
+                    de {{ machine.name }}.
+                {% else %}
+                    Configura una nueva disposición para
+                    {{ machine.name }}.
+                {% endif %}
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+{% if not grid_configured %}
+
+    <section class="section-card">
+
+        <div class="section-card-body">
+
+            <div class="alert alert-warning mb-0">
+
+                <h2 class="h5">
+                    Cuadrícula sin configurar
+                </h2>
+
+                <p>
+                    Antes de crear una disposición debes configurar
+                    las filas y columnas de la máquina.
+                </p>
+
+                <a
+                    href="{% url 'machines:machine_update' machine.pk %}"
+                    class="btn btn-primary"
+                >
+                    Configurar máquina
+                </a>
+
+            </div>
+
+        </div>
+
+    </section>
+
+{% else %}
+
+    <form
+        method="post"
+        novalidate
+        id="machineLayoutForm"
+    >
+
+        {% csrf_token %}
+        <input
+            type="hidden"
+            name="positions"
+            id="positionsData"
+            value="{{ positions_json }}"
+        >
+
+        <input
+            type="hidden"
+            name="source_layout"
+            id="sourceLayoutData"
+            value="{{ selected_source_layout_id|default_if_none:'' }}"
+        >
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+
+        <section class="form-container">
+
+            <div class="form-card">
+
+                <div class="form-card-body">
+
+                    {% include "components/form_field.html" with field=form.name %}
+
+                    {% if not is_editing and existing_layouts %}
+
+                        <div class="mt-3">
+
+                            <label
+                                for="sourceLayout"
+                                class="form-label"
+                            >
+                                Configuración inicial
+                            </label>
+
+                            <select
+                                id="sourceLayout"
+                                class="form-select"
+                            >
+                                <option value="">
+                                    Empezar desde cero
+                                </option>
+
+                                {% for layout in existing_layouts %}
+                                    <option
+                                        value="{{ layout.pk }}"
+                                        {% if selected_source_layout_id == layout.pk %}selected{% endif %}
+                                    >
+                                        {{ layout.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+
+                            <div class="form-text">
+                                Puedes utilizar una disposición existente como base.
+                                Se conservarán sus posiciones, identificadores y productos.
+                            </div>
+
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <div class="pricing-section-heading">
+
+            <h2>
+                Posiciones
+            </h2>
+
+            <div class="pricing-section-line"></div>
+
+            <span class="text-secondary small">
+                {{ machine.rows }} × {{ machine.columns }}
+            </span>
+
+        </div>
+
+
+        <section class="section-card">
+
+            <div class="section-card-body">
+
+                {% if is_editing %}
+
+                    <p class="text-secondary">
+                        Modifica las posiciones de la disposición.
+                        Puedes añadir, editar o quitar posiciones
+                        antes de guardar los cambios.
+                    </p>
+
+                {% elif existing_layouts %}
+
+                    <p class="text-secondary">
+                        Selecciona posiciones nuevas o modifica
+                        la configuración cargada como base.
+                    </p>
+
+                {% else %}
+
+                    <p class="text-secondary">
+                        Esta es la primera disposición de la máquina.
+                        Selecciona las celdas para definir sus posiciones.
+                    </p>
+
+                {% endif %}
+
+
+                <div class="layout-editor">
+
+                    <div class="layout-editor-grid">
+
+                        <div
+                            class="vending-machine-grid layout-edit-grid"
+                            data-rows="{{ machine.rows }}"
+                            data-columns="{{ machine.columns }}"
+                        >
+
+                            {% for cell in grid_cells %}
+
+                                <button
+                                    type="button"
+                                    class="vending-grid-cell layout-edit-cell"
+                                    data-row="{{ cell.row }}"
+                                    data-column="{{ cell.column }}"
+                                    aria-label="Fila {{ cell.row }}, columna {{ cell.column }}"
+                                ></button>
+
+                            {% endfor %}
+
+                        </div>
+
+                    </div>
+
+
+                    <aside class="layout-position-editor">
+
+                        <div
+                            class="layout-position-editor-empty"
+                            id="positionEditorEmpty"
+                        >
+                            <p class="text-secondary mb-0">
+                                Selecciona una celda o varias celdas contiguas
+                                para configurar una posición.
+                            </p>
+                        </div>
+
+
+                        <div
+                            class="layout-position-editor-form d-none"
+                            id="positionEditorForm"
+                        >
+
+                        <h3
+                            class="h5 mb-3"
+                            id="positionEditorTitle"
+                        >
+                            Configurar posición
+                        </h3>
+
+                            <div
+                                class="alert alert-danger d-none"
+                                id="positionEditorError"
+                            ></div>
+
+                            <div class="mb-3">
+                                <span class="form-label d-block">
+                                    Posiciones seleccionadas
+                                </span>
+
+                                <div
+                                    id="selectedAreasList"
+                                    class="layout-selected-areas"
+                                ></div>
+                            </div>
+
+
+                            <div class="mb-3">
+
+                                <label
+                                    for="{{ position_form.product.id_for_label }}"
+                                    class="form-label"
+                                >
+                                    Producto
+                                </label>
+
+                                {{ position_form.product }}
+                                <div class="mt-2">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="addWithoutProductButton"
+                                    >
+                                        Añadir sin producto
+                                    </button>
+                                </div>
+
+                                <div
+                                    class="form-text"
+                                    id="positionProductHelp"
+                                >
+                                    Selecciona un producto para añadir la posición
+                                    o añádela sin producto asignado.
+                                </div>
+
+
+                            </div>
+
+                        </div>
+
+                    </aside>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <div class="form-actions">
+
+            <a
+                href="{% url 'machines:machine_layout_list' machine.pk %}"
+                class="btn btn-outline-secondary"
+                id="cancelLayoutButton"
+            >
+                Cancelar
+            </a>
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                {% if is_editing %}
+                    Guardar cambios
+                {% else %}
+                    Guardar disposición
+                {% endif %}
+            </button>
+
+        </div>
+
+    </form>
+
+{% endif %}
+{{ layout_templates|json_script:"layout-templates-data" }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const grid = document.querySelector(
+        ".layout-edit-grid"
+    );
+
+    if (!grid) {
+        return;
+    }
+
+    const cells = Array.from(
+        grid.querySelectorAll(".layout-edit-cell")
+    );
+
+    const positionEditorEmpty = document.getElementById(
+        "positionEditorEmpty"
+    );
+
+    const positionEditorForm = document.getElementById(
+        "positionEditorForm"
+    );
+
+    const positionEditorError = document.getElementById(
+        "positionEditorError"
+    );
+    const positionEditorTitle =
+        document.getElementById(
+            "positionEditorTitle"
+        );
+
+    const positionProductHelp =
+        document.getElementById(
+            "positionProductHelp"
+        );
+
+    const productSelect = document.getElementById(
+        "{{ position_form.product.id_for_label }}"
+    );
+    const addWithoutProductButton =
+        document.getElementById(
+            "addWithoutProductButton"
+    );
+    const form = document.getElementById(
+        "machineLayoutForm"
+    );
+
+    const nameInput = document.getElementById(
+        "{{ form.name.id_for_label }}"
+    );
+
+    const sourceLayoutData =
+        document.getElementById(
+            "sourceLayoutData"
+        );
+
+    const cancelLayoutButton =
+        document.getElementById(
+            "cancelLayoutButton"
+        );
+
+    const draftStorageKey =
+    "machine-layout-{% if is_editing %}update-{{ layout.pk }}{% else %}create-{{ machine.pk }}{% endif %}";
+
+    const positionsData = document.getElementById(
+        "positionsData"
+    );
+    
+    const sourceLayoutSelect = document.getElementById(
+        "sourceLayout"
+    );
+
+    const layoutTemplatesElement =
+        document.getElementById(
+            "layout-templates-data"
+        );
+
+    const layoutTemplates =
+        layoutTemplatesElement
+            ? JSON.parse(
+                layoutTemplatesElement.textContent
+            )
+            : {};
+
+    const selectedAreasList = document.getElementById(
+    "selectedAreasList"
+    );
+
+
+    let selectionStart = null;
+    let currentSelection = null;
+    let isSelecting = false;
+    let editingPositionIndex = null;
+
+    const selectedAreas = [];
+    let positions = [];
+
+    try {
+        positions = JSON.parse(
+            positionsData.value || "[]"
+        );
+    } catch (error) {
+        positions = [];
+    }
+    const selectionPreview =
+        document.createElement("div");
+
+    selectionPreview.className =
+        "layout-selection-preview d-none";
+
+    grid.appendChild(
+        selectionPreview
+    );
+
+    grid.style.setProperty(
+        "--machine-rows",
+        grid.dataset.rows
+    );
+
+    grid.style.setProperty(
+        "--machine-columns",
+        grid.dataset.columns
+    );
+
+    const rows = Number(
+        grid.dataset.rows
+    );
+
+    const columns = Number(
+        grid.dataset.columns
+    );
+
+    const largestDimension = Math.max(
+        rows,
+        columns
+    );
+
+
+    grid.dataset.density =
+        largestDimension >= 12
+            ? "compact"
+            : largestDimension >= 7
+                ? "medium"
+                : "normal";
+
+
+    cells.forEach(function (cell) {
+
+        cell.style.gridRow =
+            cell.dataset.row;
+
+        cell.style.gridColumn =
+            cell.dataset.column;
+
+    });
+    function saveDraftState() {
+
+        const draft = {
+            name:
+                nameInput
+                    ? nameInput.value
+                    : "",
+
+            source_layout:
+                sourceLayoutSelect
+                    ? sourceLayoutSelect.value
+                    : "",
+
+            positions:
+                positions,
+
+            selected_areas:
+                selectedAreas,
+        };
+
+        sessionStorage.setItem(
+            draftStorageKey,
+            JSON.stringify(
+                draft
+            )
+        );
+    }
+    if (nameInput) {
+        nameInput.addEventListener(
+            "input",
+            saveDraftState
+        );
+    }   
+    function restoreDraftState() {
+
+        const storedDraft =
+            sessionStorage.getItem(
+                draftStorageKey
+            );
+
+        if (!storedDraft) {
+            return false;
+        }
+
+        try {
+
+            const draft =
+                JSON.parse(
+                    storedDraft
+                );
+
+
+            if (
+                nameInput &&
+                typeof draft.name === "string"
+            ) {
+                nameInput.value =
+                    draft.name;
+            }
+
+
+            if (
+                sourceLayoutSelect &&
+                typeof draft.source_layout === "string"
+            ) {
+                sourceLayoutSelect.value =
+                    draft.source_layout;
+
+                sourceLayoutData.value =
+                    draft.source_layout;
+            }
+
+
+            if (
+                Array.isArray(
+                    draft.positions
+                )
+            ) {
+                positions =
+                    draft.positions;
+            }
+
+
+            if (
+                Array.isArray(
+                    draft.selected_areas
+                )
+            ) {
+                selectedAreas.splice(
+                    0,
+                    selectedAreas.length,
+                    ...draft.selected_areas
+                );
+            }
+
+
+            renderAllPositions();
+            renderSelectedAreas();
+            refreshSelectionVisuals();
+
+            return true;
+
+        } catch (error) {
+
+            sessionStorage.removeItem(
+                draftStorageKey
+            );
+
+            return false;
+        }
+    }
+    function syncPositionsData() {
+        positionsData.value =
+            JSON.stringify(
+                positions
+            );
+    }
+    function clearRenderedPositions() {
+
+        grid
+            .querySelectorAll(
+                ".layout-edit-position"
+            )
+            .forEach(function (element) {
+                element.remove();
+            });
+
+
+        cells.forEach(function (cell) {
+            cell.classList.remove(
+                "is-occupied"
+            );
+        });
+    }
+    function renderAllPositions() {
+
+        clearRenderedPositions();
+
+        positions.forEach(
+            function (position, index) {
+
+                markCellsAsOccupied(
+                    position
+                );
+
+                renderPosition(
+                    position,
+                    getProductName(
+                        position.product_id
+                    ),
+                    index
+                );
+            }
+        );
+
+        syncPositionsData();
+    }   
+
+    if (sourceLayoutSelect) {
+
+        sourceLayoutSelect.addEventListener(
+            "change",
+            function () {
+                clearPositionEditorError();
+
+                const layoutId =
+                    sourceLayoutSelect.value;
+                selectedAreas.length = 0;
+
+                renderSelectedAreas();
+                refreshSelectionVisuals();
+
+                if (!layoutId) {
+
+                    positions = [];
+
+                    renderAllPositions();
+                    sourceLayoutData.value = "";
+
+                    saveDraftState();
+
+                    return;
+                }
+
+                positions = (
+                    layoutTemplates[layoutId] || []
+                ).map(
+                    function (position) {
+                        return {
+                            ...position,
+                        };
+                    }
+                );
+
+
+                renderAllPositions();
+                sourceLayoutData.value =
+                    layoutId;
+
+                saveDraftState();
+            }
+        );
+    }
+
+    function showSelectionPreview(
+        rectangle
+    ) {
+        selectionPreview.style.gridRow =
+            `${rectangle.row} / span ${rectangle.height}`;
+
+        selectionPreview.style.gridColumn =
+            `${rectangle.column} / span ${rectangle.width}`;
+
+        selectionPreview.classList.remove(
+            "d-none"
+        );
+    }
+
+
+    function hideSelectionPreview() {
+        selectionPreview.classList.add(
+            "d-none"
+        );
+    }
+    function getCoordinates(cell) {
+        return {
+            row: Number(cell.dataset.row),
+            column: Number(cell.dataset.column),
+        };
+    }
+
+
+    function getRectangle(start, end) {
+
+        const firstRow = Math.min(
+            start.row,
+            end.row
+        );
+
+        const lastRow = Math.max(
+            start.row,
+            end.row
+        );
+
+        const firstColumn = Math.min(
+            start.column,
+            end.column
+        );
+
+        const lastColumn = Math.max(
+            start.column,
+            end.column
+        );
+
+        return {
+            row: firstRow,
+            column: firstColumn,
+            width:
+                lastColumn - firstColumn + 1,
+            height:
+                lastRow - firstRow + 1,
+        };
+    }
+
+
+    function cellBelongsToRectangle(
+        cell,
+        rectangle
+    ) {
+
+        const row = Number(
+            cell.dataset.row
+        );
+
+        const column = Number(
+            cell.dataset.column
+        );
+
+        return (
+            row >= rectangle.row &&
+            row < rectangle.row + rectangle.height &&
+            column >= rectangle.column &&
+            column < rectangle.column + rectangle.width
+        );
+    }
+
+
+    function rectangleHasOccupiedCells(
+        rectangle
+    ) {
+
+        return cells.some(function (cell) {
+            return (
+                cell.classList.contains(
+                    "is-occupied"
+                )
+                &&
+                cellBelongsToRectangle(
+                    cell,
+                    rectangle
+                )
+            );
+        });
+    }
+    function rectanglesOverlap(
+        first,
+        second
+    ) {
+        return (
+            first.row < second.row + second.height &&
+            first.row + first.height > second.row &&
+            first.column < second.column + second.width &&
+            first.column + first.width > second.column
+        );
+    }
+
+
+    function rectangleHasSelectedCells(
+        rectangle
+    ) {
+        return selectedAreas.some(
+            function (selectedArea) {
+                return rectanglesOverlap(
+                    rectangle,
+                    selectedArea
+                );
+            }
+        );
+    }
+
+
+
+    function renderSelection(
+        rectangle
+    ) {
+        if (
+            rectangleHasOccupiedCells(
+                rectangle
+            ) ||
+            rectangleHasSelectedCells(
+                rectangle
+            )
+        ) {
+            return;
+        }
+
+        currentSelection =
+            rectangle;
+
+        showSelectionPreview(
+            rectangle
+        );
+    }
+
+    cells.forEach(function (cell) {
+
+        cell.addEventListener(
+            "pointerdown",
+            function (event) {
+
+                if (
+                    cell.classList.contains(
+                        "is-occupied"
+                    )
+                ) {
+                    return;
+                }
+                clearPositionEditorError();
+
+                event.preventDefault();
+                if (
+                    editingPositionIndex !== null
+                ) {
+                    editingPositionIndex = null;
+
+                    selectedAreasList.innerHTML = "";
+
+                    productSelect.value = "";
+
+                    positionEditorTitle.textContent =
+                        "Configurar posición";
+
+                    positionProductHelp.textContent =
+                        "El producto se asignará automáticamente a todas las posiciones seleccionadas.";
+
+                    renderAllPositions();
+                    saveDraftState();
+                }
+
+                isSelecting = true;
+
+                selectionStart =
+                    getCoordinates(cell);
+
+                renderSelection(
+                    getRectangle(
+                        selectionStart,
+                        selectionStart
+                    )
+                );
+            }
+        );
+
+
+        cell.addEventListener(
+            "pointerenter",
+            function () {
+
+                if (!isSelecting) {
+                    return;
+                }
+
+                const end =
+                    getCoordinates(cell);
+
+                renderSelection(
+                    getRectangle(
+                        selectionStart,
+                        end
+                    )
+                );
+            }
+        );
+
+    });
+
+
+    document.addEventListener(
+        "pointerup",
+        function () {
+
+            if (
+                isSelecting &&
+                currentSelection
+            ) {
+                selectedAreas.push({
+                    ...currentSelection,
+                    identifier: suggestIdentifier(
+                        currentSelection.row,
+                        currentSelection.column
+                    ),
+                });
+
+                renderSelectedAreas();
+                refreshSelectionVisuals();
+                saveDraftState();
+            }
+
+            isSelecting = false;
+            selectionStart = null;
+            currentSelection = null;
+
+            hideSelectionPreview();
+        }
+    );
+    if (cancelLayoutButton) {
+        cancelLayoutButton.addEventListener(
+            "click",
+            function () {
+                sessionStorage.removeItem(
+                    draftStorageKey
+                );
+            }
+        );
+    }
+    if (form) {
+        form.addEventListener(
+            "submit",
+            function () {
+                sessionStorage.removeItem(
+                    draftStorageKey
+                );
+            }
+        );
+    }
+    function renderSelectedAreaOverlays() {
+
+        grid
+            .querySelectorAll(
+                ".layout-selection-area"
+            )
+            .forEach(function (element) {
+                element.remove();
+            });
+
+
+        selectedAreas.forEach(
+            function (area, index) {
+
+                const element =
+                    document.createElement(
+                        "button"
+                    );
+
+                element.type = "button";
+
+                element.className =
+                    "layout-selection-area";
+
+                element.style.gridRow =
+                    `${area.row} / span ${area.height}`;
+
+                element.style.gridColumn =
+                    `${area.column} / span ${area.width}`;
+
+                element.setAttribute(
+                    "aria-label",
+                    `Quitar selección ${area.identifier}`
+                );
+
+
+                element.addEventListener(
+                    "click",
+                    function () {
+
+                        selectedAreas.splice(
+                            index,
+                            1
+                        );
+
+                        renderSelectedAreas();
+                        refreshSelectionVisuals();
+                        saveDraftState();
+                    }
+                );
+
+
+                grid.appendChild(
+                    element
+                );
+            }
+        );
+    }
+
+    function refreshSelectionVisuals() {
+
+        cells.forEach(function (cell) {
+            cell.classList.remove(
+                "is-selected"
+            );
+        });
+
+        hideSelectionPreview();
+
+        renderSelectedAreaOverlays();
+    }
+    function renderSelectedAreas() {
+
+        selectedAreasList.innerHTML = "";
+
+        selectedAreas.forEach(
+            function (area, index) {
+
+                const item =
+                    document.createElement("div");
+
+                item.className =
+                    "layout-selected-area";
+
+
+                const identifierInput =
+                    document.createElement("input");
+
+                identifierInput.type = "text";
+                identifierInput.className =
+                    "form-control form-control-sm";
+
+                identifierInput.value =
+                    area.identifier;
+
+                identifierInput.setAttribute(
+                    "aria-label",
+                    `Identificador de posición ${index + 1}`
+                );
+
+
+                identifierInput.addEventListener(
+                    "input",
+                    function () {
+
+                        area.identifier =
+                            identifierInput.value;
+
+                        renderSelectedAreaOverlays();
+                        saveDraftState();
+                    }
+                );
+
+
+                const areaInfo =
+                    document.createElement("span");
+
+                areaInfo.className =
+                    "text-secondary small";
+
+                areaInfo.textContent =
+                    `Fila ${area.row} · ` +
+                    `Columna ${area.column} · ` +
+                    `${area.width} × ${area.height}`;
+
+
+                const removeButton =
+                    document.createElement("button");
+
+                removeButton.type = "button";
+                removeButton.className =
+                    "btn btn-sm btn-outline-danger";
+
+                removeButton.textContent =
+                    "Quitar";
+
+
+                removeButton.addEventListener(
+                    "click",
+                    function () {
+
+                        clearPositionEditorError();
+
+                        selectedAreas.splice(
+                            index,
+                            1
+                        );
+
+                        renderSelectedAreas();
+                        refreshSelectionVisuals();
+                        saveDraftState();
+                    }
+                );
+
+
+                item.appendChild(
+                    identifierInput
+                );
+
+                item.appendChild(
+                    areaInfo
+                );
+
+                item.appendChild(
+                    removeButton
+                );
+
+                selectedAreasList.appendChild(
+                    item
+                );
+            }
+        );
+
+
+        if (selectedAreas.length > 0) {
+            addWithoutProductButton.classList.remove(
+                "d-none"
+            );
+
+            positionEditorEmpty.classList.add(
+                "d-none"
+            );
+
+            positionEditorForm.classList.remove(
+                "d-none"
+            );
+
+        } else {
+            addWithoutProductButton.classList.remove(
+                "d-none"
+            );
+
+            positionEditorForm.classList.add(
+                "d-none"
+            );
+
+            positionEditorEmpty.classList.remove(
+                "d-none"
+            );
+
+            productSelect.value = "";
+        }
+    }
+    function openPositionEditor(
+        index
+    ) {
+        addWithoutProductButton.classList.add(
+            "d-none"
+        );
+        const position =
+            positions[index];
+
+        if (!position) {
+            return;
+        }
+
+        editingPositionIndex =
+            index;
+
+        selectedAreas.length = 0;
+
+        refreshSelectionVisuals();
+
+
+        positionEditorEmpty.classList.add(
+            "d-none"
+        );
+
+        positionEditorForm.classList.remove(
+            "d-none"
+        );
+
+        positionEditorTitle.textContent =
+            "Editar posición";
+
+        positionProductHelp.textContent =
+            "Los cambios se aplicarán a esta posición antes de guardar la disposición.";
+
+        positionEditorError.classList.add(
+            "d-none"
+        );
+
+        selectedAreasList.innerHTML = "";
+
+
+        const item =
+            document.createElement("div");
+
+        item.className =
+            "layout-selected-area";
+
+
+        const identifierInput =
+            document.createElement("input");
+
+        identifierInput.type = "text";
+
+        identifierInput.className =
+            "form-control form-control-sm";
+
+        identifierInput.value =
+            position.identifier;
+
+
+        const areaInfo =
+            document.createElement("span");
+
+        areaInfo.className =
+            "text-secondary small";
+
+        areaInfo.textContent =
+            `Fila ${position.row} · ` +
+            `Columna ${position.column} · ` +
+            `${position.width} × ${position.height}`;
+
+
+        const removeButton =
+            document.createElement("button");
+
+        removeButton.type = "button";
+
+        removeButton.className =
+            "btn btn-sm btn-outline-danger";
+
+        removeButton.textContent =
+            "Quitar";
+
+
+        item.appendChild(
+            identifierInput
+        );
+
+        item.appendChild(
+            areaInfo
+        );
+
+        item.appendChild(
+            removeButton
+        );
+
+        selectedAreasList.appendChild(
+            item
+        );
+
+        productSelect.value =
+            position.product_id !== null
+                ? String(
+                    position.product_id
+                )
+                : "";
+
+        identifierInput.addEventListener(
+            "change",
+            function () {
+
+                const newIdentifier =
+                    identifierInput.value.trim();
+
+                if (!newIdentifier) {
+
+                    positionEditorError.textContent =
+                        "El identificador es obligatorio.";
+
+                    positionEditorError.classList.remove(
+                        "d-none"
+                    );
+
+                    identifierInput.value =
+                        position.identifier;
+
+                    return;
+                }
+
+
+                if (
+                    identifierExists(
+                        newIdentifier,
+                        editingPositionIndex
+                    )
+                ) {
+
+                    positionEditorError.textContent =
+                        "Ya existe otra posición con este identificador.";
+
+                    positionEditorError.classList.remove(
+                        "d-none"
+                    );
+
+                    identifierInput.value =
+                        position.identifier;
+
+                    return;
+                }
+
+
+                position.identifier =
+                    newIdentifier;
+
+                positionEditorError.classList.add(
+                    "d-none"
+                );
+
+                syncPositionsData();
+
+                renderAllPositions();
+                saveDraftState();
+            }
+        );
+
+        removeButton.addEventListener(
+            "click",
+            function () {
+
+                const positionIndex =
+                    editingPositionIndex;
+
+                if (
+                    positionIndex === null ||
+                    !positions[positionIndex]
+                ) {
+                    return;
+                }
+
+                positions.splice(
+                    positionIndex,
+                    1
+                );
+
+                editingPositionIndex = null;
+
+                clearPositionEditorError();
+
+                renderAllPositions();
+                saveDraftState();
+
+closePositionEditor();
+            }
+        );
+
+        renderAllPositions();
+    }
+
+    function closePositionEditor() {
+
+        editingPositionIndex = null;
+
+        selectedAreasList.innerHTML = "";
+
+        productSelect.value = "";
+        addWithoutProductButton.classList.add(
+            "d-none"
+        );
+
+        positionEditorError.classList.add(
+            "d-none"
+        );
+
+        positionEditorForm.classList.add(
+            "d-none"
+        );
+
+        positionEditorEmpty.classList.remove(
+            "d-none"
+        );
+
+        positionEditorTitle.textContent =
+            "Configurar posición";
+
+        positionProductHelp.textContent =
+            "Al seleccionar el producto, la posición se añadirá automáticamente.";
+    }
+
+function identifierIsUsed(
+    identifier
+) {
+    const normalizedIdentifier =
+        identifier.toLowerCase();
+
+    const usedInPositions =
+        positions.some(
+            function (position) {
+                return (
+                    position.identifier
+                        .toLowerCase()
+                    ===
+                    normalizedIdentifier
+                );
+            }
+        );
+
+    const usedInSelectedAreas =
+        selectedAreas.some(
+            function (area) {
+                return (
+                    area.identifier
+                        .toLowerCase()
+                    ===
+                    normalizedIdentifier
+                );
+            }
+        );
+
+    return (
+        usedInPositions ||
+        usedInSelectedAreas
+    );
+}
+
+
+    function suggestIdentifier(
+        row,
+        column
+    ) {
+        const rowLetter =
+            String.fromCharCode(
+                64 + row
+            );
+
+        let number = column;
+        let identifier =
+            `${rowLetter}${number}`;
+
+        while (
+            identifierIsUsed(
+                identifier
+            )
+        ) {
+            number += 1;
+
+            identifier =
+                `${rowLetter}${number}`;
+        }
+
+        return identifier;
+    }
+
+
+
+    function identifierExists(
+        identifier,
+        ignoredIndex = null
+    ) {
+        return positions.some(
+            function (position, index) {
+
+                if (index === ignoredIndex) {
+                    return false;
+                }
+
+                return (
+                    position.identifier
+                        .toLowerCase()
+                    ===
+                    identifier.toLowerCase()
+                );
+            }
+        );
+    }
+
+
+    function markCellsAsOccupied(
+        rectangle
+    ) {
+
+        cells.forEach(function (cell) {
+
+            if (
+                cellBelongsToRectangle(
+                    cell,
+                    rectangle
+                )
+            ) {
+                cell.classList.add(
+                    "is-occupied"
+                );
+
+                cell.classList.remove(
+                    "is-selected"
+                );
+            }
+
+        });
+    }
+    function renderPosition(
+        position,
+        productName,
+        index
+    ) {
+        const element =
+            document.createElement("button");
+
+        element.type = "button";
+
+        element.className =
+            "vending-position layout-edit-position";
+
+        if (
+            index === editingPositionIndex
+        ) {
+            element.classList.add(
+                "is-editing"
+            );
+        }
+
+        element.style.gridRow =
+            `${position.row} / span ${position.height}`;
+
+        element.style.gridColumn =
+            `${position.column} / span ${position.width}`;
+
+        element.setAttribute(
+            "aria-label",
+            `Editar posición ${position.identifier}`
+        );
+
+
+        const header =
+            document.createElement("div");
+
+        header.className =
+            "vending-position-header";
+
+
+        const identifier =
+            document.createElement("span");
+
+        identifier.className =
+            "vending-position-code";
+
+        identifier.textContent =
+            position.identifier;
+
+
+        header.appendChild(
+            identifier
+        );
+
+
+        const product =
+            document.createElement("div");
+
+        product.className =
+            "vending-position-product";
+
+
+        const productNameElement =
+            document.createElement("span");
+
+        productNameElement.className =
+            "vending-position-product-name";
+
+        productNameElement.textContent =
+            productName || "";
+
+
+        product.appendChild(
+            productNameElement
+        );
+
+        element.appendChild(
+            header
+        );
+
+        element.appendChild(
+            product
+        );
+
+
+        element.addEventListener(
+            "click",
+            function () {
+                openPositionEditor(
+                    index
+                );
+            }
+        );
+
+
+        grid.appendChild(
+            element
+        );
+    }
+    function clearPositionEditorError() {
+
+        positionEditorError.textContent = "";
+
+        positionEditorError.classList.add(
+            "d-none"
+        );
+    }
+
+    function getProductName(
+        productId
+    ) {
+        if (!productId) {
+            return "";
+        }
+
+        const option = Array.from(
+            productSelect.options
+        ).find(function (option) {
+            return (
+                option.value === String(productId)
+            );
+        });
+
+        return option
+            ? option.text
+            : "";
+    }
+    if (!restoreDraftState()) {
+        renderAllPositions();
+    }
+
+    function validateSelectedAreas() {
+
+        const identifiers =
+            selectedAreas.map(
+                function (area) {
+                    return area.identifier.trim();
+                }
+            );
+
+
+        if (
+            identifiers.some(
+                function (identifier) {
+                    return !identifier;
+                }
+            )
+        ) {
+            positionEditorError.textContent =
+                "Todos los identificadores son obligatorios.";
+
+            positionEditorError.classList.remove(
+                "d-none"
+            );
+
+            return false;
+        }
+
+
+        const normalizedIdentifiers =
+            identifiers.map(
+                function (identifier) {
+                    return identifier.toLowerCase();
+                }
+            );
+
+
+        const identifiersAreRepeated =
+            new Set(
+                normalizedIdentifiers
+            ).size !==
+            normalizedIdentifiers.length;
+
+
+        if (identifiersAreRepeated) {
+
+            positionEditorError.textContent =
+                "No puede haber identificadores repetidos.";
+
+            positionEditorError.classList.remove(
+                "d-none"
+            );
+
+            return false;
+        }
+
+
+        const identifierAlreadyExists =
+            identifiers.some(
+                function (identifier) {
+                    return identifierExists(
+                        identifier
+                    );
+                }
+            );
+
+
+        if (identifierAlreadyExists) {
+
+            positionEditorError.textContent =
+                "Uno de los identificadores seleccionados ya está utilizado.";
+
+            positionEditorError.classList.remove(
+                "d-none"
+            );
+
+            return false;
+        }
+
+
+        return true;
+    }
+
+    function addSelectedAreas(
+        productId
+    ) {
+
+        if (
+            selectedAreas.length === 0
+        ) {
+            return;
+        }
+
+
+        if (
+            !validateSelectedAreas()
+        ) {
+            productSelect.value = "";
+            return;
+        }
+
+
+        selectedAreas.forEach(
+            function (area) {
+
+                const position = {
+                    identifier:
+                        area.identifier.trim(),
+
+                    product_id:
+                        productId || null,
+
+                    row:
+                        area.row,
+
+                    column:
+                        area.column,
+
+                    width:
+                        area.width,
+
+                    height:
+                        area.height,
+                };
+
+
+                positions.push(
+                    position
+                );
+            }
+        );
+
+
+        selectedAreas.length = 0;
+
+        clearPositionEditorError();
+
+        productSelect.value = "";
+
+        renderSelectedAreas();
+        refreshSelectionVisuals();
+        renderAllPositions();
+
+        saveDraftState();
+    }
+
+    productSelect.addEventListener(
+        "change",
+        function () {
+
+            if (
+                editingPositionIndex !== null
+            ) {
+
+                const position =
+                    positions[
+                        editingPositionIndex
+                    ];
+
+                if (!position) {
+                    return;
+                }
+
+
+                position.product_id =
+                    productSelect.value
+                        ? productSelect.value
+                        : null;
+
+
+                clearPositionEditorError();
+
+                renderAllPositions();
+                saveDraftState();
+
+                return;
+            }
+
+
+            if (
+                !productSelect.value
+            ) {
+                return;
+            }
+
+
+            addSelectedAreas(
+                productSelect.value
+            );
+        }
+    );
+
+
+    addWithoutProductButton.addEventListener(
+        "click",
+        function () {
+
+            if (
+                editingPositionIndex !== null
+            ) {
+                return;
+            }
+
+            addSelectedAreas(
+                null
+            );
+        }
+    );
+
+
+});
+</script>
+
+
+{% endblock %}

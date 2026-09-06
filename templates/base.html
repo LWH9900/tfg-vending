@@ -189,16 +189,22 @@
                                 Compras
                             </a>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
-                                Ventas
-                            </span>
-
                             <a
                                 class="sidebar-link sidebar-sublink
                                 {% if request.resolver_match.app_name == 'replenishments' %} active {% endif %}"
                                 href="{% url 'replenishments:replenishment_list' %}"
                             >
                                 Reposiciones
+                            </a>
+
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'sales' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'sales:sale_list' %}"
+                            >
+                                Ventas
                             </a>
 
                         </div>
@@ -303,7 +309,8 @@
                         "operationsMenu",
                         "operationsMenuOpen",
                         currentApp === "purchases" ||
-                            currentApp === "replenishments"
+                        currentApp === "sales" ||
+                        currentApp === "replenishments"
                     );
                 })();
             </script>
@@ -318,8 +325,33 @@
         </aside>
 
         <main class="app-content">
+
+            {% if messages %}
+
+                {% for message in messages %}
+
+                    {% if message.tags == "error" %}
+
+                        <div class="alert alert-danger">
+                            {{ message }}
+                        </div>
+
+                    {% else %}
+
+                        <div class="alert alert-{{ message.tags }}">
+                            {{ message }}
+                        </div>
+
+                    {% endif %}
+
+                {% endfor %}
+
+            {% endif %}
+
+
             {% block content %}
             {% endblock %}
+
         </main>
 
     </div>

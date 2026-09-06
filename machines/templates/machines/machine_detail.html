@@ -33,13 +33,20 @@
             </p>
 
         </div>
-
+        
         <div class="page-header-actions">
             <a
                 href="{% url 'machines:machine_update' machine.pk %}"
                 class="btn btn-primary"
             >
                 Editar máquina
+            </a>
+
+            <a
+                href="{% url 'machines:machine_layout_list' machine.pk %}"
+                class="btn btn-primary"
+            >
+                Disposiciones
             </a>
         </div>
 
@@ -75,6 +82,19 @@
                 {% else %}
                     <span class="text-secondary">
                         Sin ubicación
+                    </span>
+                {% endif %}
+            </dd>
+        </div>
+        <div class="detail-row">
+            <dt>Cuadrícula</dt>
+
+            <dd>
+                {% if machine.rows and machine.columns %}
+                    {{ machine.rows }} × {{ machine.columns }}
+                {% else %}
+                    <span class="text-secondary">
+                        Sin configurar
                     </span>
                 {% endif %}
             </dd>
@@ -170,9 +190,9 @@
                     <th>Producto</th>
                     <th>Categoría</th>
                     <th>Formato / Unidad</th>
-                    <th>Precio base</th>
+                    <th>Precio base (sin IVA)</th>
                     <th>Variación (%)</th>
-                    <th>Precio resultante</th>
+                    <th>Precio final (IVA incluido)</th>
                     <th class="price-actions-column"></th>
                 </tr>
             </thead>
@@ -218,6 +238,7 @@
                                         data-product-format="{{ item.override.product.format_unit }}"
                                         data-product-category="{{ item.override.product.category.name }}"
                                         data-product-price="{{ item.override.product.default_sale_price|unlocalize }}"
+                                        data-product-vat="{{ item.override.product.vat_rate|unlocalize }}"
                                         data-adjustment="{{ item.override.percentage_adjustment|unlocalize }}"
                                     >
                                         Editar
@@ -287,9 +308,9 @@
                     <th>Categoría</th>
                     <th>Formato / unidad</th>
                     <th>Stock</th>
-                    <th>Precio base</th>
-                    <th>Ajuste</th>
-                    <th>Precio final</th>
+                    <th>Precio base (sin IVA)</th>
+                    <th>Ajuste (sin IVA)</th>
+                    <th>Precio final (IVA incl.)</th>
                     <th>Venta potencial</th>
                 </tr>
             </thead>
@@ -318,7 +339,17 @@
                         </td>
 
                         <td>
-                            {{ item.machine_stock }} uds.
+                           {% if item.is_stock_discrepancy %}
+
+                                <div class="text-danger fw-semibold">
+                                    {{ item.machine_stock }} uds.
+                                </div>
+
+                            {% else %}
+
+                                {{ item.machine_stock }} uds.
+
+                            {% endif %}
                         </td>
 
                         <td>
@@ -438,7 +469,7 @@
 
                         <div class="pricing-reference">
                             <div class="pricing-reference-row">
-                                <span>Precio base</span>
+                                <span>Precio base (sin IVA)</span>
                                 <strong id="productDefaultPrice">—</strong>
                             </div>
 
@@ -458,7 +489,7 @@
                         {% include "components/form_field.html" with field=override_form.percentage_adjustment %}
 
                         <div class="pricing-result-preview">
-                            <span>Precio resultante</span>
+                            <span>Precio final (IVA incluido)</span>
                             <strong id="effectivePricePreview">—</strong>
                         </div>
 
@@ -679,7 +710,7 @@
 
                             <div class="pricing-reference-row">
 
-                                <span>Precio base</span>
+                                <span>Precio base (sin IVA)</span>
 
                                 <strong id="editProductBasePrice">
                                     {% if edit_override %}
@@ -740,7 +771,7 @@
 
                         <div class="pricing-result-preview">
 
-                            <span>Precio resultante</span>
+                            <span>Precio final (IVA incluido)</span>
 
                             <strong id="editEffectivePrice">
                                 —
@@ -922,6 +953,7 @@
             "deleteOverrideProduct"
         );
         let currentEditBasePrice = null;
+        let currentEditVatRate = null;
 
         const productPrices = JSON.parse(
             document.getElementById(
@@ -941,15 +973,21 @@
 
         function updatePricingPreview() {
             const productId = productSelect.value;
-            const basePriceValue = productPrices[productId];
+            const pricingData = productPrices[productId];
 
-            if (!basePriceValue) {
+            if (!pricingData) {
                 defaultPrice.textContent = "—";
                 effectivePrice.textContent = "—";
                 return;
             }
 
-            const basePrice = Number(basePriceValue);
+            const basePrice = Number(
+                pricingData.base_price
+            );
+
+            const vatRate = Number(
+                pricingData.vat_rate
+            );
 
             defaultPrice.textContent =
                 formatPrice(basePrice);
@@ -968,8 +1006,20 @@
                 return;
             }
 
-            const result = basePrice * (
-                1 + adjustment / 100
+            const priceExclVat = (
+                basePrice
+                * (
+                    1
+                    + adjustment / 100
+                )
+            );
+
+            const result = (
+                priceExclVat
+                * (
+                    1
+                    + vatRate / 100
+                )
             );
 
             effectivePrice.textContent =
@@ -1039,6 +1089,9 @@
                 currentEditBasePrice = Number(
                     button.dataset.productPrice
                 );
+                currentEditVatRate = Number(
+                    button.dataset.productVat
+                );
 
                 editBasePrice.textContent =
                     formatPrice(currentEditBasePrice);
@@ -1068,8 +1121,20 @@
                 return;
             }
 
-            const result = currentEditBasePrice * (
-                1 + adjustment / 100
+            const priceExclVat = (
+                currentEditBasePrice
+                * (
+                    1
+                    + adjustment / 100
+                )
+            );
+
+            const result = (
+                priceExclVat
+                * (
+                    1
+                    + currentEditVatRate / 100
+                )
             );
 
             editEffectivePrice.textContent =

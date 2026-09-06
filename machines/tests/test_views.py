@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from machines.models import Machine
+from machines.models import Machine, MachineLayout, MachinePosition
 
 
 class MachineViewTests(TestCase):
@@ -175,4 +175,157 @@ class EmptyMachineListTests(TestCase):
         self.assertContains(
             response,
             "No hay máquinas registradas.",
+        )
+
+
+class MachineLayoutDeleteViewTests(TestCase):
+    def setUp(self):
+        self.machine = Machine.objects.create(
+            identifier="VM-DELETE-001",
+            name="Máquina eliminación",
+            serial_number="SN-DELETE-001",
+            rows=4,
+            columns=5,
+        )
+
+        self.layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Disposición borrador",
+            status=MachineLayout.Status.DRAFT,
+        )
+
+        self.position_a1 = MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="A1",
+            row=1,
+            column=1,
+        )
+
+        self.position_a2 = MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="A2",
+            row=1,
+            column=2,
+        )
+
+        self.url = reverse(
+            "machines:machine_layout_delete",
+            args=[self.layout.pk],
+        )
+
+    def test_delete_requires_post(self):
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            405,
+        )
+
+        self.assertTrue(
+            MachineLayout.objects.filter(
+                pk=self.layout.pk,
+            ).exists()
+        )
+
+    def test_draft_layout_can_be_deleted(self):
+        layout_pk = self.layout.pk
+
+        response = self.client.post(
+            self.url,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "machines:machine_layout_list",
+                args=[self.machine.pk],
+            ),
+        )
+
+        self.assertFalse(
+            MachineLayout.objects.filter(
+                pk=layout_pk,
+            ).exists()
+        )
+
+    def test_deleting_draft_layout_deletes_its_positions(self):
+        layout_pk = self.layout.pk
+
+        position_a1_pk = self.position_a1.pk
+
+        position_a2_pk = self.position_a2.pk
+
+        self.client.post(
+            self.url,
+        )
+
+        self.assertFalse(
+            MachineLayout.objects.filter(
+                pk=layout_pk,
+            ).exists()
+        )
+
+        self.assertFalse(
+            MachinePosition.objects.filter(
+                pk=position_a1_pk,
+            ).exists()
+        )
+
+        self.assertFalse(
+            MachinePosition.objects.filter(
+                pk=position_a2_pk,
+            ).exists()
+        )
+
+    def test_registered_layout_cannot_be_deleted(self):
+        self.layout.status = MachineLayout.Status.REGISTERED
+
+        self.layout.save()
+
+        response = self.client.post(
+            self.url,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "machines:machine_layout_detail",
+                args=[self.layout.pk],
+            ),
+        )
+
+        self.layout.refresh_from_db()
+
+        self.assertEqual(
+            self.layout.status,
+            MachineLayout.Status.REGISTERED,
+        )
+
+        self.assertTrue(
+            MachineLayout.objects.filter(
+                pk=self.layout.pk,
+            ).exists()
+        )
+
+    def test_rejected_registered_layout_delete_keeps_positions(self):
+        self.layout.status = MachineLayout.Status.REGISTERED
+
+        self.layout.save()
+
+        self.client.post(
+            self.url,
+        )
+
+        self.assertTrue(
+            MachinePosition.objects.filter(
+                pk=self.position_a1.pk,
+            ).exists()
+        )
+
+        self.assertTrue(
+            MachinePosition.objects.filter(
+                pk=self.position_a2.pk,
+            ).exists()
         )

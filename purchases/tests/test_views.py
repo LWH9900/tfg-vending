@@ -6,6 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from inventory.models import Category, Product
+from machines.models import Machine, MachineLayout, MachinePosition
+from machines.services.layouts import activate_machine_layout
 from purchases.forms import PurchaseLineFormSet
 from purchases.models import Purchase, PurchaseLine
 
@@ -19,7 +21,7 @@ class PurchaseViewTests(TestCase):
         )
 
         cls.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -27,7 +29,7 @@ class PurchaseViewTests(TestCase):
         )
 
         cls.second_product = Product.objects.create(
-            name="Nestea",
+            name="VimaTea",
             category=cls.category,
             format_unit="330 ml",
             vat_rate=Decimal("21.00"),
@@ -39,7 +41,7 @@ class PurchaseViewTests(TestCase):
 
         data = {
             "purchased_at": "2026-08-25T10:30",
-            "supplier": "Makro",
+            "supplier": "Proveedor A",
             "document_reference": "F-001",
             f"{prefix}-TOTAL_FORMS": str(len(lines)),
             f"{prefix}-INITIAL_FORMS": "0",
@@ -236,18 +238,13 @@ class PurchaseViewTests(TestCase):
         )
 
     def test_filter_purchases_by_supplier(self):
-        Purchase.objects.create(
-            supplier="Makro",
-        )
-
-        Purchase.objects.create(
-            supplier="Carrefour",
-        )
+        Purchase.objects.create(supplier="Proveedor Norte")
+        Purchase.objects.create(supplier="Proveedor Sur")
 
         response = self.client.get(
             reverse("purchases:purchase_list"),
             {
-                "supplier": "Mak",
+                "supplier": "Norte",
             },
         )
 
@@ -260,12 +257,12 @@ class PurchaseViewTests(TestCase):
 
         self.assertEqual(
             purchases.first().supplier,
-            "Makro",
+            "Proveedor Norte",
         )
 
     def test_purchase_detail_shows_all_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
         )
 
         PurchaseLine.objects.create(
@@ -296,17 +293,17 @@ class PurchaseViewTests(TestCase):
 
         self.assertContains(
             response,
-            "Coca cola",
+            "VimaCola",
         )
 
         self.assertContains(
             response,
-            "Nestea",
+            "VimaTea",
         )
 
         self.assertContains(
             response,
-            "Makro",
+            "Proveedor A",
         )
 
     def test_filter_purchases_by_product(self):
@@ -395,7 +392,7 @@ class PurchaseViewTests(TestCase):
 
     def test_draft_purchase_can_be_edited(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -410,7 +407,7 @@ class PurchaseViewTests(TestCase):
 
     def test_registered_purchase_cannot_be_edited(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -425,7 +422,7 @@ class PurchaseViewTests(TestCase):
 
     def test_draft_purchase_can_be_deleted(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -445,7 +442,7 @@ class PurchaseViewTests(TestCase):
 
     def test_registered_purchase_cannot_be_deleted(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -462,7 +459,7 @@ class PurchaseViewTests(TestCase):
 
     def test_draft_purchase_can_be_registered(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -497,7 +494,7 @@ class PurchaseViewTests(TestCase):
 
     def test_registered_purchase_can_be_cancelled(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.REGISTERED,
         )
 
@@ -517,7 +514,7 @@ class PurchaseViewTests(TestCase):
 
     def test_purchase_cannot_be_registered_without_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -569,7 +566,7 @@ class PurchaseViewTests(TestCase):
 
     def test_edit_purchase_cannot_remove_all_lines(self):
         purchase = Purchase.objects.create(
-            supplier="Makro",
+            supplier="Proveedor A",
             status=Purchase.Status.DRAFT,
         )
 
@@ -584,7 +581,7 @@ class PurchaseViewTests(TestCase):
 
         data = {
             "purchased_at": "2026-08-27T10:30",
-            "supplier": "Makro",
+            "supplier": "Proveedor A",
             "document_reference": "F-001",
             f"{prefix}-TOTAL_FORMS": "1",
             f"{prefix}-INITIAL_FORMS": "1",
@@ -620,4 +617,124 @@ class PurchaseViewTests(TestCase):
         self.assertIn(
             "Añade al menos un producto a la compra.",
             response.context["formset"].non_form_errors(),
+        )
+
+    def test_purchase_detail_shows_profitability_warning(
+        self,
+    ):
+        machine = Machine.objects.create(
+            identifier="VM-WARNING-001",
+            name="Máquina aviso",
+            serial_number="SN-WARNING-001",
+            rows=2,
+            columns=2,
+        )
+
+        layout = MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición aviso",
+        )
+
+        MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        layout.status = MachineLayout.Status.REGISTERED
+
+        layout.save()
+
+        activate_machine_layout(layout)
+
+        purchase = Purchase.objects.create(
+            supplier="Proveedor caro",
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("3.00"),
+        )
+
+        response = self.client.get(
+            reverse(
+                "purchases:purchase_detail",
+                args=[
+                    purchase.pk,
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Posible pérdida de rentabilidad",
+        )
+
+        self.assertContains(
+            response,
+            "3,00",
+        )
+
+    def test_purchase_detail_does_not_show_profitability_warning_when_profitable(
+        self,
+    ):
+        machine = Machine.objects.create(
+            identifier="VM-NO-WARNING-001",
+            name="Máquina rentable",
+            serial_number="SN-NO-WARNING-001",
+            rows=2,
+            columns=2,
+        )
+
+        layout = MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición rentable",
+        )
+
+        MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        layout.status = MachineLayout.Status.REGISTERED
+
+        layout.save()
+
+        activate_machine_layout(layout)
+
+        purchase = Purchase.objects.create(
+            supplier="Proveedor rentable",
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        response = self.client.get(
+            reverse(
+                "purchases:purchase_detail",
+                args=[
+                    purchase.pk,
+                ],
+            )
+        )
+
+        self.assertNotContains(
+            response,
+            "Posible pérdida de rentabilidad",
         )

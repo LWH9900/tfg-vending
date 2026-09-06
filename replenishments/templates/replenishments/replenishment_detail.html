@@ -135,25 +135,6 @@
 </header>
 
 
-{% if messages %}
-
-    {% for message in messages %}
-
-        {% if message.tags == "error" %}
-            <div class="alert alert-danger">
-                {{ message }}
-            </div>
-        {% else %}
-            <div class="alert alert-{{ message.tags }}">
-                {{ message }}
-            </div>
-        {% endif %}
-
-    {% endfor %}
-
-{% endif %}
-
-
 {% if replenishment.status == "CANCELLED" %}
 
     <div class="alert alert-warning">
@@ -200,6 +181,77 @@
                     {{ warning.available_stock }} uds. disponibles,
                     {{ warning.requested_quantity }} uds. solicitadas.
                 </li>
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+{% endif %}
+{% if layout_warnings and not is_edit %}
+
+    <div
+        class="alert
+        {% if layout_error %}
+            alert-danger
+        {% else %}
+            alert-warning
+        {% endif %}"
+    >
+
+        <strong>
+            {% if layout_error %}
+                No se puede registrar la reposición porque
+                no es compatible con la disposición de la
+                máquina en esa fecha.
+            {% else %}
+                El borrador contiene productos que no son
+                compatibles con la disposición histórica
+                de la máquina.
+            {% endif %}
+        </strong>
+
+        <ul class="mb-0 mt-2">
+
+            {% for warning in layout_warnings %}
+
+                {% if warning.code == "no_layout" %}
+
+                    <li>
+                        La máquina
+                        <strong>
+                            {{ replenishment.machine.identifier }}
+                            ·
+                            {{ replenishment.machine.name }}
+                        </strong>
+                        no tenía ninguna disposición activa
+                        el
+                        {{ replenishment.replenished_at|date:"d/m/Y H:i" }}.
+                    </li>
+
+                {% elif warning.code == "product_not_in_layout" %}
+
+                    <li>
+                        <strong>
+                            {{ warning.product.name }}
+                        </strong>
+
+                        <span class="text-secondary">
+                            · {{ warning.product.category.name }}
+                            · {{ warning.product.format_unit }}
+                        </span>
+
+                        no pertenece a la disposición
+
+                        <strong>
+                            {{ warning.layout.name }}
+                        </strong>
+
+                        activa en el momento de la reposición.
+                    </li>
+
+                {% endif %}
+
             {% endfor %}
 
         </ul>

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar venta manual | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'sales:sale_list' %}">
+                    Ventas
+                </a>
+                /
+                Registro manual
+            </div>
+
+            <h1 class="page-title">
+                Registrar venta manual
+            </h1>
+
+            <p class="page-description">
+                Registra excepcionalmente una venta real que no haya
+                podido incorporarse mediante telemetría.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<div class="alert alert-warning">
+    <strong>Registro excepcional.</strong>
+
+    La venta se registrará directamente como
+    <strong>Resuelta</strong>
+    y tendrá efecto sobre el inventario.
+
+    Una vez registrada no podrá editarse libremente.
+</div>
+
+
+<section class="form-card">
+
+    <div class="form-card-header">
+        <h2>Datos de la venta</h2>
+    </div>
+
+    <div class="form-card-body">
+
+        <form method="post">
+
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+
+                <div class="alert alert-danger">
+
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+
+                </div>
+
+            {% endif %}
+
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.machine %}
+                </div>
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.product %}
+                </div>
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.occurred_at %}
+                </div>
+
+                <div class="col-md-3">
+                    {% include "components/form_field.html" with field=form.quantity %}
+                </div>
+
+                <div class="col-md-3">
+                    {% include "components/form_field.html" with field=form.dispense_type %}
+                </div>
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.selection %}
+                </div>
+
+                <div class="col-md-6">
+                    {% include "components/form_field.html" with field=form.event_id %}
+                </div>
+
+            </div>
+
+
+            <hr class="my-4">
+
+
+            <h3 class="h6 mb-3">
+                Datos económicos
+            </h3>
+
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    {% include "components/form_field.html" with field=form.unit_price %}
+                </div>
+
+                <div class="col-md-4">
+                    {% include "components/form_field.html" with field=form.amount_received %}
+                </div>
+
+                <div class="col-md-4">
+                    {% include "components/form_field.html" with field=form.payment_method %}
+                </div>
+
+            </div>
+
+
+            <div class="form-actions">
+
+                <a
+                    href="{% url 'sales:sale_list' %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Registrar venta
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</section>
+
+{% endblock %}

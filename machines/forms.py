@@ -1,9 +1,16 @@
 from django import forms
+from django.forms import inlineformset_factory
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
 
-from .models import Machine, MachinePriceOverride, PricingProfile
+from .models import (
+    Machine,
+    MachineLayout,
+    MachinePosition,
+    MachinePriceOverride,
+    PricingProfile,
+)
 
 
 class MachineForm(forms.ModelForm):
@@ -14,6 +21,8 @@ class MachineForm(forms.ModelForm):
             "name",
             "serial_number",
             "location",
+            "rows",
+            "columns",
         ]
 
         labels = {
@@ -21,6 +30,8 @@ class MachineForm(forms.ModelForm):
             "name": "Nombre",
             "serial_number": "Número de serie",
             "location": "Ubicación",
+            "rows": "Filas",
+            "columns": "Columnas",
         }
 
         widgets = {
@@ -44,6 +55,20 @@ class MachineForm(forms.ModelForm):
                     "class": "form-control",
                 }
             ),
+            "rows": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": 1,
+                    "max": 20,
+                }
+            ),
+            "columns": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": 1,
+                    "max": 20,
+                }
+            ),
         }
 
         error_messages = {
@@ -59,6 +84,13 @@ class MachineForm(forms.ModelForm):
                 "unique": "Ya existe una máquina con este número de serie.",
             },
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.instance.pk and self.instance.layouts.exists():
+            self.fields["rows"].disabled = True
+            self.fields["columns"].disabled = True
 
 
 class MachinePricingProfileForm(forms.Form):
@@ -201,3 +233,93 @@ class PricingProfileForm(forms.ModelForm):
                 "invalid": ("Introduce una variación porcentual válida."),
             },
         }
+
+
+class MachineLayoutForm(forms.ModelForm):
+    def __init__(
+        self,
+        *args,
+        machine=None,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        self.machine = machine
+
+    class Meta:
+        model = MachineLayout
+        fields = ["name"]
+
+        labels = {
+            "name": "Nombre",
+        }
+
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej. Configuración principal",
+                }
+            ),
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data["name"]
+
+        if not self.machine:
+            return name
+
+        layouts = MachineLayout.objects.filter(
+            machine=self.machine,
+            name__iexact=name,
+        )
+
+        if self.instance.pk:
+            layouts = layouts.exclude(
+                pk=self.instance.pk,
+            )
+
+        if layouts.exists():
+            raise forms.ValidationError(
+                "Ya existe una disposición con este nombre para esta máquina."
+            )
+
+        return name
+
+
+class MachinePositionForm(forms.ModelForm):
+    class Meta:
+        model = MachinePosition
+        fields = [
+            "identifier",
+            "product",
+        ]
+        labels = {
+            "identifier": "Selección",
+            "product": "Producto",
+        }
+        widgets = {
+            "identifier": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ej. A1",
+                }
+            ),
+            "product": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+        }
+
+
+MachinePositionFormSet = inlineformset_factory(
+    MachineLayout,
+    MachinePosition,
+    form=MachinePositionForm,
+    extra=1,
+    can_delete=True,
+)

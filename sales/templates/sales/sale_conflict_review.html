@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}Revisar conflicto #{{ sale.pk }} | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+
+    <div class="page-header-row">
+
+        <div class="page-header-content">
+
+            <div class="page-breadcrumb">
+                Operaciones /
+                <a href="{% url 'sales:sale_list' %}">
+                    Ventas
+                </a>
+                /
+                <a href="{% url 'sales:sale_detail' sale.pk %}">
+                    #{{ sale.pk }}
+                </a>
+                /
+                Revisar conflicto
+            </div>
+
+            <h1 class="page-title">
+                Revisar conflicto
+            </h1>
+
+            <p class="page-description">
+                Compara las dos recepciones antes de decidir cuál
+                representa correctamente el evento.
+            </p>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<div class="alert alert-danger">
+
+    <strong>Conflicto de telemetría.</strong>
+
+    Se han recibido contenidos diferentes utilizando el mismo
+    identificador de evento:
+
+    <span class="font-monospace">
+        {{ sale.event_id }}
+    </span>.
+
+</div>
+
+
+<div class="row g-4">
+
+    <div class="col-xl-6">
+
+        <section class="detail-card h-100">
+
+            <div class="form-card-header">
+                <h2>
+                    Venta efectiva actual
+                </h2>
+            </div>
+
+            {% if reference_sale %}
+
+                <dl class="detail-list">
+
+                    <div class="detail-row">
+                        <dt>Registro</dt>
+                        <dd>
+                            #{{ reference_sale.pk }}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Estado</dt>
+                        <dd>
+                            {{ reference_sale.get_status_display }}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Máquina</dt>
+                        <dd>
+                            {% if reference_sale.machine %}
+                                {{ reference_sale.machine.identifier }}
+                            {% else %}
+                                {{ reference_sale.machine_identifier }}
+                            {% endif %}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Selección</dt>
+                        <dd>
+                            {{ reference_sale.selection|default:"—" }}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Producto</dt>
+                        <dd>
+                            {% include "components/product_label.html" with product=reference_sale.product %}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Fecha / hora</dt>
+                        <dd>
+                            {{ reference_sale.occurred_at|date:"d/m/Y H:i:s" }}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Cantidad</dt>
+                        <dd>
+                            {{ reference_sale.quantity }}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Precio unitario</dt>
+                        <dd>
+                            {% if reference_sale.unit_price is not None %}
+                                {{ reference_sale.unit_price|floatformat:2 }} €
+                            {% else %}
+                                —
+                            {% endif %}
+                        </dd>
+                    </div>
+
+                    <div class="detail-row">
+                        <dt>Importe recibido</dt>
+                        <dd>
+                            {% if reference_sale.amount_received is not None %}
+                                {{ reference_sale.amount_received|floatformat:2 }} €
+                            {% else %}
+                                —
+                            {% endif %}
+                        </dd>
+                    </div>
+
+                </dl>
+
+                {% if reference_payload %}
+
+                    <div class="p-3 border-top">
+
+                        <div class="fw-semibold mb-2">
+                            Payload
+                        </div>
+
+                        <pre
+                            class="mb-0 p-3 bg-light border rounded small"
+                            style="white-space: pre-wrap; overflow-x: auto;"
+                        >{{ reference_payload }}</pre>
+
+                    </div>
+
+                {% endif %}
+
+            {% else %}
+
+                <div class="p-3 text-secondary">
+                    No se ha encontrado una venta de referencia.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+    </div>
+
+
+    <div class="col-xl-6">
+
+        <section class="detail-card h-100">
+
+            <div class="form-card-header">
+                <h2>
+                    Recepción conflictiva
+                </h2>
+            </div>
+
+            <dl class="detail-list">
+
+                <div class="detail-row">
+                    <dt>Registro</dt>
+                    <dd>
+                        #{{ sale.pk }}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Estado</dt>
+                    <dd>
+                        {{ sale.get_status_display }}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Máquina</dt>
+                    <dd>
+                        {% if sale.machine %}
+                            {{ sale.machine.identifier }}
+                        {% else %}
+                            {{ sale.machine_identifier }}
+                        {% endif %}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Selección</dt>
+                    <dd>
+                        {{ sale.selection|default:"—" }}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Producto</dt>
+                    <dd>
+                        {% include "components/product_label.html" with product=sale.product %}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Fecha / hora</dt>
+                    <dd>
+                        {{ sale.occurred_at|date:"d/m/Y H:i:s" }}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Cantidad</dt>
+                    <dd>
+                        {{ sale.quantity }}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Precio unitario</dt>
+                    <dd>
+                        {% if sale.unit_price is not None %}
+                            {{ sale.unit_price|floatformat:2 }} €
+                        {% else %}
+                            —
+                        {% endif %}
+                    </dd>
+                </div>
+
+                <div class="detail-row">
+                    <dt>Importe recibido</dt>
+                    <dd>
+                        {% if sale.amount_received is not None %}
+                            {{ sale.amount_received|floatformat:2 }} €
+                        {% else %}
+                            —
+                        {% endif %}
+                    </dd>
+                </div>
+
+            </dl>
+
+            {% if sale_payload %}
+
+                <div class="p-3 border-top">
+
+                    <div class="fw-semibold mb-2">
+                        Payload
+                    </div>
+
+                    <pre
+                        class="mb-0 p-3 bg-light border rounded small"
+                        style="white-space: pre-wrap; overflow-x: auto;"
+                    >{{ sale_payload }}</pre>
+
+                </div>
+
+            {% endif %}
+
+        </section>
+
+    </div>
+
+</div>
+
+
+<div class="form-actions mt-4">
+
+    <a
+        href="{% url 'sales:sale_detail' sale.pk %}"
+        class="btn btn-outline-secondary"
+    >
+        Volver
+    </a>
+
+
+    <form
+        method="post"
+        action="{% url 'sales:sale_conflict_reject' sale.pk %}"
+        class="d-inline"
+    >
+        {% csrf_token %}
+
+        <button
+            type="submit"
+            class="btn btn-outline-danger"
+            onclick="return confirm('¿Seguro que deseas descartar esta recepción conflictiva? Esta decisión no podrá revertirse.')"
+
+        >
+            Mantener original y descartar esta recepción
+        </button>
+    </form>
+
+
+    {% if sale.machine and sale.product %}
+
+        <form
+            method="post"
+            action="{% url 'sales:sale_conflict_accept' sale.pk %}"
+            class="d-inline"
+            onclick="return confirm('¿Seguro que deseas aceptar esta recepción como venta efectiva? La venta efectiva actual será anulada.')"
+        >
+            {% csrf_token %}
+
+            <button
+                type="submit"
+                class="btn btn-danger"
+            >
+                Aceptar esta recepción
+            </button>
+        </form>
+
+    {% else %}
+
+        <button
+            type="button"
+            class="btn btn-danger"
+            disabled
+            title="La recepción debe tener máquina y producto resueltos."
+        >
+            Aceptar esta recepción
+        </button>
+
+    {% endif %}
+
+</div>
+
+
+{% if not sale.machine or not sale.product %}
+
+    <div class="alert alert-warning mt-3">
+        Esta recepción no puede aceptarse todavía porque no tiene
+        máquina y producto resueltos.
+    </div>
+
+{% endif %}
+
+{% endblock %}

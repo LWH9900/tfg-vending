@@ -161,17 +161,33 @@
                         </td>
 
                         <td>
-                            <strong>
+                            {% if item.total_stock < 0 %}
+                                <span class="text-danger fw-semibold">
+                                    {{ item.total_stock }} uds.
+                                </span>
+                            {% else %}
                                 {{ item.total_stock }} uds.
-                            </strong>
+                            {% endif %}
                         </td>
 
                         <td>
-                            {{ item.warehouse_stock }} uds.
+                            {% if item.warehouse_stock < 0 %}
+                                <span class="text-danger fw-semibold">
+                                    {{ item.warehouse_stock }} uds.
+                                </span>
+                            {% else %}
+                                {{ item.warehouse_stock }} uds.
+                            {% endif %}
                         </td>
 
                         <td>
-                            {{ item.machines_stock }} uds.
+                            {% if item.machines_stock  < 0 %}
+                                <span class="text-danger fw-semibold">
+                                    {{item.machines_stock  }} uds.
+                                </span>
+                            {% else %}
+                                {{item.machines_stock  }} uds.
+                            {% endif %}
                         </td>
 
                         <td>

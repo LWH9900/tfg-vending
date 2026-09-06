@@ -9,7 +9,9 @@ from machines.models import (
     PricingProfile,
 )
 from machines.services.pricing import (
+    build_product_price_details,
     calculate_adjusted_price,
+    calculate_price_with_vat,
     change_machine_pricing_profile,
     get_product_price_for_machine,
     get_redundant_price_overrides,
@@ -24,7 +26,7 @@ class PricingServicesTest(TestCase):
         )
 
         self.product = Product.objects.create(
-            name="Coca cola",
+            name="VimaCola",
             format_unit="Lata 330 ml",
             default_sale_price=Decimal("1.50"),
             vat_rate=Decimal("21.00"),
@@ -202,7 +204,7 @@ class PricingServicesTest(TestCase):
 
         self.assertEqual(
             result,
-            Decimal("1.62"),
+            Decimal("1.96"),
         )
 
     def test_product_price_uses_general_profile_without_override(
@@ -215,7 +217,7 @@ class PricingServicesTest(TestCase):
 
         self.assertEqual(
             result,
-            Decimal("1.65"),
+            Decimal("2.00"),
         )
 
     def test_product_price_uses_base_price_without_pricing_policy(
@@ -231,5 +233,72 @@ class PricingServicesTest(TestCase):
 
         self.assertEqual(
             result,
-            Decimal("1.50"),
+            Decimal("1.82"),
+        )
+
+    def test_calculate_price_with_vat(
+        self,
+    ):
+        result = calculate_price_with_vat(
+            Decimal("1.20"),
+            Decimal("21.00"),
+        )
+
+        self.assertEqual(
+            result,
+            Decimal("1.45"),
+        )
+
+    def test_price_details_apply_adjustment_before_vat(
+        self,
+    ):
+        product = Product.objects.create(
+            name="VimaTest Precio",
+            format_unit="330 ml",
+            default_sale_price=Decimal("1.00"),
+            vat_rate=Decimal("21.00"),
+            category=self.category,
+        )
+
+        profile = PricingProfile.objects.create(
+            name="Tarifa 20",
+            percentage_adjustment=Decimal("20.00"),
+        )
+
+        machine = Machine.objects.create(
+            identifier="VM-PRICE-020",
+            name="Máquina precio",
+            serial_number="SN-PRICE-020",
+            pricing_profile=profile,
+        )
+
+        details = build_product_price_details(
+            machine,
+            product,
+            None,
+        )
+
+        self.assertEqual(
+            details["base_price"],
+            Decimal("1.00"),
+        )
+
+        self.assertEqual(
+            details["adjustment_amount"],
+            Decimal("0.20"),
+        )
+
+        self.assertEqual(
+            details["price_excl_vat"],
+            Decimal("1.20"),
+        )
+
+        self.assertEqual(
+            details["vat_amount"],
+            Decimal("0.25"),
+        )
+
+        self.assertEqual(
+            details["final_price"],
+            Decimal("1.45"),
         )

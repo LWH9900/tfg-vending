@@ -44,4 +44,49 @@ urlpatterns = [
         views.pricing_profile_delete,
         name="pricing_profile_delete",
     ),
+    path(
+        "<int:machine_pk>/layouts/new/",
+        views.machine_layout_create,
+        name="machine_layout_create",
+    ),
+    path(
+        "layouts/<int:pk>/edit/",
+        views.machine_layout_update,
+        name="machine_layout_update",
+    ),
+    path(
+        "layouts/<int:pk>/activate/",
+        views.machine_layout_activate,
+        name="machine_layout_activate",
+    ),
+    path(
+        "layouts/<int:pk>/register/",
+        views.machine_layout_register,
+        name="machine_layout_register",
+    ),
+    path(
+        "<int:machine_pk>/layouts/",
+        views.machine_layout_list,
+        name="machine_layout_list",
+    ),
+    path(
+        "layouts/<int:pk>/",
+        views.machine_layout_detail,
+        name="machine_layout_detail",
+    ),
+    path(
+        "layouts/<int:pk>/delete/",
+        views.machine_layout_delete,
+        name="machine_layout_delete",
+    ),
+    path(
+        "layout-activations/",
+        views.machine_layout_activation_history,
+        name="machine_layout_activation_history",
+    ),
+    path(
+        "layouts/<int:pk>/deactivate/",
+        views.machine_layout_deactivate,
+        name="machine_layout_deactivate",
+    ),
 ]

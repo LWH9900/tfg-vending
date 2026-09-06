@@ -1,0 +1,17 @@
+{% if product %}
+    <div>
+        <div class="fw-medium">
+            {{ product.name }}
+        </div>
+
+        <small class="text-secondary">
+            {{ product.category.name }}
+            ·
+            {{ product.format_unit }}
+        </small>
+    </div>
+{% else %}
+    <span class="text-secondary">
+        —
+    </span>
+{% endif %}

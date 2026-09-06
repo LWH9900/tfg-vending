@@ -177,6 +177,64 @@
                 </dd>
 
             </div>
+            <div class="detail-row {% if form.rows.errors %}field-error{% endif %}">
+
+                <dt>
+                    <label for="{{ form.rows.id_for_label }}">
+                        Filas
+                    </label>
+                </dt>
+
+                <dd class="detail-edit-field">
+
+                    {{ form.rows }}
+
+                    {% for error in form.rows.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                </dd>
+
+                </div>
+
+
+                <div class="detail-row {% if form.columns.errors %}field-error{% endif %}">
+
+                <dt>
+                    <label for="{{ form.columns.id_for_label }}">
+                        Columnas
+                    </label>
+                </dt>
+
+                <dd class="detail-edit-field">
+
+                    {{ form.columns }}
+
+                    {% for error in form.columns.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+
+                </dd>
+
+            </div>
+            {% if form.rows.field.disabled %}
+
+                <div class="detail-row">
+                    <dt></dt>
+
+                    <dd class="detail-edit-field">
+                        <p class="form-text mb-0">
+                            Las dimensiones no pueden modificarse porque
+                            esta máquina tiene disposiciones configuradas.
+                        </p>
+                    </dd>
+                </div>
+
+            {% endif %}
 
         </dl>
 
@@ -262,7 +320,15 @@
 
                 {% include "components/form_field.html" with field=form.location %}
 
+                {% include "components/form_field.html" with field=form.rows %}
+
+                {% include "components/form_field.html" with field=form.columns %}
+
             </div>
+            <p class="form-text mb-0">
+                Las dimensiones definen la cuadrícula física de la máquina.
+                Podrás configurarlas más adelante si todavía no las conoces.
+            </p>
 
         </div>
 

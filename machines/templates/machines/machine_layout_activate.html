@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="h3 mb-3">
+        Activar disposición
+    </h1>
+
+    <p>
+        Vas a activar
+        <strong>{{ layout.name }}</strong>
+        para la máquina
+        <strong>{{ machine.identifier }}</strong>.
+    </p>
+
+    <div class="alert alert-warning">
+        Una vez activada, esta disposición y sus posiciones
+        dejarán de poder modificarse.
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {{ form.non_field_errors }}
+
+        <div class="mb-3">
+            <label
+                for="{{ form.effective_from.id_for_label }}"
+                class="form-label"
+            >
+                {{ form.effective_from.label }}
+            </label>
+
+            {{ form.effective_from }}
+
+            {% for error in form.effective_from.errors %}
+                <div class="text-danger small">
+                    {{ error }}
+                </div>
+            {% endfor %}
+        </div>
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
+            Activar
+        </button>
+
+        <a
+            href="{% url 'machines:machine_detail' machine.pk %}"
+            class="btn btn-outline-secondary"
+        >
+            Cancelar
+        </a>
+    </form>
+</div>
+{% endblock %}

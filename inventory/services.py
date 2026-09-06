@@ -1,19 +1,29 @@
 from decimal import Decimal
 
-from django.db.models import IntegerField, Q, Sum, Value
+from django.db.models import (
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+)
 from django.db.models.functions import Coalesce
 
 from inventory.models import Product
 from machines.models import Machine
 from machines.services.pricing import (
+    calculate_price_with_vat,
     get_product_price_for_machine,
 )
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
+from sales.models import Sale
 
 
-def get_total_stock(product):
-    purchased_quantity = (
+def _get_purchased_quantity(product):
+    return (
         PurchaseLine.objects.filter(
             product=product,
             purchase__status=Purchase.Status.REGISTERED,
@@ -21,16 +31,39 @@ def get_total_stock(product):
         or 0
     )
 
-    return purchased_quantity
+
+def _get_sold_quantity(
+    product,
+    machine=None,
+):
+    sales = Sale.objects.filter(
+        product=product,
+        status=Sale.Status.RESOLVED,
+    )
+
+    if machine is not None:
+        sales = sales.filter(
+            machine=machine,
+        )
+
+    return sales.aggregate(total=Sum("quantity"))["total"] or 0
+
+
+def get_total_stock(product):
+    purchased_quantity = _get_purchased_quantity(product)
+
+    sold_quantity = _get_sold_quantity(product)
+
+    return purchased_quantity - sold_quantity
 
 
 def get_warehouse_stock(product):
-    purchased_quantity = get_total_stock(product)
+    purchased_quantity = _get_purchased_quantity(product)
 
     replenished_quantity = (
         ReplenishmentLine.objects.filter(
             product=product,
-            replenishment__status=Replenishment.Status.REGISTERED,
+            replenishment__status=(Replenishment.Status.REGISTERED),
         ).aggregate(total=Sum("quantity"))["total"]
         or 0
     )
@@ -38,17 +71,25 @@ def get_warehouse_stock(product):
     return purchased_quantity - replenished_quantity
 
 
-def get_machine_stock(product, machine):
+def get_machine_stock(
+    product,
+    machine,
+):
     replenished_quantity = (
         ReplenishmentLine.objects.filter(
             product=product,
             replenishment__machine=machine,
-            replenishment__status=Replenishment.Status.REGISTERED,
+            replenishment__status=(Replenishment.Status.REGISTERED),
         ).aggregate(total=Sum("quantity"))["total"]
         or 0
     )
 
-    return replenished_quantity
+    sold_quantity = _get_sold_quantity(
+        product,
+        machine,
+    )
+
+    return replenished_quantity - sold_quantity
 
 
 def get_inventory_cost_value(product):
@@ -85,39 +126,78 @@ def get_machines_stock(product):
     replenished_quantity = (
         ReplenishmentLine.objects.filter(
             product=product,
-            replenishment__status=Replenishment.Status.REGISTERED,
+            replenishment__status=(Replenishment.Status.REGISTERED),
         ).aggregate(total=Sum("quantity"))["total"]
         or 0
     )
 
-    return replenished_quantity
+    sold_quantity = _get_sold_quantity(product)
+
+    return replenished_quantity - sold_quantity
 
 
-def get_product_machine_stocks(product):
+def get_product_machine_stocks(
+    product,
+):
+    sold_quantity_subquery = (
+        Sale.objects.filter(
+            machine_id=OuterRef("pk"),
+            product=product,
+            status=Sale.Status.RESOLVED,
+        )
+        .values("machine_id")
+        .annotate(total=Sum("quantity"))
+        .values("total")
+    )
+
     return (
         Machine.objects.annotate(
-            product_stock=Coalesce(
+            replenished_quantity=Coalesce(
                 Sum(
                     "replenishments__lines__quantity",
                     filter=Q(
-                        replenishments__status=Replenishment.Status.REGISTERED,
+                        replenishments__status=(Replenishment.Status.REGISTERED),
                         replenishments__lines__product=product,
                     ),
                 ),
                 Value(0),
                 output_field=IntegerField(),
-            )
+            ),
+            sold_quantity=Coalesce(
+                Subquery(
+                    sold_quantity_subquery,
+                    output_field=IntegerField(),
+                ),
+                Value(0),
+                output_field=IntegerField(),
+            ),
         )
-        .filter(product_stock__gt=0)
+        .annotate(product_stock=(F("replenished_quantity") - F("sold_quantity")))
+        .exclude(
+            product_stock=0,
+        )
         .order_by("identifier")
     )
 
 
-def get_machine_product_stocks(machine):
+def get_machine_product_stocks(
+    machine,
+):
+    sold_quantity_subquery = (
+        Sale.objects.filter(
+            machine=machine,
+            product_id=OuterRef("pk"),
+            status=Sale.Status.RESOLVED,
+        )
+        .values("product_id")
+        .annotate(total=Sum("quantity"))
+        .values("total")
+    )
+
     return (
         Product.objects.select_related("category")
         .annotate(
-            machine_stock=Coalesce(
+            replenished_quantity=Coalesce(
                 Sum(
                     "replenishment_lines__quantity",
                     filter=Q(
@@ -129,17 +209,43 @@ def get_machine_product_stocks(machine):
                 ),
                 Value(0),
                 output_field=IntegerField(),
-            )
+            ),
+            sold_quantity=Coalesce(
+                Subquery(
+                    sold_quantity_subquery,
+                    output_field=IntegerField(),
+                ),
+                Value(0),
+                output_field=IntegerField(),
+            ),
         )
-        .filter(machine_stock__gt=0)
+        .annotate(machine_stock=(F("replenished_quantity") - F("sold_quantity")))
+        .exclude(
+            machine_stock=0,
+        )
         .order_by("name")
     )
 
 
-def get_potential_sale_value(product):
+def get_potential_sale_value(
+    product,
+):
     warehouse_stock = get_warehouse_stock(product)
 
-    value = Decimal(warehouse_stock) * product.default_sale_price
+    warehouse_sale_price = calculate_price_with_vat(
+        product.default_sale_price,
+        product.vat_rate,
+    )
+
+    value = (
+        Decimal(
+            max(
+                warehouse_stock,
+                0,
+            )
+        )
+        * warehouse_sale_price
+    )
 
     machine_stocks = get_product_machine_stocks(product)
 
@@ -149,6 +255,14 @@ def get_potential_sale_value(product):
             product,
         )
 
-        value += Decimal(machine.product_stock) * final_price
+        value += (
+            Decimal(
+                max(
+                    machine.product_stock,
+                    0,
+                )
+            )
+            * final_price
+        )
 
     return value.quantize(Decimal("0.01"))
