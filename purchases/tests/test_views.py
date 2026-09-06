@@ -6,6 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from inventory.models import Category, Product
+from machines.models import Machine, MachineLayout, MachinePosition
+from machines.services.layouts import activate_machine_layout
 from purchases.forms import PurchaseLineFormSet
 from purchases.models import Purchase, PurchaseLine
 
@@ -615,4 +617,124 @@ class PurchaseViewTests(TestCase):
         self.assertIn(
             "Añade al menos un producto a la compra.",
             response.context["formset"].non_form_errors(),
+        )
+
+    def test_purchase_detail_shows_profitability_warning(
+        self,
+    ):
+        machine = Machine.objects.create(
+            identifier="VM-WARNING-001",
+            name="Máquina aviso",
+            serial_number="SN-WARNING-001",
+            rows=2,
+            columns=2,
+        )
+
+        layout = MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición aviso",
+        )
+
+        MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        layout.status = MachineLayout.Status.REGISTERED
+
+        layout.save()
+
+        activate_machine_layout(layout)
+
+        purchase = Purchase.objects.create(
+            supplier="Proveedor caro",
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("3.00"),
+        )
+
+        response = self.client.get(
+            reverse(
+                "purchases:purchase_detail",
+                args=[
+                    purchase.pk,
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Posible pérdida de rentabilidad",
+        )
+
+        self.assertContains(
+            response,
+            "3,00",
+        )
+
+    def test_purchase_detail_does_not_show_profitability_warning_when_profitable(
+        self,
+    ):
+        machine = Machine.objects.create(
+            identifier="VM-NO-WARNING-001",
+            name="Máquina rentable",
+            serial_number="SN-NO-WARNING-001",
+            rows=2,
+            columns=2,
+        )
+
+        layout = MachineLayout.objects.create(
+            machine=machine,
+            name="Disposición rentable",
+        )
+
+        MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        layout.status = MachineLayout.Status.REGISTERED
+
+        layout.save()
+
+        activate_machine_layout(layout)
+
+        purchase = Purchase.objects.create(
+            supplier="Proveedor rentable",
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        response = self.client.get(
+            reverse(
+                "purchases:purchase_detail",
+                args=[
+                    purchase.pk,
+                ],
+            )
+        )
+
+        self.assertNotContains(
+            response,
+            "Posible pérdida de rentabilidad",
         )

@@ -191,20 +191,20 @@
 
                             <a
                                 class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.app_name == 'replenishments' %} active {% endif %}"
+                                href="{% url 'replenishments:replenishment_list' %}"
+                            >
+                                Reposiciones
+                            </a>
+
+                            <a
+                                class="sidebar-link sidebar-sublink
                                 {% if request.resolver_match.app_name == 'sales' %}
                                     active
                                 {% endif %}"
                                 href="{% url 'sales:sale_list' %}"
                             >
                                 Ventas
-                            </a>
-
-                            <a
-                                class="sidebar-link sidebar-sublink
-                                {% if request.resolver_match.app_name == 'replenishments' %} active {% endif %}"
-                                href="{% url 'replenishments:replenishment_list' %}"
-                            >
-                                Reposiciones
                             </a>
 
                         </div>

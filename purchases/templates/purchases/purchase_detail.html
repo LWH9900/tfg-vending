@@ -167,6 +167,139 @@
 
 {% endif %}
 
+{% if profitability_warning and not is_edit %}
+
+    <div
+        class="alert alert-warning
+               d-flex justify-content-between
+               align-items-start gap-3"
+    >
+
+        <div>
+
+            <strong>
+                Posible pérdida de rentabilidad.
+            </strong>
+
+            {% if profitability_warning.show_modal %}
+
+                {% if profitability_warning.all_machines_for_any_product %}
+
+                    <div class="mt-1">
+                        Al menos uno de los productos de esta
+                        compra tiene un coste unitario superior
+                        al precio neto de venta en
+                        <strong>
+                            todas las máquinas
+                        </strong>
+                        donde está disponible actualmente.
+                    </div>
+
+                {% else %}
+
+                    <div class="mt-1">
+                        Se han detectado
+                        <strong>
+                            {{ profitability_warning.loss_count }}
+                        </strong>
+                        casos en los que el coste de compra
+                        supera el precio neto de venta
+                        configurado.
+                    </div>
+
+                {% endif %}
+
+            {% else %}
+
+                <div class="mt-1 mb-2">
+                    El coste de compra supera el precio
+                    neto de venta configurado en:
+                </div>
+
+                <ul class="mb-2">
+
+                    {% for loss in profitability_warning.inline_losses %}
+
+                        <li class="mb-2">
+
+                            <strong>
+                                {{ loss.product.name }}
+                            </strong>
+
+                            <span class="text-secondary">
+                                · {{ loss.product.category.name }}
+                                · {{ loss.product.format_unit }}
+                            </span>
+
+                            <br>
+
+                            {{ loss.machine.identifier }}
+                            ·
+                            {{ loss.machine.name }}
+
+                            {% if loss.machine.location %}
+                                · {{ loss.machine.location }}
+                            {% endif %}
+
+                            <br>
+
+                            <span class="text-secondary">
+                                Compra:
+                            </span>
+
+                            {{ loss.purchase_price_excl_vat|floatformat:2 }} €/ud.
+
+                            <span class="text-secondary">
+                                · Venta teórica:
+                            </span>
+
+                            {{ loss.sale_price_excl_vat|floatformat:2 }} €/ud.
+                            sin IVA
+
+                            ({{ loss.sale_price_incl_vat|floatformat:2 }} €
+                            IVA incl.)
+
+                            <br>
+
+                            <strong class="text-danger">
+                                Pérdida:
+                                {{ loss.loss_per_unit|floatformat:2 }} €/ud.
+                            </strong>
+
+                        </li>
+
+                    {% endfor %}
+
+                </ul>
+
+            {% endif %}
+
+            <small class="text-secondary">
+                La comparación utiliza los precios y disposiciones
+                configurados actualmente en Vimach.
+            </small>
+
+        </div>
+
+
+        {% if profitability_warning.show_modal %}
+
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-warning
+                       flex-shrink-0"
+                data-bs-toggle="modal"
+                data-bs-target="#purchaseProfitabilityModal"
+            >
+                Ver más
+            </button>
+
+        {% endif %}
+
+    </div>
+
+{% endif %}
+
 {% if is_edit %}
 <form
     method="post"
@@ -685,5 +818,197 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 
 {% endif %}
+{% if profitability_warning.show_modal and not is_edit %}
 
+<div
+    class="modal fade"
+    id="purchaseProfitabilityModal"
+    tabindex="-1"
+    aria-labelledby="purchaseProfitabilityModalLabel"
+    aria-hidden="true"
+>
+
+    <div
+        class="modal-dialog
+               modal-xl
+               modal-dialog-scrollable"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h2
+                        class="modal-title fs-5"
+                        id="purchaseProfitabilityModalLabel"
+                    >
+                        Desglose de posibles pérdidas
+                    </h2>
+
+                    <p class="text-secondary small mb-0 mt-1">
+                        Comparación entre el coste unitario de
+                        esta compra y el precio de venta
+                        configurado actualmente.
+                    </p>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Cerrar"
+                ></button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+               <div class="table-responsive">
+
+                    {% regroup profitability_warning.losses by product as product_groups %}
+
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 22%;">
+                                    Producto
+                                </th>
+
+                                <th style="width: 10%;">
+                                    Máquina
+                                </th>
+
+                                <th class="text-end text-nowrap" style="width: 10%;">
+                                    Compra sin IVA
+                                </th>
+
+                                <th class="text-end text-nowrap" style="width: 10%;">
+                                    Venta sin IVA
+                                </th>
+
+                                <th class="text-end text-nowrap" style="width: 10%;">
+                                    Venta IVA incl.
+                                </th>
+
+                                <th class="text-end text-nowrap" style="width: 10%;">
+                                    Pérdida / ud.
+                                </th>
+
+                                <th class="text-end text-nowrap" style="width: 16%;">
+                                    Pérdida estimada del lote
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for group in product_groups %}
+
+                                {% for loss in group.list %}
+
+                                    <tr>
+
+                                        {% if forloop.first %}
+                                            <td rowspan="{{ group.list|length }}" class="align-middle">
+                                                {% include "components/product_label.html" with product=group.grouper %}
+                                            </td>
+                                        {% endif %}
+
+                                        <td class="align-top">
+                                            <div class="fw-medium">
+                                                {{ loss.machine.identifier }}
+                                            </div>
+
+                                            
+                                        </td>
+
+                                        <td class="text-end text-nowrap align-top">
+                                            {{ loss.purchase_price_excl_vat|floatformat:2 }} €/ud.
+                                        </td>
+
+                                        <td class="text-end text-nowrap align-top">
+                                            {{ loss.sale_price_excl_vat|floatformat:2 }} €/ud.
+                                        </td>
+
+                                        <td class="text-end text-nowrap align-top">
+                                            {{ loss.sale_price_incl_vat|floatformat:2 }} €/ud.
+                                        </td>
+
+                                        <td class="text-end text-nowrap align-top">
+                                            <strong class="text-danger">
+                                                -{{ loss.loss_per_unit|floatformat:2 }} €
+                                            </strong>
+                                        </td>
+
+                                        <td class="text-end text-nowrap align-top">
+                                            <strong class="text-danger">
+                                                -{{ loss.theoretical_line_loss|floatformat:2 }} €
+                                            </strong>
+
+                                            <small class="d-block text-secondary">
+                                                {{ loss.quantity }} uds.
+                                            </small>
+                                        </td>
+
+                                    </tr>
+
+                                {% endfor %}
+
+                            {% endfor %}
+
+                        </tbody>
+                    </table>
+
+                </div>
+                
+
+
+                <div class="border rounded p-3 mt-3 bg-light">
+
+                    <div class="fw-semibold mb-1">
+                        Cómo interpretar estos valores
+                    </div>
+
+                    <small class="text-secondary">
+
+                        La pérdida por unidad compara el coste de compra
+                        sin IVA con el precio neto de venta sin IVA.
+
+                        La pérdida teórica supone que todas las unidades
+                        de la línea se vendieran en esa máquina.
+
+                        <strong>
+                            No deben sumarse los importes de distintas máquinas.
+                        </strong>
+
+                    </small>
+
+                </div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cerrar
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endif %}
 {% endblock %}
