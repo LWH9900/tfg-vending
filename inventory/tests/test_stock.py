@@ -15,6 +15,7 @@ from inventory.services import (
     get_warehouse_stock,
 )
 from machines.models import Machine
+from machines.services.pricing import calculate_price_with_vat
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
 from sales.models import Sale
@@ -714,9 +715,12 @@ class StockServiceTests(TestCase):
 
         potential_value = get_potential_sale_value(self.product)
 
-        expected_value = (Decimal("4") * self.product.default_sale_price).quantize(
-            Decimal("0.01")
+        warehouse_sale_price = calculate_price_with_vat(
+            self.product.default_sale_price,
+            self.product.vat_rate,
         )
+
+        expected_value = (Decimal("4") * warehouse_sale_price).quantize(Decimal("0.01"))
 
         self.assertEqual(
             potential_value,

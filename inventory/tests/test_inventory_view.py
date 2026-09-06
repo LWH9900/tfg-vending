@@ -129,5 +129,5 @@ class InventoryViewTests(TestCase):
         )
         self.assertEqual(
             item["potential_sale_value"],
-            Decimal("150.00"),
+            Decimal("182.00"),
         )

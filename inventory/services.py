@@ -14,6 +14,7 @@ from django.db.models.functions import Coalesce
 from inventory.models import Product
 from machines.models import Machine
 from machines.services.pricing import (
+    calculate_price_with_vat,
     get_product_price_for_machine,
 )
 from purchases.models import Purchase, PurchaseLine
@@ -226,8 +227,15 @@ def get_machine_product_stocks(
     )
 
 
-def get_potential_sale_value(product):
+def get_potential_sale_value(
+    product,
+):
     warehouse_stock = get_warehouse_stock(product)
+
+    warehouse_sale_price = calculate_price_with_vat(
+        product.default_sale_price,
+        product.vat_rate,
+    )
 
     value = (
         Decimal(
@@ -236,7 +244,7 @@ def get_potential_sale_value(product):
                 0,
             )
         )
-        * product.default_sale_price
+        * warehouse_sale_price
     )
 
     machine_stocks = get_product_machine_stocks(product)

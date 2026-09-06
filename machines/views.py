@@ -37,7 +37,6 @@ from .forms import (
 )
 from .services.pricing import (
     build_product_price_details,
-    calculate_adjusted_price,
     change_machine_pricing_profile,
     get_redundant_price_overrides,
 )
@@ -168,9 +167,12 @@ def machine_detail(request, pk):
     price_overrides = [
         {
             "override": override,
-            "effective_price": calculate_adjusted_price(
-                override.product.default_sale_price,
-                override.percentage_adjustment,
+            "effective_price": (
+                build_product_price_details(
+                    machine,
+                    override.product,
+                    override,
+                )["final_price"]
             ),
         }
         for override in overrides
@@ -181,7 +183,10 @@ def machine_detail(request, pk):
     )
 
     product_prices = {
-        str(product.pk): str(product.default_sale_price)
+        str(product.pk): {
+            "base_price": str(product.default_sale_price),
+            "vat_rate": str(product.vat_rate),
+        }
         for product in override_form.fields["product"].queryset
     }
 
@@ -238,9 +243,12 @@ def machine_price_override_create(request, pk):
     price_overrides = [
         {
             "override": override,
-            "effective_price": calculate_adjusted_price(
-                override.product.default_sale_price,
-                override.percentage_adjustment,
+            "effective_price": (
+                build_product_price_details(
+                    machine,
+                    override.product,
+                    override,
+                )["final_price"]
             ),
         }
         for override in overrides
@@ -253,7 +261,10 @@ def machine_price_override_create(request, pk):
     )
 
     product_prices = {
-        str(product.pk): str(product.default_sale_price)
+        str(product.pk): {
+            "base_price": str(product.default_sale_price),
+            "vat_rate": str(product.vat_rate),
+        }
         for product in form.fields["product"].queryset
     }
     machine_inventory_items = build_machine_inventory_items(machine)
@@ -305,9 +316,12 @@ def machine_pricing_profile_update(request, pk):
             price_overrides = [
                 {
                     "override": override,
-                    "effective_price": calculate_adjusted_price(
-                        override.product.default_sale_price,
-                        override.percentage_adjustment,
+                    "effective_price": (
+                        build_product_price_details(
+                            machine,
+                            override.product,
+                            override,
+                        )["final_price"]
                     ),
                 }
                 for override in overrides
@@ -318,7 +332,10 @@ def machine_pricing_profile_update(request, pk):
             )
 
             product_prices = {
-                str(product.pk): str(product.default_sale_price)
+                str(product.pk): {
+                    "base_price": str(product.default_sale_price),
+                    "vat_rate": str(product.vat_rate),
+                }
                 for product in override_form.fields["product"].queryset
             }
             machine_inventory_items = build_machine_inventory_items(machine)
@@ -395,9 +412,12 @@ def machine_price_override_update(
     price_overrides = [
         {
             "override": item,
-            "effective_price": calculate_adjusted_price(
-                item.product.default_sale_price,
-                item.percentage_adjustment,
+            "effective_price": (
+                build_product_price_details(
+                    machine,
+                    item.product,
+                    item,
+                )["final_price"]
             ),
         }
         for item in overrides
@@ -414,7 +434,10 @@ def machine_price_override_update(
     )
 
     product_prices = {
-        str(product.pk): str(product.default_sale_price)
+        str(product.pk): {
+            "base_price": str(product.default_sale_price),
+            "vat_rate": str(product.vat_rate),
+        }
         for product in override_form.fields["product"].queryset
     }
     machine_inventory_items = build_machine_inventory_items(machine)
