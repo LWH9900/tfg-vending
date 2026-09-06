@@ -238,25 +238,27 @@
 
         {% if sale.resolution_layout %}
 
-            <div class="mt-3">
+            <div class="detail-row">
 
-                <div class="text-secondary small">
-                    Disposición usada como referencia
-                </div>
+                <dt>
+                    Disposición de referencia
+                </dt>
 
-                <div class="fw-medium">
-                    {{ sale.resolution_layout.name }}
-                </div>
+                <dd>
+                    <div class="fw-medium">
+                        {{ sale.resolution_layout.name }}
+                    </div>
 
-                <small class="text-secondary">
-                    Esta disposición fue seleccionada manualmente
-                    porque no existía una disposición histórica
-                    exacta cuando ocurrió la venta.
-                </small>
+                    <small class="text-secondary">
+                        Seleccionada manualmente porque no existía
+                        una disposición histórica exacta cuando
+                        ocurrió la venta.
+                    </small>
+                </dd>
 
-        </div>
+            </div>
 
-    {% endif %}
+        {% endif %}
 
 
         <div class="detail-row">

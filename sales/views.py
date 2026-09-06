@@ -254,7 +254,7 @@ def sale_resolve(
     if layout is not None:
         selection_position = (
             layout.positions.filter(
-                identifier=sale.selection,
+                identifier__iexact=sale.selection,
                 product__isnull=False,
             )
             .select_related(

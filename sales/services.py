@@ -499,7 +499,7 @@ def resolve_pending_sale(
 
     historical_layout = get_machine_layout_at(
         machine,
-        sale.occurred_at,
+        locked_sale.occurred_at,
     )
 
     if historical_layout is not None:
@@ -563,7 +563,7 @@ def resolve_pending_sale(
 
     selection_position = (
         layout.positions.filter(
-            identifier=locked_sale.selection,
+            identifier__iexact=locked_sale.selection,
         )
         .select_related("product")
         .first()
