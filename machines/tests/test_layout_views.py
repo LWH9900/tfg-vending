@@ -1436,6 +1436,7 @@ class MachineLayoutActivationViewTests(TestCase):
 
         response = self.client.post(
             url,
+            follow=True,
         )
 
         self.assertRedirects(
@@ -1452,6 +1453,45 @@ class MachineLayoutActivationViewTests(TestCase):
 
         self.assertIsNone(
             activation.effective_to,
+        )
+
+        self.assertContains(
+            response,
+            "La disposición se ha activado correctamente.",
+            count=1,
+        )
+
+    def test_layout_activation_message_is_shown_only_once(
+        self,
+    ):
+        activate_url = reverse(
+            "machines:machine_layout_activate",
+            args=[self.layout_a.pk],
+        )
+
+        detail_url = reverse(
+            "machines:machine_layout_detail",
+            args=[self.layout_a.pk],
+        )
+
+        response = self.client.post(
+            activate_url,
+            follow=True,
+        )
+
+        self.assertContains(
+            response,
+            "La disposición se ha activado correctamente.",
+            count=1,
+        )
+
+        response = self.client.get(
+            detail_url,
+        )
+
+        self.assertNotContains(
+            response,
+            "La disposición se ha activado correctamente.",
         )
 
     def test_activate_layout_requires_post(self):
