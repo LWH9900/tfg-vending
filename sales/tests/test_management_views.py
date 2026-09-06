@@ -1112,8 +1112,22 @@ class SaleManagementViewTests(TestCase):
             response,
             "000000",
         )
+        self.assertNotContains(
+            response,
+            "Identificar máquina",
+        )
 
         self.assertContains(
             response,
-            "La selección recibida no existe",
+            "La selección",
+        )
+
+        self.assertContains(
+            response,
+            "no existe en",
+        )
+
+        self.assertContains(
+            response,
+            self.product_a.name,
         )

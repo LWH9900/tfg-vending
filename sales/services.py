@@ -9,7 +9,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from machines.models import Machine
+from machines.models import Machine, MachineLayoutActivation
 from machines.services.layouts import (
     get_machine_layout_at,
     get_product_for_selection,
@@ -470,6 +470,7 @@ def resolve_pending_sale(
     sale,
     machine,
     product,
+    reference_layout=None,
 ):
     if sale.pk is None:
         raise ValidationError("La venta debe estar guardada antes de poder resolverla.")
@@ -496,22 +497,54 @@ def resolve_pending_sale(
             }
         )
 
-    layout = get_machine_layout_at(
+    historical_layout = get_machine_layout_at(
         machine,
-        locked_sale.occurred_at,
+        sale.occurred_at,
     )
 
-    if layout is None:
-        raise ValidationError(
-            {
-                "machine": (
-                    "La máquina seleccionada no "
-                    "tenía ninguna disposición "
-                    "activa en el momento de "
-                    "la venta."
+    if historical_layout is not None:
+        if reference_layout is not None and reference_layout.pk != historical_layout.pk:
+            raise ValidationError(
+                (
+                    "La venta ya tiene una disposición "
+                    "histórica exacta. No puede utilizarse "
+                    "otra disposición como referencia."
                 )
-            }
-        )
+            )
+
+        layout = historical_layout
+        resolution_layout = None
+
+    else:
+        if reference_layout is None:
+            raise ValidationError(
+                (
+                    "No existe una disposición histórica "
+                    "exacta para esta venta. Debe seleccionarse "
+                    "una disposición de referencia."
+                )
+            )
+
+        if reference_layout.machine_id != machine.pk:
+            raise ValidationError(
+                ("La disposición seleccionada no pertenece a la máquina de la venta.")
+            )
+
+        has_activation_history = MachineLayoutActivation.objects.filter(
+            layout=reference_layout,
+        ).exists()
+
+        if not has_activation_history:
+            raise ValidationError(
+                (
+                    "La disposición seleccionada nunca ha "
+                    "estado activa en esta máquina y no puede "
+                    "utilizarse como referencia."
+                )
+            )
+
+        layout = reference_layout
+        resolution_layout = reference_layout
 
     product_in_layout = layout.positions.filter(
         product=product,
@@ -521,18 +554,27 @@ def resolve_pending_sale(
         raise ValidationError(
             {
                 "product": (
-                    "El producto seleccionado "
-                    "no pertenecía a la disposición "
-                    "activa de la máquina en el "
-                    "momento de la venta."
+                    "El producto seleccionado no pertenece "
+                    "a la disposición utilizada para resolver "
+                    "la venta."
                 )
             }
         )
 
-    selection_product = get_product_for_selection(
-        machine,
-        locked_sale.selection,
-        locked_sale.occurred_at,
+    selection_position = (
+        layout.positions.filter(
+            identifier=locked_sale.selection,
+        )
+        .select_related("product")
+        .first()
+    )
+
+    selection_product = (
+        selection_position.product
+        if (
+            selection_position is not None and selection_position.product_id is not None
+        )
+        else None
     )
 
     if selection_product is not None and selection_product.pk != product.pk:
@@ -540,14 +582,16 @@ def resolve_pending_sale(
             {
                 "product": (
                     "La selección recibida identifica "
-                    "un producto concreto y no puede "
-                    "sustituirse por otro."
+                    "un producto concreto en la disposición "
+                    "utilizada para resolver la venta y no "
+                    "puede sustituirse por otro."
                 )
             }
         )
 
     locked_sale.machine = machine
     locked_sale.product = product
+    locked_sale.resolution_layout = resolution_layout
     locked_sale.status = Sale.Status.RESOLVED
 
     locked_sale.save()

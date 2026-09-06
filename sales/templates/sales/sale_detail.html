@@ -236,6 +236,28 @@
             </dd>
         </div>
 
+        {% if sale.resolution_layout %}
+
+            <div class="mt-3">
+
+                <div class="text-secondary small">
+                    Disposición usada como referencia
+                </div>
+
+                <div class="fw-medium">
+                    {{ sale.resolution_layout.name }}
+                </div>
+
+                <small class="text-secondary">
+                    Esta disposición fue seleccionada manualmente
+                    porque no existía una disposición histórica
+                    exacta cuando ocurrió la venta.
+                </small>
+
+        </div>
+
+    {% endif %}
+
 
         <div class="detail-row">
             <dt>Cantidad</dt>

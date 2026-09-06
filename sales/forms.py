@@ -2,7 +2,7 @@ from django import forms
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
-from machines.models import Machine
+from machines.models import Machine, MachineLayout
 from sales.models import Sale
 
 
@@ -170,6 +170,12 @@ class ResolvePendingSaleForm(forms.Form):
         widget=forms.HiddenInput(),
     )
 
+    reference_layout = forms.ModelChoiceField(
+        queryset=MachineLayout.objects.none(),
+        required=False,
+        widget=forms.HiddenInput(),
+    )
+
     product = ProductChoiceField(
         queryset=Product.objects.none(),
         label="Producto",
@@ -187,6 +193,8 @@ class ResolvePendingSaleForm(forms.Form):
         machine=None,
         candidate_products=None,
         automatic_product=None,
+        reference_layouts=None,
+        selected_reference_layout=None,
         **kwargs,
     ):
         super().__init__(
@@ -200,9 +208,18 @@ class ResolvePendingSaleForm(forms.Form):
         if candidate_products is not None:
             self.fields["product"].queryset = candidate_products
 
+        if reference_layouts is not None:
+            layout_ids = [layout.pk for layout in reference_layouts]
+
+            self.fields["reference_layout"].queryset = MachineLayout.objects.filter(
+                pk__in=layout_ids,
+            )
+
+        if selected_reference_layout is not None:
+            self.fields["reference_layout"].initial = selected_reference_layout
+
         if automatic_product is not None:
             self.fields["product"].initial = automatic_product
-
             self.fields["product"].widget = forms.HiddenInput()
 
 

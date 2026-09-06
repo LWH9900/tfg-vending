@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -51,6 +53,89 @@ def get_machine_layout_at(
         return None
 
     return activation.layout
+
+
+def get_machine_layout_resolution_candidates(
+    machine,
+    moment,
+):
+    activations = list(
+        MachineLayoutActivation.objects.filter(
+            layout__machine=machine,
+        )
+        .select_related(
+            "layout",
+        )
+        .order_by(
+            "effective_from",
+            "pk",
+        )
+    )
+
+    if not activations:
+        return []
+
+    now = timezone.now()
+
+    current_activation = (
+        MachineLayoutActivation.objects.filter(
+            layout__machine=machine,
+            effective_from__lte=now,
+            effective_to__isnull=True,
+        )
+        .select_related("layout")
+        .order_by("-effective_from")
+        .first()
+    )
+
+    current_layout_id = current_activation.layout_id if current_activation else None
+
+    candidates_by_layout = {}
+
+    for activation in activations:
+        if moment < activation.effective_from:
+            distance = activation.effective_from - moment
+
+            relation = "after"
+
+        elif activation.effective_to is not None and moment >= activation.effective_to:
+            distance = moment - activation.effective_to
+
+            relation = "before"
+
+        else:
+            distance = timedelta(0)
+            relation = "exact"
+
+        candidate = {
+            "layout": activation.layout,
+            "activation": activation,
+            "distance": distance,
+            "relation": relation,
+            "is_nearest": False,
+            "is_current": (activation.layout_id == current_layout_id),
+        }
+
+        existing = candidates_by_layout.get(activation.layout_id)
+
+        if existing is None or distance < existing["distance"]:
+            candidates_by_layout[activation.layout_id] = candidate
+
+        elif activation.layout_id == current_layout_id:
+            existing["is_current"] = True
+
+    candidates = sorted(
+        candidates_by_layout.values(),
+        key=lambda candidate: (
+            candidate["distance"],
+            candidate["activation"].effective_from,
+        ),
+    )
+
+    if candidates:
+        candidates[0]["is_nearest"] = True
+
+    return candidates
 
 
 def get_product_for_selection(

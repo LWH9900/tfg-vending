@@ -16,7 +16,7 @@ from inventory.services import get_machine_stock
 from machines.models import Machine
 from machines.services.layouts import (
     get_machine_layout_at,
-    get_product_for_selection,
+    get_machine_layout_resolution_candidates,
 )
 from machines.services.pricing import (
     get_product_price_for_machine,
@@ -165,7 +165,7 @@ def sale_resolve(
     if sale.status != Sale.Status.PENDING:
         messages.error(
             request,
-            ("Solo se pueden resolver ventas pendientes."),
+            "Solo se pueden resolver ventas pendientes.",
         )
 
         return redirect(
@@ -184,6 +184,7 @@ def sale_resolve(
         )
 
     machine_form = None
+
     selected_machine = sale.machine
 
     if selected_machine is None:
@@ -196,25 +197,75 @@ def sale_resolve(
             machine_id = request.POST.get("machine")
 
             if machine_id:
-                selected_machine = Machine.objects.filter(pk=machine_id).first()
+                selected_machine = Machine.objects.filter(
+                    pk=machine_id,
+                ).first()
 
+    historical_layout = None
     layout = None
+
+    layout_candidates = []
+    selected_reference_layout = None
+    reference_layout_error = False
+
     automatic_product = None
+
     candidate_products = Product.objects.none()
+
     candidate_positions = []
 
     if selected_machine is not None:
-        layout = get_machine_layout_at(
+        historical_layout = get_machine_layout_at(
             selected_machine,
             sale.occurred_at,
         )
 
+        if historical_layout is not None:
+            layout = historical_layout
+
+        else:
+            layout_candidates = get_machine_layout_resolution_candidates(
+                selected_machine,
+                sale.occurred_at,
+            )
+
+            candidate_by_id = {
+                str(candidate["layout"].pk): candidate
+                for candidate in layout_candidates
+            }
+
+            if request.method == "POST":
+                requested_layout_id = request.POST.get("reference_layout")
+
+            else:
+                requested_layout_id = request.GET.get("layout")
+
+            if requested_layout_id:
+                candidate = candidate_by_id.get(str(requested_layout_id))
+
+                if candidate is not None:
+                    selected_reference_layout = candidate["layout"]
+
+                    layout = selected_reference_layout
+
+                else:
+                    reference_layout_error = True
+
     if layout is not None:
-        automatic_product = get_product_for_selection(
-            selected_machine,
-            sale.selection,
-            sale.occurred_at,
+        selection_position = (
+            layout.positions.filter(
+                identifier=sale.selection,
+                product__isnull=False,
+            )
+            .select_related(
+                "product",
+                "product__category",
+            )
+            .first()
         )
+
+        if selection_position is not None:
+            automatic_product = selection_position.product
 
         candidate_products = (
             Product.objects.filter(
@@ -248,7 +299,7 @@ def sale_resolve(
             candidate_positions.append(
                 {
                     "position": position,
-                    "product": position.product,
+                    "product": (position.product),
                     "current_price": (
                         get_product_price_for_machine(
                             selected_machine,
@@ -267,19 +318,27 @@ def sale_resolve(
     form = None
 
     if layout is not None:
+        reference_layouts = []
+
+        if historical_layout is None:
+            reference_layouts = [candidate["layout"] for candidate in layout_candidates]
+
         form = ResolvePendingSaleForm(
             request.POST or None,
             machine=selected_machine,
             candidate_products=(candidate_products),
             automatic_product=(automatic_product),
+            reference_layouts=(reference_layouts),
+            selected_reference_layout=(selected_reference_layout),
         )
 
         if request.method == "POST" and form.is_valid():
             try:
                 resolved_sale = resolve_pending_sale(
                     sale,
-                    form.cleaned_data["machine"],
-                    form.cleaned_data["product"],
+                    machine=(form.cleaned_data["machine"]),
+                    product=(form.cleaned_data["product"]),
+                    reference_layout=(form.cleaned_data["reference_layout"]),
                 )
 
             except ValidationError as error:
@@ -323,7 +382,11 @@ def sale_resolve(
             "sale": sale,
             "machine_form": machine_form,
             "selected_machine": (selected_machine),
+            "historical_layout": (historical_layout),
             "layout": layout,
+            "layout_candidates": (layout_candidates),
+            "selected_reference_layout": (selected_reference_layout),
+            "reference_layout_error": (reference_layout_error),
             "automatic_product": (automatic_product),
             "candidate_positions": (candidate_positions),
             "form": form,

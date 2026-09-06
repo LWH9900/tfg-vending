@@ -80,6 +80,21 @@ class Sale(models.Model):
         null=True,
         blank=True,
     )
+
+    resolution_layout = models.ForeignKey(
+        "machines.MachineLayout",
+        on_delete=models.PROTECT,
+        related_name="sales_resolved_using_layout",
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "Disposición utilizada manualmente como referencia "
+            "para resolver la venta cuando no existía una "
+            "disposición histórica exacta."
+        ),
+    )
+
     conflicts_with = models.ForeignKey(
         "self",
         on_delete=models.PROTECT,
@@ -239,6 +254,27 @@ class Sale(models.Model):
                     )
                 }
             )
+        if self.resolution_layout_id is not None:
+            if self.machine_id is None:
+                raise ValidationError(
+                    {
+                        "resolution_layout": (
+                            "No puede indicarse una disposición de "
+                            "resolución sin una máquina asociada."
+                        )
+                    }
+                )
+
+            if self.resolution_layout.machine_id != self.machine_id:
+                raise ValidationError(
+                    {
+                        "resolution_layout": (
+                            "La disposición utilizada para resolver "
+                            "la venta debe pertenecer a la máquina "
+                            "asociada."
+                        )
+                    }
+                )
 
     def save(
         self,
@@ -295,6 +331,7 @@ class Sale(models.Model):
                     "payment_method",
                     "raw_payload",
                     "conflicts_with_id",
+                    "resolution_layout_id",
                 )
 
                 for field in resolved_immutable_fields:
