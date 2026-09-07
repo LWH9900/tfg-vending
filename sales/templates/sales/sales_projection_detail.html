@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de proyección | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+    <div class="page-header-row">
+        <div class="page-header-content">
+            <div class="page-breadcrumb">
+                <a href="{% url 'sales:sales_projection' %}{% if query_string %}?{{ query_string }}{% endif %}">
+                    Proyección
+                </a>
+                /
+                <a href="{% url 'inventory:product_detail' product.pk %}">
+                    {{ product.name }}
+                </a>
+            </div>
+
+            <h1 class="page-title">
+                {{ product.name }} · {{ product.format_unit }}
+            </h1>
+
+            {% if periods %}
+                <p class="page-description">
+                    Histórico {{ periods.history_start|date:"d/m/Y" }}
+                    – {{ periods.history_end|date:"d/m/Y" }}.
+                    Proyección {{ periods.forecast_start|date:"d/m/Y" }}
+                    – {{ periods.forecast_end|date:"d/m/Y" }}.
+                </p>
+            {% endif %}
+        </div>
+
+        <div class="page-header-actions">
+            {% if sales_history_query %}
+                <a
+                    class="btn btn-outline-secondary"
+                    href="{% url 'sales:sale_list' %}?{{ sales_history_query }}"
+                >
+                    Ver ventas del periodo
+                </a>
+            {% endif %}
+
+        </div>
+    </div>
+</header>
+
+{% if projection %}
+
+<section class="section-card">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Máquina</th>
+                    <th>Ventas históricas</th>
+                    <th>Media histórica</th>
+                    <th>Consumo estimado</th>
+                    <th>Stock máquina</th>
+                    <th>Reposición necesaria</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in projection.machine_details %}
+                    <tr
+                        class="clickable-row"
+                        tabindex="0"
+                        role="link"
+                        data-href="{% url 'machines:machine_detail' item.machine.pk %}"
+                    >
+                        <td>
+                            {{ item.machine.identifier }}
+
+                            {% if not item.is_in_active_layout %}
+                                <br>
+                                <small class="text-secondary">
+                                    Producto fuera de la disposición activa
+                                </small>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ item.historical_sales }} uds.
+                        </td>
+
+                        <td>
+                            {{ item.daily_average|floatformat:2 }} uds./día
+                        </td>
+
+                        <td>
+                            {% if item.is_in_active_layout %}
+                                {{ item.estimated_consumption }} uds.
+                            {% else %}
+                                <span class="text-secondary">
+                                    No aplicable
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.has_stock_incident %}
+                                <span class="text-danger fw-semibold">
+                                    {{ item.machine_stock }} uds.
+                                </span>
+                            {% else %}
+                                {{ item.machine_stock }} uds.
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if item.is_in_active_layout %}
+                                {{ item.machine_need }} uds.
+                            {% else %}
+                                <span class="text-secondary">
+                                    No aplicable
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                {% empty %}
+                    <tr>
+                        <td
+                            colspan="6"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay ventas históricas ni una disposición activa
+                            para este producto.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="card card-body">
+            <span class="text-secondary">
+                Necesidad total en máquinas
+            </span>
+            <strong>
+                {{ projection.total_machine_need }} uds.
+            </strong>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card card-body">
+            <span class="text-secondary">
+                Stock en almacén
+            </span>
+            <strong>
+                {{ projection.warehouse_stock }} uds.
+            </strong>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card card-body">
+            <span class="text-secondary">
+                Compra sugerida
+            </span>
+            <strong>
+                {{ projection.suggested_purchase }} uds.
+            </strong>
+        </div>
+    </div>
+</div>
+
+{% if projection.warehouse_shortage %}
+    <div class="alert alert-warning mt-3">
+        El stock del almacén no permite cubrir todas las necesidades
+        estimadas de las máquinas.
+    </div>
+{% endif %}
+
+{% else %}
+
+<div class="alert alert-danger">
+    Los periodos seleccionados no son válidos.
+</div>
+
+{% endif %}
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'sales:sales_projection' %}"
+        class="back-link"
+    >
+        ← Volver a la proyección de ventas
+    </a>
+
+</div>
+
+
+{% endblock %}

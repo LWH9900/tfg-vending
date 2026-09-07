@@ -317,3 +317,28 @@ body {
         background-color: var(--sidebar-background) !important;
     }
 }
+.clickable-row,
+.clickable-card {
+    position: relative;
+}
+
+.clickable-element-native-link::after {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    content: "";
+}
+
+.clickable-row a:not(.clickable-element-native-link),
+.clickable-row button,
+.clickable-row input,
+.clickable-row select,
+.clickable-row textarea,
+.clickable-card a:not(.clickable-element-native-link),
+.clickable-card button,
+.clickable-card input,
+.clickable-card select,
+.clickable-card textarea {
+    position: relative;
+    z-index: 2;
+}

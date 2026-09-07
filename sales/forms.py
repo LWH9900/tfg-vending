@@ -5,6 +5,14 @@ from inventory.models import Product
 from machines.models import Machine, MachineLayout
 from sales.models import Sale
 
+PROJECTION_MODE_DAYS = "days"
+PROJECTION_MODE_DATES = "dates"
+
+PROJECTION_MODE_CHOICES = [
+    (PROJECTION_MODE_DAYS, "Número de días"),
+    (PROJECTION_MODE_DATES, "Fechas concretas"),
+]
+
 
 class SaleFilterForm(forms.Form):
     event_id = forms.CharField(
@@ -134,6 +142,134 @@ class SaleFilterForm(forms.Form):
             raise forms.ValidationError(
                 "La fecha inicial no puede ser posterior a la fecha final."
             )
+
+        return cleaned_data
+
+
+class SalesProjectionForm(forms.Form):
+    mode = forms.ChoiceField(
+        choices=PROJECTION_MODE_CHOICES,
+        initial=PROJECTION_MODE_DAYS,
+        label="Modo de selección",
+        widget=forms.RadioSelect,
+    )
+    history_days = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=3650,
+        initial=30,
+        label="Periodo histórico (días)",
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "min": 1,
+                "max": 3650,
+            }
+        ),
+    )
+    forecast_days = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=365,
+        initial=7,
+        label="Periodo a estimar (días)",
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "min": 1,
+                "max": 365,
+            }
+        ),
+    )
+    history_start = forms.DateField(
+        required=False,
+        label="Histórico desde",
+        widget=forms.DateInput(
+            attrs={
+                "class": "form-control",
+                "type": "date",
+            }
+        ),
+    )
+    history_end = forms.DateField(
+        required=False,
+        label="Histórico hasta",
+        widget=forms.DateInput(
+            attrs={
+                "class": "form-control",
+                "type": "date",
+            }
+        ),
+    )
+    forecast_start = forms.DateField(
+        required=False,
+        label="Proyección desde",
+        widget=forms.DateInput(
+            attrs={
+                "class": "form-control",
+                "type": "date",
+            }
+        ),
+    )
+    forecast_end = forms.DateField(
+        required=False,
+        label="Proyección hasta",
+        widget=forms.DateInput(
+            attrs={
+                "class": "form-control",
+                "type": "date",
+            }
+        ),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        mode = cleaned_data.get("mode")
+
+        if mode == PROJECTION_MODE_DAYS:
+            if not cleaned_data.get("history_days"):
+                self.add_error(
+                    "history_days",
+                    "Indica el número de días.",
+                )
+
+            if not cleaned_data.get("forecast_days"):
+                self.add_error(
+                    "forecast_days",
+                    "Indica el número de días.",
+                )
+
+        elif mode == PROJECTION_MODE_DATES:
+            required_date_fields = (
+                "history_start",
+                "history_end",
+                "forecast_start",
+                "forecast_end",
+            )
+
+            for field_name in required_date_fields:
+                if not cleaned_data.get(field_name):
+                    self.add_error(
+                        field_name,
+                        "Esta fecha es obligatoria.",
+                    )
+
+            history_start = cleaned_data.get("history_start")
+            history_end = cleaned_data.get("history_end")
+            forecast_start = cleaned_data.get("forecast_start")
+            forecast_end = cleaned_data.get("forecast_end")
+
+            if history_start and history_end and history_start > history_end:
+                self.add_error(
+                    "history_end",
+                    "Debe ser igual o posterior a la fecha inicial.",
+                )
+
+            if forecast_start and forecast_end and forecast_start > forecast_end:
+                self.add_error(
+                    "forecast_end",
+                    "Debe ser igual o posterior a la fecha inicial.",
+                )
 
         return cleaned_data
 

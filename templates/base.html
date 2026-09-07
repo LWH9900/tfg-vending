@@ -199,13 +199,15 @@
 
                             <a
                                 class="sidebar-link sidebar-sublink
-                                {% if request.resolver_match.app_name == 'sales' %}
+                                {% if request.resolver_match.app_name == 'sales' and request.resolver_match.url_name != 'sales_projection' %}
                                     active
                                 {% endif %}"
                                 href="{% url 'sales:sale_list' %}"
                             >
                                 Ventas
                             </a>
+
+
 
                         </div>
                     </div>
@@ -221,10 +223,15 @@
                 >
                     Máquinas
                 </a>
-
-                <span class="sidebar-link disabled-link">
-                    Proyección de ventas
-                </span>
+                <a
+                        class="sidebar-link
+                        {% if request.resolver_match.url_name == 'sales_projection' %}
+                            active
+                        {% endif %}"
+                        href="{% url 'sales:sales_projection' %}"
+                    >
+                        Proyección de ventas
+                </a>
 
             </nav>
             <script>
@@ -362,6 +369,7 @@
         crossorigin="anonymous"
     ></script>
 
-<script src="{% static 'js/clickable-rows.js' %}"></script>
+<script src="{% static 'js/clickable-rows.js' %}?v=4"></script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

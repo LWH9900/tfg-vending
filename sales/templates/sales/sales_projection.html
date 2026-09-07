@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Proyección de ventas | Vimach{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+    <div class="page-header-row">
+        <div class="page-header-content">
+            <div class="page-breadcrumb">
+                Proyección
+            </div>
+
+            <h1 class="page-title">
+                Proyección de ventas
+            </h1>
+
+            <p class="page-description">
+                Calcula la demanda por máquina y producto a partir de ventas efectivas.
+            </p>
+        </div>
+    </div>
+</header>
+
+<section class="form-card mb-4">
+    <div class="form-card-header">
+        <h2>Periodos de cálculo</h2>
+    </div>
+
+    <div class="form-card-body">
+        <form method="get">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <div class="mb-3">
+                {% include "components/form_field.html" with field=form.mode %}
+            </div>
+
+            <div id="projection-days-fields" class="row g-3">
+                <div class="col-md-6 col-xl-3">
+                    {% include "components/form_field.html" with field=form.history_days %}
+                </div>
+
+                <div class="col-md-6 col-xl-3">
+                    {% include "components/form_field.html" with field=form.forecast_days %}
+                </div>
+            </div>
+
+            <div id="projection-date-fields" class="row g-3">
+                <div class="col-md-6 col-xl-3">
+                    {% include "components/form_field.html" with field=form.history_start %}
+                </div>
+
+                <div class="col-md-6 col-xl-3">
+                    {% include "components/form_field.html" with field=form.history_end %}
+                </div>
+
+                <div class="col-md-6 col-xl-3">
+                    {% include "components/form_field.html" with field=form.forecast_start %}
+                </div>
+
+                <div class="col-md-6 col-xl-3">
+                    {% include "components/form_field.html" with field=form.forecast_end %}
+                </div>
+            </div>
+
+            <p class="form-text mt-3">
+                En modo días, el histórico termina hoy y la proyección comienza mañana.
+                En modo fechas se utilizan los intervalos indicados.
+            </p>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    Calcular proyección
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
+{% if periods %}
+
+<div class="alert alert-light border">
+    Histórico:
+    <strong>
+        {{ periods.history_start|date:"d/m/Y" }}
+        – {{ periods.history_end|date:"d/m/Y" }}
+    </strong>
+    ({{ periods.history_days }} días).
+
+    Proyección:
+    <strong>
+        {{ periods.forecast_start|date:"d/m/Y" }}
+        – {{ periods.forecast_end|date:"d/m/Y" }}
+    </strong>
+    ({{ periods.forecast_days }} días).
+</div>
+
+<section class="section-card">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Ventas históricas</th>
+                    <th>Media diaria</th>
+                    <th>Stock total</th>
+                    <th>Consumo estimado</th>
+                    <th>Compra sugerida</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in projections %}
+                    <tr
+                        class="clickable-row"
+                        tabindex="0"
+                        role="link"
+                        data-href="{% url 'sales:sales_projection_detail' item.product.pk %}{% if query_string %}?{{ query_string }}{% endif %}"
+                    >
+                        <td>
+                            {% include "components/product_label.html" with product=item.product %}
+                        </td>
+
+                        <td>
+                            {{ item.historical_sales }} uds.
+                        </td>
+
+                        <td>
+                            {{ item.daily_average|floatformat:2 }} uds./día
+                        </td>
+
+                        <td>
+                            {% if item.has_total_stock_incident %}
+                                <span class="text-danger fw-semibold">
+                                    {{ item.total_stock }} uds.
+                                </span>
+                            {% else %}
+                                {{ item.total_stock }} uds.
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ item.estimated_consumption }} uds.
+                        </td>
+
+                        <td>
+                            {% if item.suggested_purchase > 0 %}
+                                <strong class="text-danger">
+                                    {{ item.suggested_purchase }} uds.
+                                </strong>
+                            {% else %}
+                                <span class="text-success">
+                                    0 uds.
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                {% empty %}
+                    <tr>
+                        <td
+                            colspan="6"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay productos activos.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (() => {
+        const modes = document.querySelectorAll('input[name="mode"]');
+        const days = document.getElementById('projection-days-fields');
+        const dates = document.getElementById('projection-date-fields');
+
+        const updateFields = () => {
+            const selected = document.querySelector(
+                'input[name="mode"]:checked'
+            );
+            const usesDates = selected && selected.value === 'dates';
+
+            days.classList.toggle('d-none', usesDates);
+            dates.classList.toggle('d-none', !usesDates);
+        };
+
+        modes.forEach((mode) => {
+            mode.addEventListener('change', updateFields);
+        });
+
+        updateFields();
+    })();
+</script>
+{% endblock %}

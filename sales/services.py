@@ -1,20 +1,226 @@
 import hashlib
 import json
 from copy import deepcopy
-from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from datetime import datetime, time
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from machines.models import Machine, MachineLayoutActivation
+from inventory.models import Product
+from inventory.services import get_machine_stock, get_total_stock, get_warehouse_stock
+from machines.models import Machine, MachineLayoutActivation, MachinePosition
 from machines.services.layouts import (
     get_machine_layout_at,
     get_product_for_selection,
 )
 from sales.models import Sale
+
+
+def _calculate_estimated_consumption(historical_sales, history_days, forecast_days):
+    daily_average = Decimal(historical_sales) / Decimal(history_days)
+
+    estimated_consumption = int(
+        (daily_average * Decimal(forecast_days)).to_integral_value(
+            rounding=ROUND_CEILING
+        )
+    )
+
+    return daily_average, estimated_consumption
+
+
+def _get_projection_history_bounds(history_start, history_end):
+    current_timezone = timezone.get_current_timezone()
+
+    history_from = timezone.make_aware(
+        datetime.combine(history_start, time.min),
+        current_timezone,
+    )
+    history_until = timezone.make_aware(
+        datetime.combine(history_end, time.max),
+        current_timezone,
+    )
+
+    return history_from, history_until
+
+
+def _get_historical_sales_by_machine_product(history_from, history_until):
+    return {
+        (row["machine_id"], row["product_id"]): row["total"]
+        for row in (
+            Sale.objects.filter(
+                status=Sale.Status.RESOLVED,
+                machine__isnull=False,
+                product__isnull=False,
+                occurred_at__gte=history_from,
+                occurred_at__lte=history_until,
+            )
+            .values("machine_id", "product_id")
+            .annotate(total=Sum("quantity"))
+        )
+    }
+
+
+def _get_active_machine_product_pairs():
+    now = timezone.now()
+
+    return set(
+        MachinePosition.objects.filter(
+            product__isnull=False,
+            layout__activations__effective_from__lte=now,
+            layout__activations__effective_to__isnull=True,
+        ).values_list(
+            "layout__machine_id",
+            "product_id",
+        )
+    )
+
+
+def get_sales_projection(
+    history_start,
+    history_end,
+    forecast_start,
+    forecast_end,
+):
+    if history_start > history_end or forecast_start > forecast_end:
+        raise ValueError("Las fechas finales no pueden preceder a las iniciales.")
+
+    history_days = (history_end - history_start).days + 1
+    forecast_days = (forecast_end - forecast_start).days + 1
+
+    history_from, history_until = _get_projection_history_bounds(
+        history_start,
+        history_end,
+    )
+
+    historical_sales_by_pair = _get_historical_sales_by_machine_product(
+        history_from,
+        history_until,
+    )
+
+    active_pairs = _get_active_machine_product_pairs()
+    all_pairs = active_pairs | set(historical_sales_by_pair)
+
+    machine_ids = {machine_id for machine_id, _product_id in all_pairs}
+
+    machines = {
+        machine.pk: machine
+        for machine in Machine.objects.filter(pk__in=machine_ids).order_by("identifier")
+    }
+
+    products = list(
+        Product.objects.filter(is_active=True)
+        .select_related("category")
+        .order_by("name", "pk")
+    )
+
+    products_by_id = {product.pk: product for product in products}
+
+    details_by_product = {}
+
+    for machine_id, product_id in all_pairs:
+        product = products_by_id.get(product_id)
+
+        if product is None:
+            continue
+
+        machine = machines[machine_id]
+
+        historical_sales = historical_sales_by_pair.get(
+            (machine_id, product_id),
+            0,
+        )
+
+        daily_average, estimated_consumption = _calculate_estimated_consumption(
+            historical_sales,
+            history_days,
+            forecast_days,
+        )
+
+        machine_stock = get_machine_stock(product, machine)
+        usable_machine_stock = max(machine_stock, 0)
+
+        is_in_active_layout = (
+            machine_id,
+            product_id,
+        ) in active_pairs
+
+        if is_in_active_layout:
+            machine_need = max(
+                estimated_consumption - usable_machine_stock,
+                0,
+            )
+        else:
+            machine_need = 0
+
+        details_by_product.setdefault(
+            product_id,
+            [],
+        ).append(
+            {
+                "machine": machine,
+                "historical_sales": historical_sales,
+                "daily_average": daily_average,
+                "estimated_consumption": estimated_consumption,
+                "machine_stock": machine_stock,
+                "usable_machine_stock": usable_machine_stock,
+                "has_stock_incident": machine_stock < 0,
+                "machine_need": machine_need,
+                "is_in_active_layout": is_in_active_layout,
+            }
+        )
+
+    projections = []
+
+    for product in products:
+        machine_details = sorted(
+            details_by_product.get(product.pk, []),
+            key=lambda item: item["machine"].identifier,
+        )
+
+        historical_sales = sum(item["historical_sales"] for item in machine_details)
+
+        daily_average = Decimal(historical_sales) / Decimal(history_days)
+
+        estimated_consumption = sum(
+            item["estimated_consumption"]
+            for item in machine_details
+            if item["is_in_active_layout"]
+        )
+
+        total_stock = get_total_stock(product)
+        warehouse_stock = get_warehouse_stock(product)
+        usable_warehouse_stock = max(warehouse_stock, 0)
+
+        total_machine_need = sum(item["machine_need"] for item in machine_details)
+
+        suggested_purchase = max(
+            total_machine_need - usable_warehouse_stock,
+            0,
+        )
+
+        projections.append(
+            {
+                "product": product,
+                "historical_sales": historical_sales,
+                "daily_average": daily_average,
+                "total_stock": total_stock,
+                "has_total_stock_incident": total_stock < 0,
+                "warehouse_stock": warehouse_stock,
+                "usable_warehouse_stock": usable_warehouse_stock,
+                "has_warehouse_stock_incident": warehouse_stock < 0,
+                "estimated_consumption": estimated_consumption,
+                "total_machine_need": total_machine_need,
+                "suggested_purchase": suggested_purchase,
+                "warehouse_shortage": (usable_warehouse_stock < total_machine_need),
+                "machine_details": machine_details,
+            }
+        )
+
+    return projections
 
 
 def _get_payload_hash(payload):

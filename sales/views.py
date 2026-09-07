@@ -1,4 +1,6 @@
 import json
+from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -8,6 +10,7 @@ from django.shortcuts import (
     redirect,
     render,
 )
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -22,16 +25,20 @@ from machines.services.pricing import (
     get_product_price_for_machine,
 )
 from sales.forms import (
+    PROJECTION_MODE_DATES,
+    PROJECTION_MODE_DAYS,
     ManualSaleForm,
     ResolvePendingMachineForm,
     ResolvePendingSaleForm,
     SaleFilterForm,
+    SalesProjectionForm,
     VoidSaleForm,
 )
 from sales.models import Sale
 from sales.services import (
     accept_sale_conflict,
     create_manual_sale,
+    get_sales_projection,
     receive_sale,
     reject_sale_conflict,
     resolve_pending_sale,
@@ -39,9 +46,129 @@ from sales.services import (
 )
 
 
+def _get_projection_data(request):
+    initial_data = {
+        "mode": PROJECTION_MODE_DAYS,
+        "history_days": 30,
+        "forecast_days": 7,
+    }
+
+    form = SalesProjectionForm(request.GET or initial_data)
+    projections = []
+    periods = {}
+
+    if not form.is_valid():
+        return form, projections, periods
+
+    if form.cleaned_data["mode"] == PROJECTION_MODE_DATES:
+        history_start = form.cleaned_data["history_start"]
+        history_end = form.cleaned_data["history_end"]
+        forecast_start = form.cleaned_data["forecast_start"]
+        forecast_end = form.cleaned_data["forecast_end"]
+    else:
+        today = timezone.localdate()
+
+        history_end = today
+        history_start = today - timedelta(days=form.cleaned_data["history_days"] - 1)
+
+        forecast_start = today + timedelta(days=1)
+        forecast_end = forecast_start + timedelta(
+            days=form.cleaned_data["forecast_days"] - 1
+        )
+
+    periods = {
+        "history_start": history_start,
+        "history_end": history_end,
+        "forecast_start": forecast_start,
+        "forecast_end": forecast_end,
+        "history_days": (history_end - history_start).days + 1,
+        "forecast_days": (forecast_end - forecast_start).days + 1,
+    }
+
+    projections = get_sales_projection(
+        history_start,
+        history_end,
+        forecast_start,
+        forecast_end,
+    )
+
+    return form, projections, periods
+
+
+def sales_projection(request):
+    form, projections, periods = _get_projection_data(request)
+
+    context = {
+        "form": form,
+        "projections": projections,
+        "periods": periods,
+        "query_string": request.GET.urlencode(),
+    }
+
+    return render(
+        request,
+        "sales/sales_projection.html",
+        context,
+    )
+
+
+def sales_projection_detail(request, pk):
+    product = get_object_or_404(
+        Product,
+        pk=pk,
+        is_active=True,
+    )
+
+    form, projections, periods = _get_projection_data(request)
+
+    projection = next(
+        (item for item in projections if item["product"].pk == product.pk),
+        None,
+    )
+
+    sales_history_query = ""
+
+    if periods:
+        sales_history_query = urlencode(
+            {
+                "product": product.pk,
+                "date_from": (f"{periods['history_start'].isoformat()}T00:00"),
+                "date_to": (f"{periods['history_end'].isoformat()}T23:59"),
+            }
+        )
+
+    context = {
+        "form": form,
+        "product": product,
+        "projection": projection,
+        "periods": periods,
+        "query_string": request.GET.urlencode(),
+        "sales_history_query": sales_history_query,
+    }
+
+    return render(
+        request,
+        "sales/sales_projection_detail.html",
+        context,
+    )
+
+
 def sale_list(
     request,
 ):
+    session_key = "sales_filter_query"
+
+    if request.GET.get("clear_filters") == "1":
+        request.session.pop(session_key, None)
+        return redirect("sales:sale_list")
+
+    if request.GET:
+        request.session[session_key] = request.GET.urlencode()
+    else:
+        saved_query = request.session.get(session_key)
+        if saved_query:
+            return redirect(f"{request.path}?{saved_query}")
+
     sales = Sale.objects.select_related(
         "machine",
         "product",
