@@ -342,3 +342,12 @@ body {
     position: relative;
     z-index: 2;
 }
+
+.clickable-row:not(tr):hover,
+.clickable-row:not(tr):focus-visible {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 8%,
+        transparent
+    );
+}

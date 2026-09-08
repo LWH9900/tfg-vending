@@ -111,7 +111,13 @@
 
             <nav class="nav flex-column">
 
-                <a class="sidebar-link" href="#">
+                <a
+                    class="sidebar-link
+                    {% if request.resolver_match.app_name == 'dashboard' %}
+                        active
+                    {% endif %}"
+                    href="{% url 'dashboard:home' %}"
+                >
                     Resumen
                 </a>
 

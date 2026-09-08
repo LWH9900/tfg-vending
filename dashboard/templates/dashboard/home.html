@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% load static %}
+{% load l10n %}
+
+{% block title %}Inicio | Vimach{% endblock %}
+
+{% block extra_css %}
+    <link
+        rel="stylesheet"
+        href="{% static 'dashboard/css/dashboard.css' %}"
+    >
+{% endblock %}
+
+{% block content %}
+
+{% now "Y-m-d" as today_date %}
+
+<header class="page-header">
+    <div class="page-header-row">
+        <div class="page-header-content">
+            <div class="page-breadcrumb">
+                Inicio
+            </div>
+
+            <h1 class="page-title">
+                Resumen del negocio
+            </h1>
+
+            <p class="page-description">
+                Estado actual de ventas, inventario y operaciones de Vimach.
+            </p>
+        </div>
+    </div>
+</header>
+
+<section
+    class="dashboard-kpi-grid mb-4"
+    aria-label="Indicadores principales"
+>
+    <a
+        class="dashboard-kpi"
+        href="{% url 'sales:sale_list' %}?date_from={{ today_date }}T00:00&amp;date_to={{ today_date }}T23:59"
+    >
+        <span class="summary-label">
+            Ventas de hoy
+        </span>
+        <strong class="summary-value">
+            {{ today_units }} uds.
+        </strong>
+    </a>
+
+    <a
+        class="dashboard-kpi"
+        href="{% url 'sales:sale_list' %}?date_from={{ week_start|date:'Y-m-d' }}T00:00&amp;date_to={{ week_end|date:'Y-m-d' }}T23:59"
+    >
+        <span class="summary-label">
+            Ingresos últimos 7 días
+        </span>
+        <strong class="summary-value">
+            {{ week_revenue|floatformat:2 }} €
+        </strong>
+    </a>
+
+    <a
+        class="dashboard-kpi"
+        href="{% url 'inventory:inventory_overview' %}"
+    >
+        <span class="summary-label">
+            Stock total
+        </span>
+        <strong class="summary-value">
+            {{ stock_total }} uds.
+        </strong>
+    </a>
+
+    <a
+        class="dashboard-kpi"
+        href="{% url 'sales:sale_list' %}"
+    >
+        <span class="summary-label">
+            Incidencias activas
+        </span>
+        <strong class="summary-value">
+            {{ active_incidents }}
+        </strong>
+    </a>
+
+    <a
+        class="dashboard-kpi"
+        href="{% url 'inventory:inventory_overview' %}"
+    >
+        <span class="summary-label">
+            Valor de existencias
+        </span>
+        <strong class="summary-value">
+            {{ inventory_value|floatformat:2 }} €
+        </strong>
+    </a>
+
+    <a
+        class="dashboard-kpi"
+        href="{% url 'inventory:inventory_overview' %}"
+    >
+        <span class="summary-label">
+            Valor potencial de venta
+        </span>
+        <strong class="summary-value">
+            {{ potential_sale_value|floatformat:2 }} €
+        </strong>
+    </a>
+
+</section>
+
+
+<div class="row g-4 mb-4">
+    <div class="col-12 col-xl-8">
+        <section class="section-card h-100">
+            <div
+                class="section-card-header d-flex
+                       justify-content-between align-items-center gap-3"
+            >
+                <h2 class="section-title">
+                    Tendencia de ventas
+                </h2>
+
+                <span class="dashboard-comparison">
+                    {{ week_units }} uds.
+
+                    {% if week_units_change is not None %}
+                        <span
+                            class="
+                                {% if week_units_change >= 0 %}
+                                    text-success
+                                {% else %}
+                                    text-danger
+                                {% endif %}
+                            "
+                        >
+                            {% if week_units_change >= 0 %}+{% endif %}
+                            {{ week_units_change|floatformat:1 }} %
+                        </span>
+                    {% else %}
+                        <span class="text-muted">
+                            sin periodo comparable
+                        </span>
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="section-card-body">
+                <div
+                    class="dashboard-chart"
+                    aria-label="Unidades vendidas por día"
+                >
+                    {% for day in daily_sales %}
+                        <div class="dashboard-chart-column">
+                            <span class="dashboard-chart-value">
+                                {{ day.units }}
+                            </span>
+
+                            <div class="dashboard-chart-track">
+                                <div
+                                    class="dashboard-chart-bar"
+                                    data-height="{{ day.units_percent|unlocalize }}"
+                                ></div>
+                            </div>
+
+                            <span class="dashboard-chart-label">
+                                {{ day.date|date:"d/m" }}
+                            </span>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="dashboard-chart-caption">
+                    <span>
+                        Últimos 7 días
+                    </span>
+
+           
+                </div>
+            </div>
+        </section>
+    </div>
+
+
+    <div class="col-12 col-xl-4">
+        <section class="section-card h-100">
+            <div class="section-card-header">
+                <h2 class="section-title">
+                    Tendencia de ingresos
+                </h2>
+            </div>
+
+            <div class="section-card-body">
+                <div class="dashboard-revenue-list">
+                    {% for day in daily_sales %}
+                        <div class="dashboard-revenue-row">
+                            <span>
+                                {{ day.date|date:"d/m" }}
+                            </span>
+
+                            <div class="dashboard-revenue-track">
+                                <div
+                                    class="dashboard-revenue-bar"
+                                    data-width="{{ day.revenue_percent|unlocalize }}"
+                                ></div>
+                            </div>
+
+                            <strong>
+                                {{ day.revenue|floatformat:2 }} €
+                            </strong>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <p class="dashboard-note">
+                    Solo ventas resueltas; se usa el importe recibido.
+                </p>
+            </div>
+        </section>
+    </div>
+</div>
+
+
+
+<div class="row g-4 mb-4">
+    <div class="col-12 col-xl-6">
+        <section class="section-card h-100">
+            <div class="section-card-header dashboard-ranking-header">
+                <div class="dashboard-ranking-heading">
+                    <h2 class="section-title mb-0">
+                        Productos más vendidos
+                    </h2>
+
+                    <span class="dashboard-ranking-period">
+                        · últimos 30 días
+                    </span>
+                </div>
+
+                <a
+                    href="{% url 'sales:sale_list' %}"
+                    class="section-card-link"
+                >
+                    Ver ventas
+                </a>
+            </div>
+
+            <div class="dashboard-ranking-list">
+                {% for item in top_products %}
+                    <div
+                        class="dashboard-ranking-row clickable-row"
+                        tabindex="0"
+                        role="link"
+                        data-href="{% url 'inventory:product_detail' item.product_id %}"
+                    >
+                        <span class="dashboard-ranking-position">
+                            {{ forloop.counter }}
+                        </span>
+
+                        <div class="dashboard-ranking-content">
+                            <strong>
+                                {{ item.product__name }}
+                            </strong>
+
+                            <small>
+                                {{ item.product__category__name }}
+                                · {{ item.product__format_unit }}
+                            </small>
+                        </div>
+
+                        <span class="dashboard-ranking-value">
+                            {{ item.units }} uds.
+                        </span>
+                    </div>
+                {% empty %}
+                    <div class="dashboard-ranking-empty">
+                        No hay ventas resueltas en este periodo.
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+
+    <div class="col-12 col-xl-6">
+        <section class="section-card h-100">
+            <div class="section-card-header dashboard-ranking-header">
+                <div class="dashboard-ranking-heading">
+                    <h2 class="section-title mb-0">
+                        Máquinas con más ventas
+                    </h2>
+
+                    <span class="dashboard-ranking-period">
+                        · últimos 30 días
+                    </span>
+                </div>
+
+                <a
+                    href="{% url 'machines:machine_list' %}"
+                    class="section-card-link"
+                >
+                    Ver máquinas
+                </a>
+            </div>
+
+            <div class="dashboard-ranking-list">
+                {% for item in top_machines %}
+                    <div
+                        class="dashboard-ranking-row clickable-row"
+                        tabindex="0"
+                        role="link"
+                        data-href="{% url 'machines:machine_detail' item.machine_id %}"
+                    >
+                        <span class="dashboard-ranking-position">
+                            {{ forloop.counter }}
+                        </span>
+
+                        <div class="dashboard-ranking-content">
+                            <strong>
+                                {{ item.machine__identifier }}
+                            </strong>
+
+                            <small>
+                                Máquina
+                            </small>
+                        </div>
+
+                        <span class="dashboard-ranking-value">
+                            {{ item.units }} uds.
+                        </span>
+                    </div>
+                {% empty %}
+                    <div class="dashboard-ranking-empty">
+                        No hay ventas resueltas en este periodo.
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+
+
+
+{% endblock %}
+{% block extra_js %}
+<script>
+    document.querySelectorAll(".dashboard-chart-bar").forEach((bar) => {
+        bar.style.height = `${bar.dataset.height}%`;
+    });
+
+    document.querySelectorAll(".dashboard-revenue-bar").forEach((bar) => {
+        bar.style.width = `${bar.dataset.width}%`;
+    });
+</script>
+{% endblock %}
