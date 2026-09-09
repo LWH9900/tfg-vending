@@ -6,6 +6,158 @@ from django.urls import reverse
 from inventory.models import Category, Product
 
 
+class CategoryViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(
+            name="Bebidas",
+            default_vat_rate=Decimal("21.00"),
+        )
+
+    def test_category_list_access_and_content(self):
+        response = self.client.get(reverse("inventory:category_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "inventory/category_list.html")
+        self.assertContains(response, "Bebidas")
+
+    def test_create_category(self):
+        response = self.client.post(
+            reverse("inventory:category_create"),
+            {"name": "Aperitivos", "default_vat_rate": "10.00"},
+        )
+
+        self.assertRedirects(response, reverse("inventory:category_list"))
+        category = Category.objects.get(name="Aperitivos")
+        self.assertEqual(category.default_vat_rate, Decimal("10.00"))
+
+    def test_create_duplicate_category_is_rejected_case_insensitively(self):
+        response = self.client.post(
+            reverse("inventory:category_create"),
+            {"name": " bebidas ", "default_vat_rate": "10.00"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Category.objects.count(), 1)
+        self.assertContains(
+            response,
+            "Ya existe una categoría con este nombre.",
+        )
+
+    def test_update_category(self):
+        response = self.client.post(
+            reverse("inventory:category_update", args=[self.category.pk]),
+            {"name": "Bebidas frías", "default_vat_rate": "10.00"},
+        )
+
+        self.assertRedirects(response, reverse("inventory:category_list"))
+        self.category.refresh_from_db()
+        self.assertEqual(self.category.name, "Bebidas frías")
+        self.assertEqual(self.category.default_vat_rate, Decimal("10.00"))
+
+    def test_update_category_only_updates_products_using_its_vat(self):
+        inherited_product = Product.objects.create(
+            name="Agua sin gas",
+            category=self.category,
+            format_unit="500 ml",
+            vat_rate=Decimal("21.00"),
+            uses_category_vat=True,
+            default_sale_price=Decimal("1.50"),
+        )
+        custom_product = Product.objects.create(
+            name="Agua con gas",
+            category=self.category,
+            format_unit="500 ml",
+            vat_rate=Decimal("15.00"),
+            uses_category_vat=False,
+            default_sale_price=Decimal("1.75"),
+        )
+
+        self.client.post(
+            reverse("inventory:category_update", args=[self.category.pk]),
+            {"name": "Bebidas", "default_vat_rate": "15.00"},
+        )
+        inherited_product.refresh_from_db()
+        custom_product.refresh_from_db()
+        self.assertEqual(inherited_product.vat_rate, Decimal("15.00"))
+        self.assertEqual(custom_product.vat_rate, Decimal("15.00"))
+
+        self.client.post(
+            reverse("inventory:category_update", args=[self.category.pk]),
+            {"name": "Bebidas", "default_vat_rate": "20.00"},
+        )
+        inherited_product.refresh_from_db()
+        custom_product.refresh_from_db()
+        self.assertEqual(inherited_product.vat_rate, Decimal("20.00"))
+        self.assertEqual(custom_product.vat_rate, Decimal("15.00"))
+
+    def test_update_category_cannot_duplicate_another_category(self):
+        other = Category.objects.create(
+            name="Aperitivos",
+            default_vat_rate=Decimal("10.00"),
+        )
+
+        response = self.client.post(
+            reverse("inventory:category_update", args=[other.pk]),
+            {"name": "BEBIDAS", "default_vat_rate": "10.00"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        other.refresh_from_db()
+        self.assertEqual(other.name, "Aperitivos")
+
+    def test_delete_category_without_products(self):
+        response = self.client.post(
+            reverse("inventory:category_delete", args=[self.category.pk])
+        )
+
+        self.assertRedirects(response, reverse("inventory:category_list"))
+        self.assertFalse(Category.objects.filter(pk=self.category.pk).exists())
+
+    def test_delete_category_with_products_is_rejected_with_clear_message(self):
+        Product.objects.create(
+            name="Agua",
+            category=self.category,
+            format_unit="500 ml",
+            vat_rate=Decimal("10.00"),
+            default_sale_price=Decimal("1.50"),
+        )
+
+        list_response = self.client.get(reverse("inventory:category_list"))
+        self.assertContains(
+            list_response,
+            reverse("inventory:category_delete", args=[self.category.pk]),
+        )
+        self.assertNotContains(
+            list_response,
+            "No se puede eliminar mientras tenga productos asociados.",
+        )
+
+        response = self.client.post(
+            reverse("inventory:category_delete", args=[self.category.pk]),
+            follow=True,
+        )
+
+        self.assertTrue(Category.objects.filter(pk=self.category.pk).exists())
+        self.assertContains(
+            response,
+            "No se puede eliminar la categoría porque tiene productos asociados.",
+        )
+
+    def test_delete_category_only_accepts_post(self):
+        response = self.client.get(
+            reverse("inventory:category_delete", args=[self.category.pk])
+        )
+
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(Category.objects.filter(pk=self.category.pk).exists())
+
+    def test_sidebar_links_to_categories(self):
+        response = self.client.get(reverse("inventory:category_list"))
+
+        self.assertContains(response, reverse("inventory:category_list"))
+
+
 class ProductViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):

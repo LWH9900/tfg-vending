@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'inventory/css/inventory.css' %}">
+{% endblock %}
+
+{% block title %}{% if is_editing %}Editar categoría{% else %}Nueva categoría{% endif %} | Vimach{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div class="page-breadcrumb">
+        Inventario /
+        <a href="{% url 'inventory:category_list' %}">Categorías</a>
+        / {% if is_editing %}Editar{% else %}Nueva categoría{% endif %}
+    </div>
+    <h1 class="page-title">
+        {% if is_editing %}Editar categoría{% else %}Nueva categoría{% endif %}
+    </h1>
+    <p class="page-description">
+        {% if is_editing %}
+            Modifica los datos de {{ category.name }}.
+        {% else %}
+            Añade una categoría para clasificar productos.
+        {% endif %}
+    </p>
+</header>
+
+<section class="form-container">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+        {% endif %}
+        <div class="form-card">
+            <div class="form-card-header"><h2>Información de la categoría</h2></div>
+            <div class="form-card-body">
+                {% include "components/form_field.html" with field=form.name %}
+                {% include "components/form_field.html" with field=form.default_vat_rate %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <a href="{% url 'inventory:category_list' %}" class="btn btn-outline-secondary">
+                Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+                {% if is_editing %}Guardar cambios{% else %}Guardar categoría{% endif %}
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}

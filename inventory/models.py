@@ -43,6 +43,8 @@ class Product(models.Model):
         ],
     )
 
+    uses_category_vat = models.BooleanField(default=False)
+
     category = models.ForeignKey(
         Category,
         on_delete=models.PROTECT,

@@ -157,9 +157,15 @@
                                 Stock
                             </a>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.url_name == 'category_list' or request.resolver_match.url_name == 'category_create' or request.resolver_match.url_name == 'category_update' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'inventory:category_list' %}"
+                            >
                                 Categorías
-                            </span>
+                            </a>
 
                         </div>
                     </div>
