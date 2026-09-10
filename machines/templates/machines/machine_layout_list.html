@@ -15,13 +15,9 @@
 
         <div class="page-header-content">
             <div class="page-breadcrumb">
-                <a href="{% url 'machines:machine_list' %}">
-                    Máquinas
-                </a>
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
                 /
-                <a href="{% url 'machines:machine_detail' machine.pk %}">
-                    {{ machine.identifier }}
-                </a>
+                <a href="{% url 'machines:machine_detail' machine.pk %}">{{ machine.identifier }}</a>
                 /
                 Disposiciones
             </div>

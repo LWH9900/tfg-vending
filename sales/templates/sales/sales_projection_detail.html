@@ -8,13 +8,9 @@
     <div class="page-header-row">
         <div class="page-header-content">
             <div class="page-breadcrumb">
-                <a href="{% url 'sales:sales_projection' %}{% if query_string %}?{{ query_string }}{% endif %}">
-                    Proyección
-                </a>
+                <a href="{% url 'sales:sales_projection' %}{% if query_string %}?{{ query_string }}{% endif %}">Proyección</a>
                 /
-                <a href="{% url 'inventory:product_detail' product.pk %}">
-                    {{ product.name }}
-                </a>
+                <a href="{% url 'inventory:product_detail' product.pk %}">{{ product.name }}</a>
             </div>
 
             <h1 class="page-title">

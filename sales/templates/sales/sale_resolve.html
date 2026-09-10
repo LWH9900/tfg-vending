@@ -12,13 +12,9 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'sales:sale_list' %}">
-                    Ventas
-                </a>
+                <a href="{% url 'sales:sale_list' %}">Ventas</a>
                 /
-                <a href="{% url 'sales:sale_detail' sale.pk %}">
-                    #{{ sale.pk }}
-                </a>
+                <a href="{% url 'sales:sale_detail' sale.pk %}">#{{ sale.pk }}</a>
                 /
                 Resolver
             </div>

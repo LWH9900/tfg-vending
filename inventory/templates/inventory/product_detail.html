@@ -27,11 +27,8 @@
 
             <div class="page-breadcrumb">
                 Inventario /
-                <a href="{% url 'inventory:product_list' %}">
-                    Productos
-                </a>
-                /
-                {{ product.name }}
+                <a href="{% url 'inventory:product_list' %}">Productos</a>
+                / {{ product.name }}
             </div>
 
             <h1 class="page-title">

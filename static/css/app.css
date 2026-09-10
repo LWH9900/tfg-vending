@@ -191,6 +191,20 @@ body {
     font-size: 0.9rem;
     font-weight: 500;
 }
+.page-breadcrumb a {
+    color: var(--app-primary);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--app-primary);
+    --bs-btn-border-color: var(--app-primary);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--app-primary);
+    --bs-btn-hover-border-color: var(--app-primary);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--app-primary);
+    --bs-btn-active-border-color: var(--app-primary);
+}
 
 .page-title {
     margin: 0;

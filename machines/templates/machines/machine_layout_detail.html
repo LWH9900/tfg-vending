@@ -18,17 +18,11 @@
         <div class="page-header-content">
 
             <div class="page-breadcrumb">
-                <a href="{% url 'machines:machine_list' %}">
-                    Máquinas
-                </a>
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
                 /
-                <a href="{% url 'machines:machine_detail' machine.pk %}">
-                    {{ machine.identifier }}
-                </a>
+                <a href="{% url 'machines:machine_detail' machine.pk %}">{{ machine.identifier }}</a>
                 /
-                <a href="{% url 'machines:machine_layout_list' machine.pk %}">
-                    Disposiciones
-                </a>
+                <a href="{% url 'machines:machine_layout_list' machine.pk %}">Disposiciones</a>
                 /
                 {{ layout.name }}
             </div>

@@ -152,11 +152,9 @@
 }
 
 
-
-
-
-
-
+.section-card-link {
+    color: var(--app-primary);
+}
 
 .dashboard-ranking-header {
     display: flex;
