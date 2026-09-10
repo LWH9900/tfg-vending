@@ -41,6 +41,21 @@ class MachineViewTests(TestCase):
         self.assertContains(response, "VM-001")
         self.assertContains(response, "SN-001")
 
+    def test_machine_detail_links_to_replenishment_with_machine_selected(self):
+        response = self.client.get(
+            reverse(
+                "machines:machine_detail",
+                args=[self.machine.pk],
+            )
+        )
+
+        self.assertContains(
+            response,
+            reverse("replenishments:replenishment_create")
+            + f"?machine={self.machine.pk}",
+        )
+        self.assertContains(response, ">\n        Reponer\n    </a>")
+
     def test_machine_create_access(self):
         response = self.client.get(reverse("machines:machine_create"))
 

@@ -167,6 +167,18 @@ class ReplenishmentViewTests(TestCase):
 
         return replenishment
 
+    def test_create_replenishment_prefills_machine_from_query_string(self):
+        response = self.client.get(
+            reverse("replenishments:replenishment_create"),
+            {"machine": self.second_machine.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["form"].initial["machine"],
+            self.second_machine,
+        )
+
     def test_create_replenishment_with_one_line(self):
         response = self.client.post(
             reverse("replenishments:replenishment_create"),

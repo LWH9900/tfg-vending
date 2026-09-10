@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from inventory.models import Product
+from machines.models import Machine
 
 from .forms import (
     ReplenishmentFilterForm,
@@ -125,7 +126,16 @@ def replenishment_create(request):
             )
 
     else:
-        form = ReplenishmentForm(instance=replenishment)
+        initial_machine = None
+        machine_id = request.GET.get("machine")
+
+        if machine_id:
+            initial_machine = Machine.objects.filter(pk=machine_id).first()
+
+        form = ReplenishmentForm(
+            instance=replenishment,
+            initial={"machine": initial_machine},
+        )
         formset = ReplenishmentLineFormSet(instance=replenishment)
 
     return render(

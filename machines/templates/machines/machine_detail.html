@@ -290,9 +290,13 @@
 
     <div class="pricing-section-line"></div>
 
-    <span class="text-secondary small">
-        Los precios mostrados incluyen IVA.
-    </span>
+
+    <a
+        href="{% url 'replenishments:replenishment_create' %}?machine={{ machine.pk }}"
+        class="btn btn-sm btn-outline-primary"
+    >
+        Reponer
+    </a>
 
 </div>
 
