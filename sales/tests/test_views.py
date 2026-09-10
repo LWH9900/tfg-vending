@@ -114,6 +114,27 @@ class SaleReceiveViewTests(TestCase):
             "payment_method": "cash",
         }
 
+    def create_stock(self, quantity=1):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor API",
+            status=Purchase.Status.REGISTERED,
+        )
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=quantity,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=quantity,
+        )
+
     def test_receive_sale_requires_post(self):
         response = self.client.get(self.url)
 
@@ -138,6 +159,26 @@ class SaleReceiveViewTests(TestCase):
             activate_machine_layout(
                 self.layout,
             )
+
+        purchase = Purchase.objects.create(
+            supplier="Proveedor API",
+            status=Purchase.Status.REGISTERED,
+        )
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=1,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=1,
+        )
 
         payload = self.make_payload()
 
@@ -171,6 +212,22 @@ class SaleReceiveViewTests(TestCase):
             1,
         )
 
+    def test_receive_sale_without_stock_returns_error_and_is_not_saved(self):
+        activation_time = self.make_datetime(2026, 9, 2, 9, 0)
+
+        with patch("django.utils.timezone.now", return_value=activation_time):
+            activate_machine_layout(self.layout)
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps(self.make_payload(event_id="evt-without-stock")),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Stock insuficiente", response.json()["errors"]["quantity"][0])
+        self.assertFalse(Sale.objects.filter(event_id="evt-without-stock").exists())
+
     def test_receive_valid_sale_resolves_product(self):
         activation_time = self.make_datetime(
             2026,
@@ -187,6 +244,8 @@ class SaleReceiveViewTests(TestCase):
             activate_machine_layout(
                 self.layout,
             )
+
+        self.create_stock()
 
         payload = self.make_payload(
             event_id="evt-api-product",
@@ -217,7 +276,7 @@ class SaleReceiveViewTests(TestCase):
             Sale.Status.RESOLVED,
         )
 
-    def test_unresolved_sale_returns_201_as_pending(self):
+    def test_known_machine_without_resolved_product_is_pending(self):
         payload = self.make_payload(
             event_id="evt-api-pending",
         )
@@ -228,29 +287,73 @@ class SaleReceiveViewTests(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            201,
-        )
+        self.assertEqual(response.status_code, 201)
 
         data = response.json()
 
-        self.assertTrue(data["created"])
+        self.assertEqual(data["status"], Sale.Status.PENDING)
+        self.assertTrue(Sale.objects.filter(event_id="evt-api-pending").exists())
 
-        self.assertEqual(
-            data["status"],
-            Sale.Status.PENDING,
+    def test_historically_unresolved_selection_remains_pending(self):
+        activation_time = self.make_datetime(2026, 9, 2, 9, 0)
+
+        with patch("django.utils.timezone.now", return_value=activation_time):
+            activate_machine_layout(self.layout)
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                self.make_payload(
+                    event_id="evt-api-old-without-stock",
+                    occurred_at=self.make_datetime(2026, 9, 1, 14, 16).isoformat(),
+                )
+            ),
+            content_type="application/json",
         )
 
-        sale = Sale.objects.get(
-            event_id="evt-api-pending",
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["status"], Sale.Status.PENDING)
+        self.assertTrue(
+            Sale.objects.filter(event_id="evt-api-old-without-stock").exists()
         )
 
-        self.assertIsNone(
-            sale.product,
+    def test_incomplete_occurred_at_is_rejected(self):
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                self.make_payload(
+                    event_id="evt-api-invalid-date",
+                    occurred_at="2026-09-09T14:16:+02:00",
+                )
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("occurred_at", response.json()["errors"])
+        self.assertFalse(Sale.objects.filter(event_id="evt-api-invalid-date").exists())
+
+    def test_unknown_machine_is_saved_as_pending(self):
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                self.make_payload(
+                    event_id="evt-api-unknown-machine",
+                    machine_identifier="VM-UNKNOWN",
+                )
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["status"], Sale.Status.PENDING)
+        self.assertTrue(
+            Sale.objects.filter(event_id="evt-api-unknown-machine").exists()
         )
 
     def test_repeated_event_returns_existing_sale(self):
+        self.create_stock(quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -382,6 +485,8 @@ class SaleReceiveViewTests(TestCase):
         )
 
     def test_different_payload_for_same_event_returns_409(self):
+        self.create_stock(quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -461,6 +566,8 @@ class SaleReceiveViewTests(TestCase):
         )
 
     def test_conflict_response_references_original_sale(self):
+        self.create_stock(quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -536,6 +643,8 @@ class SaleReceiveViewTests(TestCase):
         )
 
     def test_repeated_conflicting_payload_returns_same_conflict(self):
+        self.create_stock(quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,

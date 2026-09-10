@@ -18,11 +18,6 @@ urlpatterns = [
         name="purchase_edit",
     ),
     path(
-        "<int:pk>/edit/",
-        views.purchase_edit,
-        name="purchase_edit",
-    ),
-    path(
         "<int:pk>/register/",
         views.purchase_register,
         name="purchase_register",

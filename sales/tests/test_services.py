@@ -1,9 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from decimal import Decimal
+from threading import Barrier
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.db import close_old_connections
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from inventory.models import Category, Product
@@ -23,6 +26,7 @@ from machines.services.layouts import (
 )
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
+from sales import services as sale_services
 from sales.models import Sale
 from sales.services import (
     accept_sale_conflict,
@@ -177,6 +181,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_receive_sale_resolves_machine_and_product(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -230,6 +236,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_receive_sale_uses_historical_layout(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         first_activation = self.make_datetime(
             2026,
             9,
@@ -421,6 +429,9 @@ class SaleServiceTests(TestCase):
         )
 
     def test_repeated_event_is_idempotent(self):
+        self.create_stock(
+            self.product_a,
+        )
         activation_time = self.make_datetime(
             2026,
             9,
@@ -460,8 +471,18 @@ class SaleServiceTests(TestCase):
             ).count(),
             1,
         )
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
 
     def test_free_sale_without_amount_received_uses_zero(self):
+        self.create_stock(
+            self.product_a,
+        )
         activation_time = self.make_datetime(
             2026,
             9,
@@ -497,8 +518,18 @@ class SaleServiceTests(TestCase):
             sale.amount_received,
             Decimal("0.00"),
         )
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            5,
+        )
 
     def test_paid_sale_can_have_unknown_amount_received(self):
+        self.create_stock(
+            self.product_a,
+        )
         activation_time = self.make_datetime(
             2026,
             9,
@@ -574,6 +605,56 @@ class SaleServiceTests(TestCase):
         self.assertFalse(
             Sale.objects.filter(
                 event_id="evt-zero-quantity",
+            ).exists()
+        )
+
+    def test_quantity_greater_than_one_is_accepted(self):
+        self.create_stock(
+            self.product_a,
+            replenished_quantity=5,
+        )
+
+        payload = self.make_payload(
+            event_id="evt-multiple-quantity",
+            quantity=3,
+        )
+
+        sale, created = receive_sale(payload)
+
+        self.assertTrue(created)
+
+        self.assertEqual(
+            sale.quantity,
+            3,
+        )
+
+    def test_decimal_quantity_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-decimal-quantity",
+            quantity=1.9,
+        )
+
+        with self.assertRaises(ValidationError):
+            receive_sale(payload)
+
+        self.assertFalse(
+            Sale.objects.filter(
+                event_id="evt-decimal-quantity",
+            ).exists()
+        )
+
+    def test_boolean_quantity_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-boolean-quantity",
+            quantity=True,
+        )
+
+        with self.assertRaises(ValidationError):
+            receive_sale(payload)
+
+        self.assertFalse(
+            Sale.objects.filter(
+                event_id="evt-boolean-quantity",
             ).exists()
         )
 
@@ -856,6 +937,9 @@ class SaleServiceTests(TestCase):
         )
 
     def test_same_event_with_different_payload_creates_conflict(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+        self.create_stock(self.product_b, replenished_quantity=10)
+
         first_activation = self.make_datetime(
             2026,
             9,
@@ -1068,6 +1152,9 @@ class SaleServiceTests(TestCase):
         )
 
     def test_repeated_conflicting_payload_is_idempotent(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+        self.create_stock(self.product_b, replenished_quantity=10)
+
         first_activation = self.make_datetime(
             2026,
             9,
@@ -1156,6 +1243,9 @@ class SaleServiceTests(TestCase):
         )
 
     def test_multiple_different_conflicts_are_preserved(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+        self.create_stock(self.product_b, replenished_quantity=10)
+
         first_activation = self.make_datetime(
             2026,
             9,
@@ -1407,6 +1497,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_void_sale_requires_reason(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -1452,6 +1544,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_voided_sale_cannot_be_voided_again(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -1823,7 +1917,245 @@ class SaleServiceTests(TestCase):
             Sale.Status.CONFLICT,
         )
 
+    def test_unresolved_conflict_can_resolve_machine_and_product(self):
+        self.create_stock(
+            self.product_a,
+            replenished_quantity=10,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        original_sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-conflict-resolution",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        conflict_sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-conflict-resolution",
+                machine_identifier="VM-UNKNOWN",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        self.assertEqual(
+            original_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertIsNone(
+            conflict_sale.machine,
+        )
+
+        self.assertIsNone(
+            conflict_sale.product,
+        )
+
+        resolved_conflict = resolve_pending_sale(
+            conflict_sale,
+            self.machine,
+            self.product_a,
+        )
+
+        self.assertEqual(
+            resolved_conflict.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            resolved_conflict.machine,
+            self.machine,
+        )
+
+        self.assertEqual(
+            resolved_conflict.product,
+            self.product_a,
+        )
+
+    def test_resolved_conflict_can_be_accepted(self):
+        self.create_stock(
+            self.product_a,
+            replenished_quantity=10,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        original_sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-conflict-resolution-accept",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        conflict_sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-conflict-resolution-accept",
+                machine_identifier="VM-UNKNOWN",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        resolve_pending_sale(
+            conflict_sale,
+            self.machine,
+            self.product_a,
+        )
+
+        accepted_sale, voided_sale = accept_sale_conflict(conflict_sale)
+
+        self.assertEqual(
+            accepted_sale.status,
+            Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            voided_sale.pk,
+            original_sale.pk,
+        )
+
+        self.assertEqual(
+            voided_sale.status,
+            Sale.Status.VOIDED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product_a,
+                self.machine,
+            ),
+            9,
+        )
+
+    def test_unresolved_conflict_cannot_be_resolved_without_enough_stock(
+        self,
+    ):
+        self.create_stock(
+            self.product_a,
+            purchased_quantity=1,
+            replenished_quantity=1,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        receive_sale(
+            self.make_payload(
+                event_id="evt-conflict-no-stock",
+                occurred_at=sale_time.isoformat(),
+                quantity=1,
+            )
+        )
+
+        conflict_sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-conflict-no-stock",
+                machine_identifier="VM-UNKNOWN",
+                occurred_at=sale_time.isoformat(),
+                quantity=2,
+                amount_received="3.00",
+            )
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Stock insuficiente",
+        ):
+            resolve_pending_sale(
+                conflict_sale,
+                self.machine,
+                self.product_a,
+            )
+
+        conflict_sale.refresh_from_db()
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+
+        self.assertIsNone(
+            conflict_sale.machine,
+        )
+
+        self.assertIsNone(
+            conflict_sale.product,
+        )
+
     def test_resolved_sale_cannot_be_rejected_as_conflict(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -1859,6 +2191,8 @@ class SaleServiceTests(TestCase):
             reject_sale_conflict(sale)
 
     def test_resolved_sale_cannot_be_accepted_as_conflict(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -1894,6 +2228,8 @@ class SaleServiceTests(TestCase):
             accept_sale_conflict(sale)
 
     def test_pending_sale_can_be_resolved_manually(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -1960,6 +2296,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_resolving_pending_sale_preserves_telemetry_data(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -2157,6 +2495,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_resolved_sale_cannot_be_resolved_manually(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         activation_time = self.make_datetime(
             2026,
             9,
@@ -2321,6 +2661,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_manual_sale_can_be_created_without_event_id(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         occurred_at = self.make_datetime(
             2026,
             9,
@@ -2374,6 +2716,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_manual_sale_can_store_external_event_id(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         occurred_at = self.make_datetime(
             2026,
             9,
@@ -2440,6 +2784,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_manual_free_sale_uses_zero_amount_received(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         occurred_at = self.make_datetime(
             2026,
             9,
@@ -2522,6 +2868,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_manual_sale_can_be_created_without_selection(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         occurred_at = self.make_datetime(
             2026,
             9,
@@ -2550,6 +2898,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_resolved_manual_sale_cannot_be_modified(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         occurred_at = self.make_datetime(
             2026,
             9,
@@ -2579,6 +2929,8 @@ class SaleServiceTests(TestCase):
         )
 
     def test_resolved_manual_sale_can_be_voided(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
         occurred_at = self.make_datetime(
             2026,
             9,
@@ -2802,7 +3154,7 @@ class SaleServiceTests(TestCase):
             10,
         )
 
-    def test_received_sale_is_resolved_when_stock_becomes_negative(
+    def test_received_sale_is_rejected_when_stock_would_become_negative(
         self,
     ):
         activation_time = self.make_datetime(
@@ -2829,24 +3181,22 @@ class SaleServiceTests(TestCase):
                 self.layout_a,
             )
 
-        sale, created = receive_sale(
-            self.make_payload(
-                event_id="evt-negative-integration",
-                occurred_at=sale_time.isoformat(),
-                quantity=2,
+        with self.assertRaisesMessage(ValidationError, "Stock insuficiente"):
+            receive_sale(
+                self.make_payload(
+                    event_id="evt-negative-integration",
+                    occurred_at=sale_time.isoformat(),
+                    quantity=2,
+                )
             )
-        )
 
-        self.assertTrue(created)
-
-        self.assertEqual(
-            sale.status,
-            Sale.Status.RESOLVED,
+        self.assertFalse(
+            Sale.objects.filter(event_id="evt-negative-integration").exists()
         )
 
         self.assertEqual(
             get_total_stock(self.product_a),
-            -2,
+            0,
         )
 
         self.assertEqual(
@@ -2854,10 +3204,270 @@ class SaleServiceTests(TestCase):
                 self.product_a,
                 self.machine,
             ),
-            -2,
+            0,
         )
 
         self.assertEqual(
             get_warehouse_stock(self.product_a),
+            0,
+        )
+
+    def test_non_finite_unit_price_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-nan-unit-price",
+            unit_price="NaN",
+        )
+
+        with self.assertRaises(ValidationError):
+            receive_sale(payload)
+
+        self.assertFalse(
+            Sale.objects.filter(
+                event_id="evt-nan-unit-price",
+            ).exists()
+        )
+
+    def test_non_finite_amount_received_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-infinite-amount",
+            amount_received="Infinity",
+        )
+
+        with self.assertRaises(ValidationError):
+            receive_sale(payload)
+
+        self.assertFalse(
+            Sale.objects.filter(
+                event_id="evt-infinite-amount",
+            ).exists()
+        )
+
+
+class SaleConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.machine = Machine.objects.create(
+            identifier="VM-CONCURRENCY-001",
+            name="Máquina concurrencia",
+            serial_number="SN-CONCURRENCY-001",
+            rows=4,
+            columns=4,
+        )
+
+        self.category = Category.objects.create(
+            name="Bebidas concurrencia",
+            default_vat_rate=Decimal("21.00"),
+        )
+
+        self.product = Product.objects.create(
+            name="VimaCola Concurrency",
+            category=self.category,
+            format_unit="330 ml",
+            default_sale_price=Decimal("1.50"),
+            vat_rate=Decimal("21.00"),
+        )
+
+        self.layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Disposición concurrencia",
+        )
+
+        MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        self.layout.status = MachineLayout.Status.REGISTERED
+        self.layout.save()
+
+        activation_time = timezone.make_aware(
+            datetime(
+                2026,
+                9,
+                2,
+                9,
+                0,
+            )
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(self.layout)
+
+    def create_stock(self, quantity=1):
+        purchase = Purchase.objects.create(
+            supplier="Proveedor concurrencia",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=quantity,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=quantity,
+        )
+
+    def make_payload(
+        self,
+        event_id,
+        amount_received="1.50",
+    ):
+        return {
+            "event_id": event_id,
+            "machine_identifier": self.machine.identifier,
+            "selection": "A1",
+            "occurred_at": "2026-09-02T10:30:00+02:00",
+            "quantity": 1,
+            "dispense_type": "paid",
+            "unit_price": "1.50",
+            "amount_received": amount_received,
+            "payment_method": "cash",
+        }
+
+    def receive_concurrently(self, *payloads):
+        barrier = Barrier(len(payloads))
+
+        original_lock = sale_services._lock_sale_event
+
+        def synchronized_lock(event_id):
+            barrier.wait(timeout=5)
+            return original_lock(event_id)
+
+        def worker(payload):
+            close_old_connections()
+
+            try:
+                sale, created = receive_sale(payload)
+
+                return sale.pk, created
+
+            finally:
+                close_old_connections()
+
+        with patch(
+            "sales.services._lock_sale_event",
+            side_effect=synchronized_lock,
+        ):
+            with ThreadPoolExecutor(
+                max_workers=len(payloads),
+            ) as executor:
+                futures = [
+                    executor.submit(
+                        worker,
+                        payload,
+                    )
+                    for payload in payloads
+                ]
+
+                return [future.result(timeout=10) for future in futures]
+
+    def test_same_event_concurrent_requests_are_idempotent(self):
+        self.create_stock(quantity=1)
+
+        payload = self.make_payload(
+            event_id="evt-concurrent-idempotent",
+        )
+
+        results = self.receive_concurrently(
+            payload,
+            payload.copy(),
+        )
+
+        created_values = [created for _, created in results]
+
+        sale_ids = {sale_id for sale_id, _ in results}
+
+        self.assertEqual(
+            sorted(created_values),
+            [
+                False,
+                True,
+            ],
+        )
+
+        self.assertEqual(
+            len(sale_ids),
+            1,
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-concurrent-idempotent",
+            ).count(),
+            1,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            0,
+        )
+
+    def test_same_event_different_concurrent_payloads_create_conflict(
+        self,
+    ):
+        self.create_stock(quantity=1)
+
+        first_payload = self.make_payload(
+            event_id="evt-concurrent-conflict",
+            amount_received="1.50",
+        )
+
+        second_payload = self.make_payload(
+            event_id="evt-concurrent-conflict",
+            amount_received="2.00",
+        )
+
+        results = self.receive_concurrently(
+            first_payload,
+            second_payload,
+        )
+
+        self.assertTrue(all(created for _, created in results))
+
+        self.assertEqual(
+            Sale.objects.filter(
+                event_id="evt-concurrent-conflict",
+            ).count(),
+            2,
+        )
+
+        resolved_sale = Sale.objects.get(
+            event_id="evt-concurrent-conflict",
+            status=Sale.Status.RESOLVED,
+        )
+
+        conflict_sale = Sale.objects.get(
+            event_id="evt-concurrent-conflict",
+            status=Sale.Status.CONFLICT,
+        )
+
+        self.assertEqual(
+            conflict_sale.conflicts_with_id,
+            resolved_sale.pk,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
             0,
         )

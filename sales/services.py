@@ -1,11 +1,12 @@
 import hashlib
 import json
+import re
 from copy import deepcopy
 from datetime import datetime, time
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.db.models import Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -18,6 +19,32 @@ from machines.services.layouts import (
     get_product_for_selection,
 )
 from sales.models import Sale
+
+
+def _validate_sale_stock(machine, product, quantity, replaced_sale=None):
+    Machine.objects.select_for_update().get(pk=machine.pk)
+    Product.objects.select_for_update().get(pk=product.pk)
+
+    machine_stock = get_machine_stock(product, machine)
+
+    if (
+        replaced_sale is not None
+        and replaced_sale.status == Sale.Status.RESOLVED
+        and replaced_sale.machine_id == machine.pk
+        and replaced_sale.product_id == product.pk
+    ):
+        machine_stock += replaced_sale.quantity
+
+    if machine_stock < quantity:
+        raise ValidationError(
+            {
+                "quantity": (
+                    "Stock insuficiente para registrar la venta. "
+                    f"La máquina dispone de {machine_stock} unidades "
+                    f"y se han solicitado {quantity}."
+                )
+            }
+        )
 
 
 def _calculate_estimated_consumption(historical_sales, history_days, forecast_days):
@@ -244,6 +271,14 @@ def _get_payload_hash(payload):
     return hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
 
 
+def _lock_sale_event(event_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s))",
+            [event_id],
+        )
+
+
 def _get_reference_sale(
     event_id,
 ):
@@ -296,11 +331,12 @@ def _parse_occurred_at(value):
     ):
         occurred_at = value
 
-    elif isinstance(
-        value,
-        str,
-    ):
-        occurred_at = parse_datetime(value)
+    elif isinstance(value, str):
+        valid_format = re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+            value,
+        )
+        occurred_at = parse_datetime(value) if valid_format else None
 
     else:
         occurred_at = None
@@ -327,13 +363,25 @@ def _parse_positive_integer(
     value,
     field,
 ):
-    try:
-        parsed_value = int(value)
+    if isinstance(value, bool):
+        raise ValidationError(
+            {field: (f"El campo '{field}' debe ser un número entero.")}
+        )
 
-    except (
-        TypeError,
-        ValueError,
-    ):
+    if isinstance(value, int):
+        parsed_value = value
+
+    elif isinstance(value, str):
+        stripped_value = value.strip()
+
+        if not stripped_value.isdigit():
+            raise ValidationError(
+                {field: (f"El campo '{field}' debe ser un número entero.")}
+            )
+
+        parsed_value = int(stripped_value)
+
+    else:
         raise ValidationError(
             {field: (f"El campo '{field}' debe ser un número entero.")}
         )
@@ -356,6 +404,10 @@ def _parse_optional_decimal(
 
     try:
         parsed_value = Decimal(str(value))
+        if not parsed_value.is_finite():
+            raise ValidationError(
+                {field: (f"El campo '{field}' debe contener un importe válido.")}
+            )
 
     except (
         InvalidOperation,
@@ -390,6 +442,8 @@ def receive_sale(
     ).strip()
 
     payload_hash = _get_payload_hash(payload)
+
+    _lock_sale_event(event_id)
 
     exact_sale = Sale.objects.filter(
         source=Sale.Source.TELEMETRY,
@@ -488,6 +542,17 @@ def receive_sale(
 
     else:
         status = Sale.Status.PENDING
+
+    if status == Sale.Status.RESOLVED:
+        _validate_sale_stock(machine, product, quantity)
+
+    elif status == Sale.Status.CONFLICT and machine is not None and product is not None:
+        _validate_sale_stock(
+            machine,
+            product,
+            quantity,
+            replaced_sale=reference_sale,
+        )
 
     sale_data = {
         "source": Sale.Source.TELEMETRY,
@@ -661,6 +726,12 @@ def accept_sale_conflict(
 
         current_sale.save()
 
+    _validate_sale_stock(
+        locked_sale.machine,
+        locked_sale.product,
+        locked_sale.quantity,
+    )
+
     locked_sale.status = Sale.Status.RESOLVED
 
     locked_sale.save()
@@ -689,8 +760,15 @@ def resolve_pending_sale(
 
     locked_sale = Sale.objects.select_for_update().get(pk=sale.pk)
 
-    if locked_sale.status != Sale.Status.PENDING:
-        raise ValidationError("Solo se puede resolver manualmente una venta pendiente.")
+    if locked_sale.status not in (
+        Sale.Status.PENDING,
+        Sale.Status.CONFLICT,
+    ):
+        raise ValidationError(
+            "Solo se pueden resolver manualmente ventas pendientes o en conflicto."
+        )
+
+    is_conflict = locked_sale.status == Sale.Status.CONFLICT
 
     if locked_sale.machine_id is not None and locked_sale.machine_id != machine.pk:
         raise ValidationError(
@@ -795,11 +873,28 @@ def resolve_pending_sale(
             }
         )
 
+    replaced_sale = None
+
+    if is_conflict and locked_sale.conflicts_with_id is not None:
+        replaced_sale = Sale.objects.select_for_update().get(
+            pk=locked_sale.conflicts_with_id,
+        )
+
+    _validate_sale_stock(
+        machine,
+        product,
+        locked_sale.quantity,
+        replaced_sale=replaced_sale,
+    )
+
     locked_sale.machine = machine
     locked_sale.product = product
     locked_sale.resolution_layout = resolution_layout
-    locked_sale.status = Sale.Status.RESOLVED
 
+    if is_conflict:
+        locked_sale.status = Sale.Status.CONFLICT
+    else:
+        locked_sale.status = Sale.Status.RESOLVED
     locked_sale.save()
 
     return locked_sale
@@ -878,6 +973,8 @@ def create_manual_sale(
                     )
                 }
             )
+
+    _validate_sale_stock(machine, product, quantity)
 
     sale = Sale.objects.create(
         source=Sale.Source.MANUAL,

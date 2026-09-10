@@ -124,6 +124,8 @@ class ManualSaleViewTests(TestCase):
         )
 
     def test_manual_sale_can_be_created_from_view(self):
+        self.create_stock()
+
         response = self.client.post(
             self.url,
             {
@@ -178,6 +180,8 @@ class ManualSaleViewTests(TestCase):
         )
 
     def test_manual_free_sale_from_view_uses_zero_amount(self):
+        self.create_stock()
+
         self.client.post(
             self.url,
             {
@@ -202,6 +206,27 @@ class ManualSaleViewTests(TestCase):
             sale.amount_received,
             Decimal("0.00"),
         )
+
+    def test_manual_sale_without_stock_is_not_created(self):
+        response = self.client.post(
+            self.url,
+            {
+                "event_id": "",
+                "machine": self.machine.pk,
+                "product": self.product.pk,
+                "selection": "",
+                "occurred_at": "2026-09-03T18:00",
+                "quantity": 1,
+                "dispense_type": Sale.DispenseType.PAID,
+                "unit_price": "1.60",
+                "amount_received": "1.60",
+                "payment_method": "cash",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Stock insuficiente")
+        self.assertFalse(Sale.objects.exists())
 
     def test_manual_sale_from_view_affects_inventory(self):
         self.create_stock()

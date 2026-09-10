@@ -5,13 +5,19 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from inventory.models import Product
+
 from .forms import (
     ReplenishmentFilterForm,
     ReplenishmentForm,
     ReplenishmentLineFormSet,
 )
 from .models import Replenishment
-from .services import get_replenishment_layout_errors, get_replenishment_stock_errors
+from .services import (
+    get_replenishment_cancellation_stock_errors,
+    get_replenishment_layout_errors,
+    get_replenishment_stock_errors,
+)
 
 
 def replenishment_list(request):
@@ -133,36 +139,53 @@ def replenishment_create(request):
 
 
 def replenishment_edit(request, pk):
-    replenishment = get_object_or_404(
-        Replenishment.objects.prefetch_related("lines__product"),
-        pk=pk,
-    )
-
-    if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden editar reposiciones en borrador.")
-
     if request.method == "POST":
-        form = ReplenishmentForm(
-            request.POST,
-            instance=replenishment,
-        )
+        with transaction.atomic():
+            replenishment = get_object_or_404(
+                Replenishment.objects.select_for_update().prefetch_related(
+                    "lines__product",
+                ),
+                pk=pk,
+            )
 
-        formset = ReplenishmentLineFormSet(
-            request.POST,
-            instance=replenishment,
-        )
+            if replenishment.status != Replenishment.Status.DRAFT:
+                raise PermissionDenied(
+                    "Solo se pueden editar reposiciones en borrador."
+                )
 
-        if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
+            form = ReplenishmentForm(
+                request.POST,
+                instance=replenishment,
+            )
+
+            formset = ReplenishmentLineFormSet(
+                request.POST,
+                instance=replenishment,
+            )
+
+            form_is_valid = form.is_valid()
+            formset_is_valid = formset.is_valid()
+
+            if form_is_valid and formset_is_valid:
                 form.save()
                 formset.save()
 
-            return redirect(
-                "replenishments:replenishment_detail",
-                pk=replenishment.pk,
-            )
+                return redirect(
+                    "replenishments:replenishment_detail",
+                    pk=replenishment.pk,
+                )
 
     else:
+        replenishment = get_object_or_404(
+            Replenishment.objects.prefetch_related(
+                "lines__product",
+            ),
+            pk=pk,
+        )
+
+        if replenishment.status != Replenishment.Status.DRAFT:
+            raise PermissionDenied("Solo se pueden editar reposiciones en borrador.")
+
         form = ReplenishmentForm(
             instance=replenishment,
         )
@@ -185,49 +208,63 @@ def replenishment_edit(request, pk):
 
 @require_POST
 def replenishment_register(request, pk):
-    replenishment = get_object_or_404(
-        Replenishment,
-        pk=pk,
-    )
-
-    if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden registrar reposiciones en borrador.")
-
-    if not replenishment.lines.exists():
-        messages.error(
-            request,
-            "No se puede registrar una reposición sin productos.",
+    with transaction.atomic():
+        replenishment = get_object_or_404(
+            Replenishment.objects.select_for_update(),
+            pk=pk,
         )
 
-        return redirect(
-            "replenishments:replenishment_detail",
-            pk=replenishment.pk,
+        if replenishment.status != Replenishment.Status.DRAFT:
+            raise PermissionDenied("Solo se pueden registrar reposiciones en borrador.")
+
+        if not replenishment.lines.exists():
+            messages.error(
+                request,
+                "No se puede registrar una reposición sin productos.",
+            )
+
+            return redirect(
+                "replenishments:replenishment_detail",
+                pk=replenishment.pk,
+            )
+
+        product_ids = list(
+            replenishment.lines.values_list(
+                "product_id",
+                flat=True,
+            )
         )
 
-    stock_errors = get_replenishment_stock_errors(replenishment)
-
-    layout_errors = get_replenishment_layout_errors(replenishment)
-
-    error_params = []
-
-    if stock_errors:
-        error_params.append("stock_error=1")
-
-    if layout_errors:
-        error_params.append("layout_error=1")
-
-    if error_params:
-        detail_url = reverse(
-            "replenishments:replenishment_detail",
-            args=[
-                replenishment.pk,
-            ],
+        list(
+            Product.objects.select_for_update()
+            .filter(pk__in=product_ids)
+            .order_by("pk")
         )
 
-        return redirect(f"{detail_url}?{'&'.join(error_params)}")
+        stock_errors = get_replenishment_stock_errors(replenishment)
 
-    replenishment.status = Replenishment.Status.REGISTERED
-    replenishment.save(update_fields=["status"])
+        layout_errors = get_replenishment_layout_errors(replenishment)
+
+        error_params = []
+
+        if stock_errors:
+            error_params.append("stock_error=1")
+
+        if layout_errors:
+            error_params.append("layout_error=1")
+
+        if error_params:
+            detail_url = reverse(
+                "replenishments:replenishment_detail",
+                args=[replenishment.pk],
+            )
+
+            return redirect(f"{detail_url}?{'&'.join(error_params)}")
+
+        replenishment.status = Replenishment.Status.REGISTERED
+        replenishment.save(
+            update_fields=["status"],
+        )
 
     return redirect(
         "replenishments:replenishment_detail",
@@ -237,31 +274,77 @@ def replenishment_register(request, pk):
 
 @require_POST
 def replenishment_delete(request, pk):
-    replenishment = get_object_or_404(
-        Replenishment,
-        pk=pk,
-    )
+    with transaction.atomic():
+        replenishment = get_object_or_404(
+            Replenishment.objects.select_for_update(),
+            pk=pk,
+        )
 
-    if replenishment.status != Replenishment.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden eliminar reposiciones en borrador.")
+        if replenishment.status != Replenishment.Status.DRAFT:
+            raise PermissionDenied("Solo se pueden eliminar reposiciones en borrador.")
 
-    replenishment.delete()
+        replenishment.delete()
 
     return redirect("replenishments:replenishment_list")
 
 
 @require_POST
 def replenishment_cancel(request, pk):
-    replenishment = get_object_or_404(
-        Replenishment,
-        pk=pk,
-    )
+    with transaction.atomic():
+        replenishment = get_object_or_404(
+            Replenishment.objects.select_for_update().prefetch_related(
+                "lines__product",
+            ),
+            pk=pk,
+        )
 
-    if replenishment.status != Replenishment.Status.REGISTERED:
-        raise PermissionDenied("Solo se pueden anular reposiciones registradas.")
+        if replenishment.status != Replenishment.Status.REGISTERED:
+            raise PermissionDenied("Solo se pueden anular reposiciones registradas.")
 
-    replenishment.status = Replenishment.Status.CANCELLED
-    replenishment.save(update_fields=["status"])
+        product_ids = list(
+            replenishment.lines.values_list(
+                "product_id",
+                flat=True,
+            )
+        )
+
+        list(
+            Product.objects.select_for_update()
+            .filter(pk__in=product_ids)
+            .order_by("pk")
+        )
+
+        stock_errors = get_replenishment_cancellation_stock_errors(replenishment)
+
+        if stock_errors:
+            details = "; ".join(
+                (
+                    f"{error['product'].name}: "
+                    f"{error['current_stock']} uds. disponibles en la máquina, "
+                    f"la reposición aporta "
+                    f"{error['replenishment_quantity']} uds."
+                )
+                for error in stock_errors
+            )
+
+            messages.error(
+                request,
+                (
+                    "No se puede anular la reposición porque "
+                    "el stock de la máquina quedaría negativo. "
+                    f"{details}"
+                ),
+            )
+
+            return redirect(
+                "replenishments:replenishment_detail",
+                pk=replenishment.pk,
+            )
+
+        replenishment.status = Replenishment.Status.CANCELLED
+        replenishment.save(
+            update_fields=["status"],
+        )
 
     return redirect(
         "replenishments:replenishment_detail",

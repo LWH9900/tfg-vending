@@ -289,17 +289,20 @@ def sale_resolve(
         pk=pk,
     )
 
-    if sale.status != Sale.Status.PENDING:
+    if sale.status not in (
+        Sale.Status.PENDING,
+        Sale.Status.CONFLICT,
+    ):
         messages.error(
             request,
-            "Solo se pueden resolver ventas pendientes.",
+            "Solo se pueden resolver ventas pendientes o en conflicto.",
         )
 
         return redirect(
             "sales:sale_detail",
             pk=sale.pk,
         )
-
+    is_conflict = sale.status == Sale.Status.CONFLICT
     formatted_payload = None
 
     if sale.raw_payload is not None:
@@ -492,9 +495,24 @@ def sale_resolve(
                     )
 
             else:
+                if is_conflict:
+                    messages.success(
+                        request,
+                        (
+                            "Los datos de la recepción conflictiva se han resuelto. "
+                            "Ahora puedes decidir si debe sustituir a la venta "
+                            "efectiva."
+                        ),
+                    )
+
+                    return redirect(
+                        "sales:sale_conflict_review",
+                        pk=resolved_sale.pk,
+                    )
+
                 messages.success(
                     request,
-                    ("La venta se ha resuelto correctamente."),
+                    "La venta se ha resuelto correctamente.",
                 )
 
                 return redirect(

@@ -1,11 +1,15 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import (
     datetime,
     timedelta,
 )
 from decimal import Decimal
+from threading import Barrier
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.db import close_old_connections
+from django.db.models.query import QuerySet
+from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -19,6 +23,7 @@ from machines.services.layouts import activate_machine_layout
 from purchases.models import Purchase, PurchaseLine
 from replenishments.forms import ReplenishmentLineFormSet
 from replenishments.models import Replenishment, ReplenishmentLine
+from sales.models import Sale
 
 
 class ReplenishmentViewTests(TestCase):
@@ -656,9 +661,20 @@ class ReplenishmentViewTests(TestCase):
         self.assertTrue(Replenishment.objects.filter(pk=replenishment.pk).exists())
 
     def test_registered_replenishment_can_be_cancelled(self):
+        self.create_registered_purchase(
+            self.product,
+            5,
+        )
+
         replenishment = Replenishment.objects.create(
             machine=self.machine,
             status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=5,
         )
 
         response = self.client.post(
@@ -681,6 +697,19 @@ class ReplenishmentViewTests(TestCase):
         self.assertEqual(
             replenishment.status,
             Replenishment.Status.CANCELLED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            0,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product),
+            5,
         )
 
     def test_cancelled_replenishment_cannot_be_registered(self):
@@ -1157,3 +1186,265 @@ class ReplenishmentViewTests(TestCase):
             historical_replenishment.status,
             Replenishment.Status.REGISTERED,
         )
+
+    def test_replenishment_cannot_be_cancelled_if_machine_stock_would_be_negative(
+        self,
+    ):
+        self.create_registered_purchase(
+            self.product,
+            5,
+        )
+
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment,
+            product=self.product,
+            quantity=5,
+        )
+
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=4,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("6.00"),
+            payment_method="cash",
+            status=Sale.Status.RESOLVED,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_cancel",
+                args=[replenishment.pk],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "replenishments:replenishment_detail",
+                args=[replenishment.pk],
+            ),
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.REGISTERED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            1,
+        )
+
+
+class ReplenishmentConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.category = Category.objects.create(
+            name="Bebidas concurrencia reposiciones",
+            default_vat_rate=Decimal("21.00"),
+        )
+
+        self.product = Product.objects.create(
+            name="VimaCola Replenishment Concurrency",
+            category=self.category,
+            format_unit="330 ml",
+            vat_rate=Decimal("21.00"),
+            default_sale_price=Decimal("1.50"),
+        )
+
+        self.machine = Machine.objects.create(
+            identifier="M-REPL-CONCURRENCY",
+            name="Máquina concurrencia reposiciones",
+            serial_number="SN-REPL-CONCURRENCY",
+            rows=2,
+            columns=2,
+        )
+
+        self.layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Disposición concurrencia",
+        )
+
+        MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product,
+        )
+
+        self.layout.status = MachineLayout.Status.REGISTERED
+        self.layout.save()
+
+        activation_time = timezone.make_aware(
+            datetime(
+                2026,
+                9,
+                2,
+                9,
+                0,
+            )
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(self.layout)
+
+        purchase = Purchase.objects.create(
+            supplier="Proveedor concurrencia",
+            status=Purchase.Status.REGISTERED,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+        replenishment_time = timezone.make_aware(
+            datetime(
+                2026,
+                9,
+                2,
+                10,
+                0,
+            )
+        )
+
+        self.replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            replenished_at=replenishment_time,
+            status=Replenishment.Status.DRAFT,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=self.replenishment,
+            product=self.product,
+            quantity=4,
+        )
+
+    def test_register_and_delete_cannot_both_win_concurrently(self):
+        barrier = Barrier(2)
+
+        original_select_for_update = QuerySet.select_for_update
+
+        def synchronized_select_for_update(
+            queryset,
+            *args,
+            **kwargs,
+        ):
+            if queryset.model is Replenishment:
+                barrier.wait(timeout=5)
+
+            return original_select_for_update(
+                queryset,
+                *args,
+                **kwargs,
+            )
+
+        register_url = reverse(
+            "replenishments:replenishment_register",
+            args=[self.replenishment.pk],
+        )
+
+        delete_url = reverse(
+            "replenishments:replenishment_delete",
+            args=[self.replenishment.pk],
+        )
+
+        def worker(url):
+            close_old_connections()
+
+            try:
+                client = Client()
+                response = client.post(url)
+
+                return response.status_code
+
+            finally:
+                close_old_connections()
+
+        with patch(
+            "django.db.models.query.QuerySet.select_for_update",
+            new=synchronized_select_for_update,
+        ):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                register_future = executor.submit(
+                    worker,
+                    register_url,
+                )
+
+                delete_future = executor.submit(
+                    worker,
+                    delete_url,
+                )
+
+                status_codes = [
+                    register_future.result(timeout=10),
+                    delete_future.result(timeout=10),
+                ]
+
+        self.assertEqual(
+            status_codes.count(302),
+            1,
+        )
+
+        self.assertTrue(any(status_code in (403, 404) for status_code in status_codes))
+
+        replenishment_exists = Replenishment.objects.filter(
+            pk=self.replenishment.pk,
+        ).exists()
+
+        if replenishment_exists:
+            replenishment = Replenishment.objects.get(
+                pk=self.replenishment.pk,
+            )
+
+            self.assertEqual(
+                replenishment.status,
+                Replenishment.Status.REGISTERED,
+            )
+
+            self.assertEqual(
+                get_machine_stock(
+                    self.product,
+                    self.machine,
+                ),
+                4,
+            )
+
+            self.assertEqual(
+                get_warehouse_stock(self.product),
+                6,
+            )
+
+        else:
+            self.assertEqual(
+                get_machine_stock(
+                    self.product,
+                    self.machine,
+                ),
+                0,
+            )
+
+            self.assertEqual(
+                get_warehouse_stock(self.product),
+                10,
+            )

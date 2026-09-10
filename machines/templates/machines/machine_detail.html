@@ -225,12 +225,12 @@
                                 {{ item.effective_price }} €
                             </td>
 
-                            <td class="price-actions-column">
-                                <div class="price-override-actions">
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-2 align-items-center">
 
                                     <button
                                         type="button"
-                                        class="btn btn-sm btn-outline-primary"
+                                        class="btn btn-outline-primary btn-sm"
                                         data-bs-toggle="modal"
                                         data-bs-target="#editPriceOverrideModal"
                                         data-update-url="{% url 'machines:machine_price_override_update' machine.pk item.override.pk %}"
@@ -246,7 +246,7 @@
 
                                     <button
                                         type="button"
-                                        class="btn btn-sm btn-outline-danger"
+                                        class="btn btn-outline-danger btn-sm"
                                         data-bs-toggle="modal"
                                         data-bs-target="#deletePriceOverrideModal"
                                         data-delete-url="{% url 'machines:machine_price_override_delete' machine.pk item.override.pk %}"

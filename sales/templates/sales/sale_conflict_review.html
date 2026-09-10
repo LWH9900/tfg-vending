@@ -337,14 +337,12 @@
 
     {% else %}
 
-        <button
-            type="button"
-            class="btn btn-danger"
-            disabled
-            title="La recepción debe tener máquina y producto resueltos."
+        <a
+            href="{% url 'sales:sale_resolve' sale.pk %}"
+            class="btn btn-primary"
         >
-            Aceptar esta recepción
-        </button>
+            Resolver datos de esta recepción
+        </a>
 
     {% endif %}
 
@@ -355,7 +353,8 @@
 
     <div class="alert alert-warning mt-3">
         Esta recepción no puede aceptarse todavía porque no tiene
-        máquina y producto resueltos.
+        máquina y producto resueltos. Resuelve primero esos datos
+        y después vuelve a revisar el conflicto.
     </div>
 
 {% endif %}
