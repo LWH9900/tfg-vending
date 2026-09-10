@@ -10,7 +10,7 @@ def get_replenishment_stock_errors(replenishment):
     for line in lines:
         available_stock = get_warehouse_stock(line.product)
 
-        if line.quantity > available_stock:
+        if available_stock < 0 or line.quantity > available_stock:
             errors.append(
                 {
                     "product": line.product,

@@ -37,7 +37,11 @@
 
 <section class="form-container">
 
-    <form method="post" novalidate>
+    <form
+        method="post"
+        novalidate
+        data-active-products-url="{% url 'replenishments:active_products' 0 %}"
+    >
 
         {% csrf_token %}
 
@@ -292,6 +296,18 @@ document.addEventListener("DOMContentLoaded", function () {
         `id_${prefix}-TOTAL_FORMS`
     );
 
+    const machineSelect = document.getElementById("id_machine");
+
+    const replenishedAtInput = document.getElementById(
+        "id_replenished_at"
+    );
+
+    const activeProductsUrl = document.querySelector(
+        "form[data-active-products-url]"
+    )?.dataset.activeProductsUrl;
+
+    let activeProductsRequestId = 0;
+
 
     if (
         !linesContainer ||
@@ -324,6 +340,91 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
+    async function updateActiveProductLabels() {
+        if (!machineSelect || !activeProductsUrl) {
+            return;
+        }
+
+        const requestId = ++activeProductsRequestId;
+
+        const activeProductIds = new Set();
+
+        const machineId = machineSelect.value;
+        const moment = replenishedAtInput?.value || "";
+
+        if (machineId) {
+            const url = new URL(
+                activeProductsUrl.replace(
+                    "/0/",
+                    `/${machineId}/`
+                ),
+                window.location.origin
+            );
+
+            if (moment) {
+                url.searchParams.set(
+                    "moment",
+                    moment
+                );
+            }
+
+            const response = await fetch(url);
+
+            if (requestId !== activeProductsRequestId) {
+                return;
+            }
+
+            if (response.ok) {
+                const data = await response.json();
+
+                if (requestId !== activeProductsRequestId) {
+                    return;
+                }
+
+                data.product_ids.forEach((productId) => {
+                    activeProductIds.add(
+                        String(productId)
+                    );
+                });
+            }
+        }
+
+        if (requestId !== activeProductsRequestId) {
+            return;
+        }
+
+        const productSelects = [
+            ...document.querySelectorAll(
+                "#replenishment-lines select[name$='-product']"
+            ),
+            ...emptyTemplate.content.querySelectorAll(
+                "select[name$='-product']"
+            ),
+        ];
+
+        productSelects.forEach((select) => {
+            Array.from(select.options).forEach((option) => {
+                if (!option.value) {
+                    return;
+                }
+
+                const baseLabel = option.textContent.replace(
+                    / · Activo$/,
+                    ""
+                );
+
+                const activeLabel =
+                    activeProductIds.has(option.value)
+                        ? " · Activo"
+                        : "";
+
+                option.textContent =
+                    `${baseLabel}${activeLabel}`;
+            });
+        });
+    }
+
+
     function removeLine(button) {
         const line = button.closest(
             ".replenishment-line"
@@ -349,6 +450,24 @@ document.addEventListener("DOMContentLoaded", function () {
         "click",
         addLine
     );
+
+
+    if (machineSelect) {
+        machineSelect.addEventListener(
+            "change",
+            updateActiveProductLabels
+        );
+
+        updateActiveProductLabels();
+    }
+
+
+    if (replenishedAtInput) {
+        replenishedAtInput.addEventListener(
+            "change",
+            updateActiveProductLabels
+        );
+    }
 
 
     linesContainer.addEventListener(

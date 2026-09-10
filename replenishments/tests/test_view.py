@@ -179,6 +179,116 @@ class ReplenishmentViewTests(TestCase):
             self.second_machine,
         )
 
+    def test_create_replenishment_marks_products_active_in_machine_layout(self):
+        response = self.client.get(
+            reverse("replenishments:replenishment_create"),
+            {"machine": self.machine.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        labels = [
+            str(label)
+            for value, label in response.context["formset"]
+            .empty_form.fields["product"]
+            .choices
+        ]
+        self.assertTrue(
+            any("VimaCola" in label and "· Activo" in label for label in labels)
+        )
+
+    def test_create_replenishment_does_not_mark_products_without_active_layout(self):
+        response = self.client.get(
+            reverse("replenishments:replenishment_create"),
+            {"machine": self.second_machine.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        labels = [
+            str(label)
+            for value, label in response.context["formset"]
+            .empty_form.fields["product"]
+            .choices
+        ]
+        self.assertFalse(any("· Activo" in label for label in labels))
+
+    def test_active_products_endpoint_respects_layout_history(self):
+        second_layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Segunda disposición",
+        )
+
+        MachinePosition.objects.create(
+            layout=second_layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.second_product,
+        )
+
+        second_layout.status = MachineLayout.Status.REGISTERED
+        second_layout.save()
+
+        second_activation_time = timezone.make_aware(
+            datetime(
+                2026,
+                8,
+                25,
+                12,
+                0,
+            )
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation_time,
+        ):
+            activate_machine_layout(second_layout)
+
+        response_before_change = self.client.get(
+            reverse(
+                "replenishments:active_products",
+                args=[self.machine.pk],
+            ),
+            {
+                "moment": "2026-08-25T10:30",
+            },
+        )
+
+        response_after_change = self.client.get(
+            reverse(
+                "replenishments:active_products",
+                args=[self.machine.pk],
+            ),
+            {
+                "moment": "2026-08-25T13:00",
+            },
+        )
+
+        self.assertEqual(
+            response_before_change.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response_after_change.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            set(response_before_change.json()["product_ids"]),
+            {
+                self.product.pk,
+                self.second_product.pk,
+            },
+        )
+
+        self.assertEqual(
+            set(response_after_change.json()["product_ids"]),
+            {
+                self.second_product.pk,
+            },
+        )
+
     def test_create_replenishment_with_one_line(self):
         response = self.client.post(
             reverse("replenishments:replenishment_create"),
@@ -886,6 +996,37 @@ class ReplenishmentViewTests(TestCase):
             0,
         )
 
+    def test_replenishment_cannot_be_registered_when_warehouse_stock_is_negative(self):
+        self.create_registered_purchase(
+            self.product,
+            5,
+        )
+
+        existing_replenishment = self.create_draft_replenishment(
+            self.product,
+            6,
+        )
+        existing_replenishment.status = Replenishment.Status.REGISTERED
+        existing_replenishment.save(update_fields=["status"])
+
+        replenishment = self.create_draft_replenishment(
+            self.product,
+            1,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[replenishment.pk],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(replenishment.status, Replenishment.Status.DRAFT)
+        self.assertEqual(get_warehouse_stock(self.product), -1)
+
     def test_draft_can_be_saved_with_insufficient_stock(self):
         self.create_registered_purchase(
             self.product,
@@ -1196,6 +1337,164 @@ class ReplenishmentViewTests(TestCase):
 
         self.assertEqual(
             historical_replenishment.status,
+            Replenishment.Status.REGISTERED,
+        )
+
+    def test_active_products_endpoint_uses_requested_moment(self):
+        response = self.client.get(
+            reverse(
+                "replenishments:active_products",
+                args=[self.machine.pk],
+            ),
+            {"moment": "2026-08-26T10:30"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.product.pk, response.json()["product_ids"])
+
+    def test_replenishment_can_register_when_it_corrects_negative_machine_stock(
+        self,
+    ):
+        self.create_registered_purchase(
+            self.product,
+            7,
+        )
+
+        existing_replenishment = self.create_draft_replenishment(
+            self.product,
+            5,
+        )
+        existing_replenishment.status = Replenishment.Status.REGISTERED
+        existing_replenishment.save(
+            update_fields=["status"],
+        )
+
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=6,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("9.00"),
+            payment_method="cash",
+            status=Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            -1,
+        )
+
+        replenishment = self.create_draft_replenishment(
+            self.product,
+            1,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[replenishment.pk],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.REGISTERED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            0,
+        )
+
+    def test_replenishment_can_register_even_if_machine_stock_remains_negative(
+        self,
+    ):
+        self.create_registered_purchase(
+            self.product,
+            8,
+        )
+
+        existing_replenishment = self.create_draft_replenishment(
+            self.product,
+            5,
+        )
+        existing_replenishment.status = Replenishment.Status.REGISTERED
+        existing_replenishment.save(
+            update_fields=["status"],
+        )
+
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=7,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("10.50"),
+            payment_method="cash",
+            status=Sale.Status.RESOLVED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            -2,
+        )
+
+        replenishment = self.create_draft_replenishment(
+            self.product,
+            1,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[replenishment.pk],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.REGISTERED,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            -1,
+        )
+        self.assertEqual(
+            replenishment.status,
             Replenishment.Status.REGISTERED,
         )
 

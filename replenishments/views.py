@@ -2,12 +2,16 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from inventory.models import Product
 from machines.models import Machine
+from machines.services.layouts import get_machine_layout_at
 
 from .forms import (
     ReplenishmentFilterForm,
@@ -20,6 +24,28 @@ from .services import (
     get_replenishment_layout_errors,
     get_replenishment_stock_errors,
 )
+
+
+def _get_active_product_ids(machine, moment):
+    if machine is None:
+        return set()
+
+    layout = get_machine_layout_at(
+        machine,
+        moment,
+    )
+
+    if layout is None:
+        return set()
+
+    return set(
+        layout.positions.filter(
+            product__isnull=False,
+        ).values_list(
+            "product_id",
+            flat=True,
+        )
+    )
 
 
 def replenishment_list(request):
@@ -108,13 +134,33 @@ def replenishment_create(request):
     replenishment = Replenishment()
 
     if request.method == "POST":
+        moment = parse_datetime(request.POST.get("replenished_at", ""))
+
+        if moment is None:
+            moment = timezone.now()
+        elif timezone.is_naive(moment):
+            moment = timezone.make_aware(moment)
+
+        selected_machine = Machine.objects.filter(
+            pk=request.POST.get("machine"),
+        ).first()
+
+        active_product_ids = _get_active_product_ids(
+            selected_machine,
+            moment,
+        )
+
         form = ReplenishmentForm(
             request.POST,
             instance=replenishment,
         )
+
         formset = ReplenishmentLineFormSet(
             request.POST,
             instance=replenishment,
+            form_kwargs={
+                "active_product_ids": active_product_ids,
+            },
         )
 
         form_is_valid = form.is_valid()
@@ -137,13 +183,30 @@ def replenishment_create(request):
         machine_id = request.GET.get("machine")
 
         if machine_id:
-            initial_machine = Machine.objects.filter(pk=machine_id).first()
+            initial_machine = Machine.objects.filter(
+                pk=machine_id,
+            ).first()
+
+        moment = replenishment.replenished_at or timezone.now()
+
+        active_product_ids = _get_active_product_ids(
+            initial_machine,
+            moment,
+        )
 
         form = ReplenishmentForm(
             instance=replenishment,
-            initial={"machine": initial_machine},
+            initial={
+                "machine": initial_machine,
+            },
         )
-        formset = ReplenishmentLineFormSet(instance=replenishment)
+
+        formset = ReplenishmentLineFormSet(
+            instance=replenishment,
+            form_kwargs={
+                "active_product_ids": active_product_ids,
+            },
+        )
 
     return render(
         request,
@@ -152,6 +215,31 @@ def replenishment_create(request):
             "form": form,
             "formset": formset,
         },
+    )
+
+
+def active_products(request, machine_pk):
+    machine = get_object_or_404(
+        Machine,
+        pk=machine_pk,
+    )
+
+    moment = parse_datetime(request.GET.get("moment", ""))
+
+    if moment is None:
+        moment = timezone.now()
+    elif timezone.is_naive(moment):
+        moment = timezone.make_aware(moment)
+
+    product_ids = _get_active_product_ids(
+        machine,
+        moment,
+    )
+
+    return JsonResponse(
+        {
+            "product_ids": list(product_ids),
+        }
     )
 
 
@@ -170,6 +258,22 @@ def replenishment_edit(request, pk):
                     "Solo se pueden editar reposiciones en borrador."
                 )
 
+            selected_machine = Machine.objects.filter(
+                pk=request.POST.get("machine"),
+            ).first()
+
+            moment = parse_datetime(request.POST.get("replenished_at", ""))
+
+            if moment is None:
+                moment = timezone.now()
+            elif timezone.is_naive(moment):
+                moment = timezone.make_aware(moment)
+
+            active_product_ids = _get_active_product_ids(
+                selected_machine,
+                moment,
+            )
+
             form = ReplenishmentForm(
                 request.POST,
                 instance=replenishment,
@@ -178,6 +282,9 @@ def replenishment_edit(request, pk):
             formset = ReplenishmentLineFormSet(
                 request.POST,
                 instance=replenishment,
+                form_kwargs={
+                    "active_product_ids": active_product_ids,
+                },
             )
 
             form_is_valid = form.is_valid()
@@ -203,12 +310,20 @@ def replenishment_edit(request, pk):
         if replenishment.status != Replenishment.Status.DRAFT:
             raise PermissionDenied("Solo se pueden editar reposiciones en borrador.")
 
+        active_product_ids = _get_active_product_ids(
+            replenishment.machine,
+            replenishment.replenished_at,
+        )
+
         form = ReplenishmentForm(
             instance=replenishment,
         )
 
         formset = ReplenishmentLineFormSet(
             instance=replenishment,
+            form_kwargs={
+                "active_product_ids": active_product_ids,
+            },
         )
 
     return render(
