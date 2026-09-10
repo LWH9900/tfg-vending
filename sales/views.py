@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import (
     get_object_or_404,
@@ -163,7 +164,9 @@ def sale_list(
         return redirect("sales:sale_list")
 
     if request.GET:
-        request.session[session_key] = request.GET.urlencode()
+        filter_query = request.GET.copy()
+        filter_query.pop("page", None)
+        request.session[session_key] = filter_query.urlencode()
     else:
         saved_query = request.session.get(session_key)
         if saved_query:
@@ -222,12 +225,19 @@ def sale_list(
         if dispense_type:
             sales = sales.filter(dispense_type=dispense_type)
 
+    paginator = Paginator(sales, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+
     return render(
         request,
         "sales/sale_list.html",
         {
-            "sales": sales,
+            "sales": page_obj.object_list,
             "filter_form": filter_form,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
         },
     )
 

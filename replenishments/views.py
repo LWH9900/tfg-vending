@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -52,13 +53,19 @@ def replenishment_list(request):
             replenishments = replenishments.filter(status=status)
 
     replenishments = replenishments.distinct()
+    paginator = Paginator(replenishments, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
 
     return render(
         request,
         "replenishments/replenishment_list.html",
         {
-            "replenishments": replenishments,
+            "replenishments": page_obj.object_list,
             "filter_form": filter_form,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
         },
     )
 

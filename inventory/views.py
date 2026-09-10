@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count
 from django.db.models.deletion import ProtectedError
@@ -98,11 +99,19 @@ def category_delete(request, pk):
 
 def product_list(request):
     products = Product.objects.filter(is_active=True).order_by("name")
+    paginator = Paginator(products, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
 
     return render(
         request,
         "inventory/product_list.html",
-        {"products": products},
+        {
+            "products": page_obj.object_list,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
+        },
     )
 
 
