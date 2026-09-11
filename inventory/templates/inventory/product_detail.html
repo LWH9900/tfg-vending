@@ -373,15 +373,18 @@
 </section>
 
 <div class="pricing-section-heading">
-        <h2>
-        <a
-            href="{% url 'inventory:product_stock_detail' product.pk %}"
-            class="pricing-section-link"
-        >
-            Existencias
-        </a>
+    <h2>
+        Existencias
     </h2>
+
     <div class="pricing-section-line"></div>
+
+    <a
+        href="{% url 'inventory:product_stock_detail' product.pk %}"
+        class="btn btn-outline-primary btn-sm"
+    >
+        Acceder al detalle
+    </a>
 </div>
 
 <div class="inventory-summary-grid">

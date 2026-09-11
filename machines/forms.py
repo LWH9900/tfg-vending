@@ -291,6 +291,18 @@ class MachineLayoutForm(forms.ModelForm):
 
 
 class MachinePositionForm(forms.ModelForm):
+    product = ProductChoiceField(
+        queryset=Product.objects.select_related("category")
+        .order_by("name"),
+        required=False,
+        label="Producto",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+            }
+        ),
+    )
+
     class Meta:
         model = MachinePosition
         fields = [
