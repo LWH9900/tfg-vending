@@ -178,7 +178,9 @@
             <dd>
                 {% if sale.machine %}
 
-                    <a href="{% url 'machines:machine_detail' sale.machine.pk %}">
+                    <a href="{% url 'machines:machine_detail' sale.machine.pk %}"
+                    class="machine-link">
+                        
                         {{ sale.machine.identifier }}
                     </a>
 

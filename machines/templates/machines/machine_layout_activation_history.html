@@ -181,11 +181,12 @@
 
                     {% for activation in activations %}
 
-                        <tr{% if activation.effective_to is None %} class="table-success"{% endif %}>
+                        <tr>
 
                             <td>
                                 <a
                                     href="{% url 'machines:machine_detail' activation.layout.machine.pk %}"
+                                    class="machine-link"
                                 >
                                     {{ activation.layout.machine.identifier }}
                                 </a>
@@ -194,6 +195,7 @@
                             <td>
                                 <a
                                     href="{% url 'machines:machine_layout_detail' activation.layout.pk %}"
+                                    class="machine-link"
                                 >
                                     {{ activation.layout.name }}
                                 </a>

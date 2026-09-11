@@ -171,3 +171,10 @@
     min-height: 1.25rem;
     margin-top: 0.25rem;
 }
+
+
+.machine-link {
+    color: var(--app-primary);
+    font-weight: 500;
+    text-decoration: underline;
+}
