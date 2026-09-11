@@ -415,19 +415,13 @@
 
             <dd>
                 {% if replenishment.status == "DRAFT" %}
-                    <span class="badge text-bg-secondary">
-                        Borrador
-                    </span>
+                    {% include "components/status_indicator.html" with label="Borrador" tone="neutral" %}
 
                 {% elif replenishment.status == "REGISTERED" %}
-                    <span class="badge text-bg-success">
-                        Registrada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Registrada" tone="positive" %}
 
                 {% elif replenishment.status == "CANCELLED" %}
-                    <span class="badge text-bg-danger">
-                        Anulada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Anulada" tone="negative" %}
                 {% endif %}
             </dd>
 

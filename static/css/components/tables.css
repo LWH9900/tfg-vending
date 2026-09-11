@@ -2,6 +2,23 @@
     cursor: pointer;
 }
 
+.product-label {
+    min-height: 3rem;
+}
+
+.product-label small {
+    font-size: inherit;
+}
+
+.product-label--empty {
+    display: flex;
+    align-items: center;
+}
+
+.sale-event {
+    font: inherit;
+}
+
 .clickable-row > td {
     transition: background-color 0.15s ease;
 }

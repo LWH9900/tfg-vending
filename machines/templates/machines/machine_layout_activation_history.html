@@ -215,13 +215,9 @@
 
                             <td>
                                 {% if activation.effective_to is None %}
-                                    <span class="badge text-bg-success">
-                                        Activa
-                                    </span>
+                                    {% include "components/status_indicator.html" with label="Activa" tone="positive" %}
                                 {% else %}
-                                    <span class="badge text-bg-secondary">
-                                        Finalizada
-                                    </span>
+                                    {% include "components/status_indicator.html" with label="Finalizada" tone="neutral" %}
                                 {% endif %}
                             </td>
 

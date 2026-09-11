@@ -221,6 +221,46 @@ body {
     font-size: 0.95rem;
 }
 
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    color: var(--app-text);
+    font-size: inherit;
+    font-weight: 400;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.status-indicator__icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+
+    fill: var(--status-color);
+}
+
+.status-indicator--neutral {
+    --status-color: #525252;
+}
+
+.status-indicator--info {
+    --status-color: #0f62fe;
+}
+
+.status-indicator--positive {
+    --status-color: #198038;
+}
+
+.status-indicator--warning {
+    --status-color: #f1c21b;
+}
+
+.status-indicator--negative {
+    --status-color: #da1e28;
+}
+
 
 .btn-primary {
     background-color: var(--app-primary);

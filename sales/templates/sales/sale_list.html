@@ -143,14 +143,7 @@
                 {% for sale in sales %}
 
                     <tr
-                        class="
-                            clickable-row
-                            {% if sale.status == 'pending' %}
-                                table-warning
-                            {% elif sale.status == 'conflict' %}
-                                table-danger
-                            {% endif %}
-                        "
+                        class="clickable-row"
                         data-href="{% url 'sales:sale_detail' sale.pk %}"
                         tabindex="0"
                         role="link"
@@ -162,9 +155,11 @@
 
                         <td>
                             {% if sale.event_id %}
+                                <span class="sale-event">
                                     {{ sale.event_id }}
                                 </span>
                             {% else %}
+                                <span class="sale-event">
                                     Manual #{{ sale.pk }}
                                 </span>
                             {% endif %}
@@ -191,13 +186,9 @@
 
                         <td>
                             {% if sale.dispense_type == "paid" %}
-                                <span class="badge text-bg-primary">
-                                    Con pago
-                                </span>
+                                Con pago
                             {% elif sale.dispense_type == "free" %}
-                                <span class="badge text-bg-info">
-                                    Gratuita
-                                </span>
+                                Gratuita
                             {% endif %}
                         </td>
 
@@ -215,33 +206,23 @@
 
                             {% if sale.status == "resolved" %}
 
-                                <span class="badge text-bg-success">
-                                    Resuelta
-                                </span>
+                                {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
 
                             {% elif sale.status == "pending" %}
 
-                                <span class="badge text-bg-warning">
-                                    Pendiente
-                                </span>
+                                {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
 
                             {% elif sale.status == "conflict" %}
 
-                                <span class="badge text-bg-danger">
-                                    En conflicto
-                                </span>
+                                {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
 
                             {% elif sale.status == "rejected" %}
 
-                                <span class="badge text-bg-secondary">
-                                    Descartada
-                                </span>
+                                {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
 
                             {% elif sale.status == "voided" %}
 
-                                <span class="badge text-bg-dark">
-                                    Anulada
-                                </span>
+                                {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
 
                             {% endif %}
 

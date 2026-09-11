@@ -75,7 +75,17 @@
                     <div class="detail-row">
                         <dt>Estado</dt>
                         <dd>
-                            {{ reference_sale.get_status_display }}
+                            {% if reference_sale.status == "resolved" %}
+                                {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
+                            {% elif reference_sale.status == "pending" %}
+                                {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
+                            {% elif reference_sale.status == "conflict" %}
+                                {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
+                            {% elif reference_sale.status == "rejected" %}
+                                {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
+                            {% elif reference_sale.status == "voided" %}
+                                {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
+                            {% endif %}
                         </dd>
                     </div>
 
@@ -194,7 +204,17 @@
                 <div class="detail-row">
                     <dt>Estado</dt>
                     <dd>
-                        {{ sale.get_status_display }}
+                            {% if sale.status == "resolved" %}
+                                {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
+                            {% elif sale.status == "pending" %}
+                                {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
+                            {% elif sale.status == "conflict" %}
+                                {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
+                            {% elif sale.status == "rejected" %}
+                                {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
+                            {% elif sale.status == "voided" %}
+                                {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
+                            {% endif %}
                     </dd>
                 </div>
 
