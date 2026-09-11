@@ -158,5 +158,15 @@ class ProductForm(forms.ModelForm):
 
 
 class ProductChoiceField(forms.ModelChoiceField):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        classes = self.widget.attrs.get("class", "").split()
+
+        if "product-search-select" not in classes:
+            classes.append("product-search-select")
+
+        self.widget.attrs["class"] = " ".join(classes)
+
     def label_from_instance(self, product):
         return f"{product.name} · {product.category.name} · {product.format_unit}"
