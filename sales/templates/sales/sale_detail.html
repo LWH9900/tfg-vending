@@ -284,6 +284,10 @@
             <dd>
                 {% if sale.unit_price is not None %}
                     {{ sale.unit_price|floatformat:2 }} €
+                {% elif sale.dispense_type == "free" %}
+                    <span class="text-secondary">
+                        No aplicable
+                    </span>
                 {% else %}
                     <span class="text-secondary">
                         No disponible
@@ -311,7 +315,19 @@
             <dt>Medio de pago</dt>
             <dd>
                 {% if sale.payment_method %}
-                    {{ sale.payment_method }}
+                    {% if sale.payment_method == "cash" %}
+                        Efectivo
+                    {% elif sale.payment_method == "card" %}
+                        Tarjeta
+                    {% elif sale.payment_method == "unknown" %}
+                        Desconocido
+                    {% else %}
+                        {{ sale.payment_method }}
+                    {% endif %}
+                {% elif sale.dispense_type == "free" %}
+                    <span class="text-secondary">
+                        No aplicable
+                    </span>
                 {% else %}
                     <span class="text-secondary">
                         No disponible

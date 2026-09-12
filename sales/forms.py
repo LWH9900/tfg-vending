@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 
 from inventory.forms import ProductChoiceField
@@ -11,6 +13,13 @@ PROJECTION_MODE_DATES = "dates"
 PROJECTION_MODE_CHOICES = [
     (PROJECTION_MODE_DAYS, "Número de días"),
     (PROJECTION_MODE_DATES, "Fechas concretas"),
+]
+
+MANUAL_PAYMENT_METHOD_CHOICES = [
+    ("", "Selecciona un medio de pago"),
+    ("cash", "Efectivo"),
+    ("card", "Tarjeta"),
+    ("unknown", "Desconocido"),
 ]
 
 
@@ -407,9 +416,18 @@ class ManualSaleForm(forms.Form):
     )
 
     product = ProductChoiceField(
-        queryset=Product.objects.select_related("category").order_by("name"),
+        queryset=(
+            Product.objects.select_related("category")
+            .filter(is_active=True)
+            .order_by("name")
+        ),
+        required=False,
         label="Producto",
         empty_label="Selecciona un producto",
+        help_text=(
+            "Opcional si indicas una selección de la máquina; "
+            "el producto se identificará según la disposición activa."
+        ),
         widget=forms.Select(
             attrs={
                 "class": "form-select",
@@ -420,7 +438,10 @@ class ManualSaleForm(forms.Form):
     selection = forms.CharField(
         required=False,
         label="Selección",
-        help_text=("Opcional si no se conoce qué selección originó la dispensación."),
+        help_text=(
+            "Opcional si seleccionas el producto manualmente. Si no, se buscará "
+            "en la disposición activa para la fecha indicada."
+        ),
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",
@@ -495,12 +516,35 @@ class ManualSaleForm(forms.Form):
         ),
     )
 
-    payment_method = forms.CharField(
+    payment_method = forms.ChoiceField(
         required=False,
         label="Medio de pago",
-        widget=forms.TextInput(
+        choices=MANUAL_PAYMENT_METHOD_CHOICES,
+        widget=forms.Select(
             attrs={
-                "class": "form-control",
+                "class": "form-select",
             }
         ),
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        dispense_type = cleaned_data.get("dispense_type")
+
+        if dispense_type == Sale.DispenseType.PAID:
+            required_fields = {
+                "unit_price": "Introduce el precio unitario de la venta pagada.",
+                "amount_received": "Introduce el importe recibido de la venta pagada.",
+                "payment_method": "Selecciona el medio de pago de la venta pagada.",
+            }
+
+            for field_name, error_message in required_fields.items():
+                if cleaned_data.get(field_name) in (None, ""):
+                    self.add_error(field_name, error_message)
+
+        elif dispense_type == Sale.DispenseType.FREE:
+            cleaned_data["unit_price"] = None
+            cleaned_data["amount_received"] = Decimal("0.00")
+            cleaned_data["payment_method"] = ""
+
+        return cleaned_data

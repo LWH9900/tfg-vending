@@ -398,6 +398,11 @@ def replenishment_register(request, pk):
             update_fields=["status"],
         )
 
+    messages.success(
+        request,
+        "La reposición se ha registrado correctamente.",
+    )
+
     return redirect(
         "replenishments:replenishment_detail",
         pk=replenishment.pk,
@@ -416,6 +421,11 @@ def replenishment_delete(request, pk):
             raise PermissionDenied("Solo se pueden eliminar reposiciones en borrador.")
 
         replenishment.delete()
+
+    messages.success(
+        request,
+        "La reposición se ha eliminado correctamente.",
+    )
 
     return redirect("replenishments:replenishment_list")
 

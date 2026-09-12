@@ -66,4 +66,9 @@ urlpatterns = [
         views.sale_manual_create,
         name="sale_manual_create",
     ),
+    path(
+        "manual/product-status/<int:machine_pk>/",
+        views.manual_sale_product_status,
+        name="manual_sale_product_status",
+    ),
 ]

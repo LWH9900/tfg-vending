@@ -225,6 +225,11 @@ def purchase_register(request, pk):
             update_fields=["status"],
         )
 
+    messages.success(
+        request,
+        "La compra se ha registrado correctamente.",
+    )
+
     return redirect(
         "purchases:purchase_detail",
         pk=purchase.pk,
@@ -243,6 +248,11 @@ def purchase_delete(request, pk):
             raise PermissionDenied("Solo se pueden eliminar compras en borrador.")
 
         purchase.delete()
+
+    messages.success(
+        request,
+        "La compra se ha eliminado correctamente.",
+    )
 
     return redirect("purchases:purchase_list")
 

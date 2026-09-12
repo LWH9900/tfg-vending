@@ -38,10 +38,13 @@ def _validate_sale_stock(machine, product, quantity, replaced_sale=None):
     if machine_stock < quantity:
         raise ValidationError(
             {
-                "quantity": (
-                    "Stock insuficiente para registrar la venta. "
-                    f"La máquina dispone de {machine_stock} unidades "
-                    f"y se han solicitado {quantity}."
+                "quantity": ValidationError(
+                    (
+                        "Stock insuficiente para registrar la venta. "
+                        f"La máquina dispone de {machine_stock} unidades "
+                        f"y se han solicitado {quantity}."
+                    ),
+                    code="insufficient_stock",
                 )
             }
         )
@@ -917,13 +920,54 @@ def create_manual_sale(
     if machine is None:
         raise ValidationError({"machine": ("Debe seleccionarse una máquina.")})
 
-    if product is None:
-        raise ValidationError({"product": ("Debe seleccionarse un producto.")})
-
     if occurred_at is None:
         raise ValidationError(
             {"occurred_at": ("Debe indicarse la fecha y hora real de la venta.")}
         )
+
+    selection = str(selection or "").strip()
+
+    if product is None:
+        if not selection:
+            raise ValidationError(
+                {
+                    "product": (
+                        "Selecciona un producto o indica la selección "
+                        "de la máquina para identificarlo automáticamente."
+                    )
+                }
+            )
+
+        layout = get_machine_layout_at(
+            machine,
+            occurred_at,
+        )
+
+        if layout is None:
+            raise ValidationError(
+                {
+                    "selection": (
+                        "No había ninguna disposición activa para esta máquina "
+                        "en la fecha indicada."
+                    )
+                }
+            )
+
+        product = get_product_for_selection(
+            machine,
+            selection,
+            occurred_at,
+        )
+
+        if product is None:
+            raise ValidationError(
+                {
+                    "selection": (
+                        "La selección indicada no existe o no tiene un producto "
+                        "asignado en la disposición activa de esa fecha."
+                    )
+                }
+            )
 
     quantity = _parse_positive_integer(
         quantity,
@@ -948,14 +992,35 @@ def create_manual_sale(
         "amount_received",
     )
 
-    if dispense_type == Sale.DispenseType.FREE and amount_received is None:
+    payment_method = str(payment_method or "").strip()
+
+    if dispense_type == Sale.DispenseType.PAID:
+        economic_errors = {}
+
+        if unit_price is None:
+            economic_errors["unit_price"] = (
+                "Debe indicarse el precio unitario de una venta manual pagada."
+            )
+
+        if amount_received is None:
+            economic_errors["amount_received"] = (
+                "Debe indicarse el importe recibido de una venta manual pagada."
+            )
+
+        if not payment_method:
+            economic_errors["payment_method"] = (
+                "Debe indicarse el medio de pago de una venta manual pagada."
+            )
+
+        if economic_errors:
+            raise ValidationError(economic_errors)
+
+    else:
+        unit_price = None
         amount_received = Decimal("0.00")
+        payment_method = ""
 
     event_id = str(event_id).strip() if event_id else None
-
-    selection = str(selection or "").strip()
-
-    payment_method = str(payment_method or "").strip()
 
     if event_id:
         existing_sale = Sale.objects.filter(

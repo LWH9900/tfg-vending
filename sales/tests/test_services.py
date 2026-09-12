@@ -2715,6 +2715,77 @@ class SaleServiceTests(TestCase):
             sale.raw_payload,
         )
 
+    def assert_paid_manual_sale_rejects_missing_field(self, field_name):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
+        sale_data = {
+            "machine": self.machine,
+            "product": self.product_a,
+            "occurred_at": self.make_datetime(2026, 9, 3, 18, 0),
+            "quantity": 1,
+            "dispense_type": Sale.DispenseType.PAID,
+            "unit_price": Decimal("1.50"),
+            "amount_received": Decimal("1.50"),
+            "payment_method": "cash",
+        }
+        sale_data[field_name] = None
+
+        with self.assertRaises(ValidationError) as context:
+            create_manual_sale(**sale_data)
+
+        self.assertIn(field_name, context.exception.message_dict)
+        self.assertFalse(Sale.objects.filter(source=Sale.Source.MANUAL).exists())
+
+    def test_manual_paid_sale_requires_unit_price(self):
+        self.assert_paid_manual_sale_rejects_missing_field("unit_price")
+
+    def test_manual_paid_sale_requires_amount_received(self):
+        self.assert_paid_manual_sale_rejects_missing_field("amount_received")
+
+    def test_manual_paid_sale_requires_payment_method(self):
+        self.assert_paid_manual_sale_rejects_missing_field("payment_method")
+
+    def test_manual_paid_sale_accepts_unknown_payment_method(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=self.make_datetime(2026, 9, 3, 18, 0),
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="unknown",
+        )
+
+        self.assertEqual(sale.payment_method, "unknown")
+
+    def test_manual_sale_allows_product_outside_active_historical_layout(self):
+        self.create_stock(self.product_a, replenished_quantity=10)
+
+        activation_time = self.make_datetime(2026, 9, 3, 12, 0)
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(self.layout_b)
+
+        sale = create_manual_sale(
+            machine=self.machine,
+            product=self.product_a,
+            occurred_at=self.make_datetime(2026, 9, 3, 18, 0),
+            quantity=1,
+            dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="unknown",
+        )
+
+        self.assertEqual(sale.product, self.product_a)
+        self.assertIsNone(sale.resolution_layout)
+
     def test_manual_sale_can_store_external_event_id(self):
         self.create_stock(self.product_a, replenished_quantity=10)
 
@@ -2733,6 +2804,9 @@ class SaleServiceTests(TestCase):
             occurred_at=occurred_at,
             quantity=1,
             dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="cash",
         )
 
         self.assertEqual(
@@ -2774,6 +2848,9 @@ class SaleServiceTests(TestCase):
                 occurred_at=occurred_at,
                 quantity=1,
                 dispense_type=Sale.DispenseType.PAID,
+                unit_price=Decimal("1.50"),
+                amount_received=Decimal("1.50"),
+                payment_method="cash",
             )
 
         self.assertEqual(
@@ -2813,6 +2890,9 @@ class SaleServiceTests(TestCase):
             Decimal("0.00"),
         )
 
+        self.assertIsNone(sale.unit_price)
+        self.assertEqual(sale.payment_method, "")
+
     def test_manual_sale_affects_inventory(self):
         self.create_stock(
             self.product_a,
@@ -2847,6 +2927,7 @@ class SaleServiceTests(TestCase):
             dispense_type=Sale.DispenseType.PAID,
             unit_price=Decimal("1.50"),
             amount_received=Decimal("3.00"),
+            payment_method="cash",
         )
 
         self.assertEqual(
@@ -2885,6 +2966,9 @@ class SaleServiceTests(TestCase):
             quantity=1,
             dispense_type=Sale.DispenseType.PAID,
             selection="",
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="cash",
         )
 
         self.assertEqual(
@@ -2914,6 +2998,9 @@ class SaleServiceTests(TestCase):
             occurred_at=occurred_at,
             quantity=1,
             dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="cash",
         )
 
         sale.quantity = 5
@@ -2945,6 +3032,9 @@ class SaleServiceTests(TestCase):
             occurred_at=occurred_at,
             quantity=1,
             dispense_type=Sale.DispenseType.PAID,
+            unit_price=Decimal("1.50"),
+            amount_received=Decimal("1.50"),
+            payment_method="cash",
         )
 
         voided_sale = void_sale(

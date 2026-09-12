@@ -349,19 +349,44 @@
 
         <main class="app-content">
 
+            <div
+                id="app-feedback"
+                class="app-feedback"
+                aria-live="polite"
+                aria-atomic="false"
+            >
+
             {% if messages %}
 
                 {% for message in messages %}
 
                     {% if message.tags == "error" %}
 
-                        <div class="alert alert-danger">
+                        <div
+                            class="alert alert-danger app-feedback-message"
+                            role="alert"
+                            data-feedback-dismissible
+                        >
+                            {{ message }}
+                        </div>
+
+                    {% elif message.tags == "info" %}
+
+                        <div
+                            class="alert alert-warning app-feedback-message"
+                            role="alert"
+                            data-feedback-dismissible
+                        >
                             {{ message }}
                         </div>
 
                     {% else %}
 
-                        <div class="alert alert-{{ message.tags }}">
+                        <div
+                            class="alert alert-{{ message.tags|default:'warning' }} app-feedback-message"
+                            role="alert"
+                            data-feedback-dismissible
+                        >
                             {{ message }}
                         </div>
 
@@ -371,12 +396,50 @@
 
             {% endif %}
 
+            </div>
+
 
             {% block content %}
             {% endblock %}
 
         </main>
 
+    </div>
+
+    <div
+        class="modal fade"
+        id="appConfirmationModal"
+        tabindex="-1"
+        aria-labelledby="appConfirmationModalLabel"
+        aria-describedby="appConfirmationModalMessage"
+        aria-hidden="true"
+    >
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="appConfirmationModalLabel">
+                        Confirmar acción
+                    </h2>
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <p id="appConfirmationModalMessage" class="mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="appConfirmationAccept">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script
@@ -387,6 +450,7 @@
 
     <script src="{% static 'js/product-select.js' %}?v=1"></script>
 <script src="{% static 'js/clickable-rows.js' %}?v=4"></script>
+<script src="{% static 'js/app-feedback.js' %}?v=1"></script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

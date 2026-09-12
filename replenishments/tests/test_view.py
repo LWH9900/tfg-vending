@@ -1203,6 +1203,41 @@ class ReplenishmentViewTests(TestCase):
             0,
         )
 
+    def test_stock_and_layout_warnings_share_a_single_alert(self):
+        outside_product = Product.objects.create(
+            name="VimaOutsideNoStock",
+            category=self.category,
+            format_unit="500 ml",
+            vat_rate=Decimal("21.00"),
+            default_sale_price=Decimal("2.00"),
+        )
+
+        replenishment = self.create_draft_replenishment(
+            outside_product,
+            2,
+        )
+
+        response = self.client.get(
+            reverse(
+                "replenishments:replenishment_detail",
+                args=[replenishment.pk],
+            )
+        )
+
+        self.assertContains(
+            response,
+            "El borrador contiene cantidades superiores",
+        )
+        self.assertContains(
+            response,
+            "compatibles con la disposición histórica",
+        )
+        self.assertContains(
+            response,
+            "alert-warning",
+            count=1,
+        )
+
     def test_replenishment_without_historical_layout_cannot_be_registered(
         self,
     ):
