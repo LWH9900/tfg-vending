@@ -13,6 +13,8 @@ select = ["E", "F", "I"]
 source = ["."]
 omit = [
     "*/migrations/*",
+    "*/tests/*",
+    "*/tests.py",
     "manage.py",
     "config/asgi.py",
     "config/wsgi.py",

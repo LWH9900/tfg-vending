@@ -3332,6 +3332,608 @@ class SaleServiceTests(TestCase):
             ).exists()
         )
 
+    def test_receive_sale_requires_dictionary_payload(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "El contenido de la venta debe ser un objeto JSON.",
+        ):
+            receive_sale(
+                ["not", "a", "dictionary"],
+            )
+
+    def test_receive_sale_rejects_non_json_serializable_payload(self):
+        payload = self.make_payload(
+            event_id="evt-invalid-json",
+        )
+
+        payload["invalid_value"] = {1, 2, 3}
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "El contenido de la venta debe ser JSON válido.",
+        ):
+            receive_sale(payload)
+
+        self.assertFalse(
+            Sale.objects.filter(
+                event_id="evt-invalid-json",
+            ).exists()
+        )
+
+    def test_string_quantity_is_converted_to_integer(self):
+        payload = self.make_payload(
+            event_id="evt-string-quantity",
+            machine_identifier="VM-UNKNOWN",
+            quantity=" 2 ",
+        )
+
+        sale, created = receive_sale(payload)
+
+        self.assertTrue(created)
+        self.assertEqual(
+            sale.quantity,
+            2,
+        )
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+    def test_invalid_string_quantity_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-invalid-string-quantity",
+            quantity="1.5",
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            receive_sale(payload)
+
+        self.assertIn(
+            "quantity",
+            context.exception.message_dict,
+        )
+
+        self.assertFalse(
+            Sale.objects.filter(
+                event_id="evt-invalid-string-quantity",
+            ).exists()
+        )
+
+    def test_invalid_decimal_value_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-invalid-decimal",
+            unit_price="not-a-number",
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            receive_sale(payload)
+
+        self.assertIn(
+            "unit_price",
+            context.exception.message_dict,
+        )
+
+    def test_negative_amount_received_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-negative-amount",
+            amount_received="-1.00",
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            receive_sale(payload)
+
+        self.assertIn(
+            "amount_received",
+            context.exception.message_dict,
+        )
+
+    def test_invalid_occurred_at_type_is_rejected(self):
+        payload = self.make_payload(
+            event_id="evt-invalid-date-type",
+            occurred_at=123,
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            receive_sale(payload)
+
+        self.assertIn(
+            "occurred_at",
+            context.exception.message_dict,
+        )
+
+    def test_sale_state_services_require_saved_sale(self):
+        unsaved_sale = Sale()
+
+        with self.subTest(service="void_sale"):
+            with self.assertRaisesMessage(
+                ValidationError,
+                "La venta debe estar guardada antes de poder anularla.",
+            ):
+                void_sale(
+                    unsaved_sale,
+                    "Motivo.",
+                )
+
+        with self.subTest(service="reject_sale_conflict"):
+            with self.assertRaisesMessage(
+                ValidationError,
+                "La venta debe estar guardada antes de poder revisarla.",
+            ):
+                reject_sale_conflict(
+                    unsaved_sale,
+                )
+
+        with self.subTest(service="accept_sale_conflict"):
+            with self.assertRaisesMessage(
+                ValidationError,
+                "La venta debe estar guardada antes de poder revisarla.",
+            ):
+                accept_sale_conflict(
+                    unsaved_sale,
+                )
+
+        with self.subTest(service="resolve_pending_sale"):
+            with self.assertRaisesMessage(
+                ValidationError,
+                "La venta debe estar guardada antes de poder resolverla.",
+            ):
+                resolve_pending_sale(
+                    unsaved_sale,
+                    self.machine,
+                    self.product_a,
+                )
+
+    def test_conflict_without_resolved_machine_cannot_be_accepted(self):
+        first_payload = self.make_payload(
+            event_id="evt-conflict-without-machine",
+            machine_identifier="VM-UNKNOWN",
+            selection="A1",
+        )
+
+        receive_sale(first_payload)
+
+        second_payload = self.make_payload(
+            event_id="evt-conflict-without-machine",
+            machine_identifier="VM-UNKNOWN",
+            selection="A2",
+        )
+
+        conflict_sale, _ = receive_sale(
+            second_payload,
+        )
+
+        self.assertEqual(
+            conflict_sale.status,
+            Sale.Status.CONFLICT,
+        )
+        self.assertIsNone(
+            conflict_sale.machine,
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            accept_sale_conflict(
+                conflict_sale,
+            )
+
+        self.assertIn(
+            "machine",
+            context.exception.message_dict,
+        )
+
+    def test_pending_sale_cannot_replace_already_resolved_machine(self):
+        other_machine = Machine.objects.create(
+            identifier="VM-SALE-OTHER",
+            name="Máquina distinta",
+            serial_number="SN-SALE-OTHER",
+            rows=4,
+            columns=4,
+        )
+
+        payload = self.make_payload(
+            event_id="evt-fixed-machine",
+            selection="Z9",
+        )
+
+        sale, _ = receive_sale(
+            payload,
+        )
+
+        self.assertEqual(
+            sale.machine,
+            self.machine,
+        )
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            resolve_pending_sale(
+                sale,
+                other_machine,
+                self.product_a,
+            )
+
+        self.assertIn(
+            "machine",
+            context.exception.message_dict,
+        )
+
+    def test_exact_historical_layout_cannot_be_replaced_by_reference_layout(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-exact-layout-reference",
+                machine_identifier="VM-UNKNOWN",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "La venta ya tiene una disposición histórica exacta.",
+        ):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_a,
+                reference_layout=self.layout_b,
+            )
+
+    def test_reference_layout_must_belong_to_selected_machine(self):
+        other_machine = Machine.objects.create(
+            identifier="VM-REFERENCE-OTHER",
+            name="Máquina referencia",
+            serial_number="SN-REFERENCE-OTHER",
+            rows=4,
+            columns=4,
+        )
+
+        other_layout = MachineLayout.objects.create(
+            machine=other_machine,
+            name="Disposición otra máquina",
+        )
+
+        other_layout.status = MachineLayout.Status.REGISTERED
+        other_layout.save()
+
+        sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-wrong-reference-machine",
+                machine_identifier="VM-UNKNOWN",
+            )
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "La disposición seleccionada no pertenece a la máquina de la venta.",
+        ):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_a,
+                reference_layout=other_layout,
+            )
+
+    def test_reference_layout_must_have_activation_history(self):
+        sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-reference-never-active",
+                machine_identifier="VM-UNKNOWN",
+            )
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "La disposición seleccionada nunca ha estado activa",
+        ):
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_a,
+                reference_layout=self.layout_a,
+            )
+
+    def test_pending_sale_can_use_historical_reference_layout(self):
+        self.create_stock(
+            self.product_a,
+            replenished_quantity=10,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            12,
+            0,
+        )
+
+        sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-reference-layout",
+                machine_identifier="VM-UNKNOWN",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        resolved_sale = resolve_pending_sale(
+            sale,
+            self.machine,
+            self.product_a,
+            reference_layout=self.layout_a,
+        )
+
+        self.assertEqual(
+            resolved_sale.status,
+            Sale.Status.RESOLVED,
+        )
+        self.assertEqual(
+            resolved_sale.machine,
+            self.machine,
+        )
+        self.assertEqual(
+            resolved_sale.product,
+            self.product_a,
+        )
+        self.assertEqual(
+            resolved_sale.resolution_layout,
+            self.layout_a,
+        )
+
+    def test_pending_sale_cannot_override_product_identified_by_selection(self):
+        layout = MachineLayout.objects.create(
+            machine=self.machine,
+            name="Disposición con dos productos",
+        )
+
+        MachinePosition.objects.create(
+            layout=layout,
+            identifier="A1",
+            row=1,
+            column=1,
+            product=self.product_a,
+        )
+
+        MachinePosition.objects.create(
+            layout=layout,
+            identifier="B1",
+            row=1,
+            column=2,
+            product=self.product_b,
+        )
+
+        layout.status = MachineLayout.Status.REGISTERED
+        layout.save()
+
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            9,
+            0,
+        )
+
+        sale_time = self.make_datetime(
+            2026,
+            9,
+            2,
+            10,
+            30,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                layout,
+            )
+
+        sale, _ = receive_sale(
+            self.make_payload(
+                event_id="evt-selection-mismatch",
+                machine_identifier="VM-UNKNOWN",
+                selection="A1",
+                occurred_at=sale_time.isoformat(),
+            )
+        )
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            resolve_pending_sale(
+                sale,
+                self.machine,
+                self.product_b,
+            )
+
+        self.assertIn(
+            "product",
+            context.exception.message_dict,
+        )
+
+        sale.refresh_from_db()
+
+        self.assertEqual(
+            sale.status,
+            Sale.Status.PENDING,
+        )
+        self.assertIsNone(
+            sale.product,
+        )
+
+    def test_manual_sale_requires_machine(self):
+        with self.assertRaises(ValidationError) as context:
+            create_manual_sale(
+                machine=None,
+                product=self.product_a,
+                occurred_at=self.make_datetime(
+                    2026,
+                    9,
+                    3,
+                    18,
+                    0,
+                ),
+                quantity=1,
+                dispense_type=Sale.DispenseType.PAID,
+                unit_price=Decimal("1.50"),
+                amount_received=Decimal("1.50"),
+                payment_method="cash",
+            )
+
+        self.assertIn(
+            "machine",
+            context.exception.message_dict,
+        )
+
+    def test_manual_sale_requires_occurred_at(self):
+        with self.assertRaises(ValidationError) as context:
+            create_manual_sale(
+                machine=self.machine,
+                product=self.product_a,
+                occurred_at=None,
+                quantity=1,
+                dispense_type=Sale.DispenseType.PAID,
+                unit_price=Decimal("1.50"),
+                amount_received=Decimal("1.50"),
+                payment_method="cash",
+            )
+
+        self.assertIn(
+            "occurred_at",
+            context.exception.message_dict,
+        )
+
+    def test_manual_sale_requires_product_or_selection(self):
+        with self.assertRaises(ValidationError) as context:
+            create_manual_sale(
+                machine=self.machine,
+                product=None,
+                occurred_at=self.make_datetime(
+                    2026,
+                    9,
+                    3,
+                    18,
+                    0,
+                ),
+                quantity=1,
+                dispense_type=Sale.DispenseType.PAID,
+                unit_price=Decimal("1.50"),
+                amount_received=Decimal("1.50"),
+                payment_method="cash",
+            )
+
+        self.assertIn(
+            "product",
+            context.exception.message_dict,
+        )
+
+    def test_manual_sale_rejects_unknown_selection(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            3,
+            12,
+            0,
+        )
+
+        occurred_at = self.make_datetime(
+            2026,
+            9,
+            3,
+            18,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with self.assertRaises(ValidationError) as context:
+            create_manual_sale(
+                machine=self.machine,
+                product=None,
+                occurred_at=occurred_at,
+                quantity=1,
+                selection="Z9",
+                dispense_type=Sale.DispenseType.PAID,
+                unit_price=Decimal("1.50"),
+                amount_received=Decimal("1.50"),
+                payment_method="cash",
+            )
+
+        self.assertIn(
+            "selection",
+            context.exception.message_dict,
+        )
+
+    def test_manual_sale_rejects_invalid_dispense_type(self):
+        with self.assertRaises(ValidationError) as context:
+            create_manual_sale(
+                machine=self.machine,
+                product=self.product_a,
+                occurred_at=self.make_datetime(
+                    2026,
+                    9,
+                    3,
+                    18,
+                    0,
+                ),
+                quantity=1,
+                dispense_type="invalid",
+            )
+
+        self.assertIn(
+            "dispense_type",
+            context.exception.message_dict,
+        )
+
 
 class SaleConcurrencyTests(TransactionTestCase):
     def setUp(self):

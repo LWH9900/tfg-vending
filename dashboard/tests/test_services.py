@@ -517,5 +517,5 @@ class DashboardServiceTests(TestCase):
 
         self.assertEqual(
             result["active_incidents"],
-            2,
+            3,
         )

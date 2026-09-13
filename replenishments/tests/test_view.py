@@ -1596,6 +1596,297 @@ class ReplenishmentViewTests(TestCase):
             1,
         )
 
+    def test_create_replenishment_without_replenished_at_uses_current_time(self):
+        expected_now = timezone.make_aware(
+            datetime(
+                2026,
+                8,
+                26,
+                10,
+                30,
+            )
+        )
+
+        data = self.replenishment_post_data(
+            [
+                {
+                    "product": self.product,
+                    "quantity": 5,
+                }
+            ]
+        )
+        data["replenished_at"] = ""
+
+        with (
+            patch(
+                "replenishments.views.timezone.now",
+                return_value=expected_now,
+            ),
+            patch(
+                "replenishments.views._get_active_product_ids",
+                return_value={
+                    self.product.pk,
+                    self.second_product.pk,
+                },
+            ) as mocked_active_products,
+        ):
+            self.client.post(
+                reverse(
+                    "replenishments:replenishment_create",
+                ),
+                data,
+            )
+
+        mocked_active_products.assert_called_once_with(
+            self.machine,
+            expected_now,
+        )
+
+    def test_active_products_without_moment_uses_current_time(self):
+        expected_now = timezone.make_aware(
+            datetime(
+                2026,
+                8,
+                26,
+                10,
+                30,
+            )
+        )
+
+        with (
+            patch(
+                "replenishments.views.timezone.now",
+                return_value=expected_now,
+            ),
+            patch(
+                "replenishments.views._get_active_product_ids",
+                return_value={
+                    self.product.pk,
+                },
+            ) as mocked_active_products,
+        ):
+            response = self.client.get(
+                reverse(
+                    "replenishments:active_products",
+                    args=[
+                        self.machine.pk,
+                    ],
+                )
+            )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            set(response.json()["product_ids"]),
+            {
+                self.product.pk,
+            },
+        )
+
+        mocked_active_products.assert_called_once_with(
+            self.machine,
+            expected_now,
+        )
+
+    def test_draft_replenishment_can_be_edited_by_post(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.DRAFT,
+        )
+
+        data = self.replenishment_post_data(
+            [
+                {
+                    "product": self.product,
+                    "quantity": 7,
+                }
+            ]
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_edit",
+                args=[
+                    replenishment.pk,
+                ],
+            ),
+            data,
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "replenishments:replenishment_detail",
+                args=[
+                    replenishment.pk,
+                ],
+            ),
+        )
+
+        self.assertEqual(
+            replenishment.machine,
+            self.machine,
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.DRAFT,
+        )
+
+        self.assertEqual(
+            replenishment.lines.count(),
+            1,
+        )
+
+        line = replenishment.lines.get()
+
+        self.assertEqual(
+            line.product,
+            self.product,
+        )
+
+        self.assertEqual(
+            line.quantity,
+            7,
+        )
+
+    def test_registered_replenishment_cannot_be_edited_by_post(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.REGISTERED,
+        )
+
+        data = self.replenishment_post_data(
+            [
+                {
+                    "product": self.product,
+                    "quantity": 5,
+                }
+            ]
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_edit",
+                args=[
+                    replenishment.pk,
+                ],
+            ),
+            data,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.REGISTERED,
+        )
+
+        self.assertEqual(
+            replenishment.lines.count(),
+            0,
+        )
+
+    def test_edit_replenishment_without_replenished_at_uses_current_time(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.DRAFT,
+        )
+
+        expected_now = timezone.make_aware(
+            datetime(
+                2026,
+                8,
+                26,
+                11,
+                0,
+            )
+        )
+
+        data = self.replenishment_post_data(
+            [
+                {
+                    "product": self.product,
+                    "quantity": 5,
+                }
+            ]
+        )
+        data["replenished_at"] = ""
+
+        with (
+            patch(
+                "replenishments.views.timezone.now",
+                return_value=expected_now,
+            ),
+            patch(
+                "replenishments.views._get_active_product_ids",
+                return_value={
+                    self.product.pk,
+                },
+            ) as mocked_active_products,
+        ):
+            self.client.post(
+                reverse(
+                    "replenishments:replenishment_edit",
+                    args=[
+                        replenishment.pk,
+                    ],
+                ),
+                data,
+            )
+
+        mocked_active_products.assert_called_once_with(
+            self.machine,
+            expected_now,
+        )
+
+    def test_replenishment_without_lines_cannot_be_registered(self):
+        replenishment = Replenishment.objects.create(
+            machine=self.machine,
+            status=Replenishment.Status.DRAFT,
+        )
+
+        response = self.client.post(
+            reverse(
+                "replenishments:replenishment_register",
+                args=[
+                    replenishment.pk,
+                ],
+            )
+        )
+
+        replenishment.refresh_from_db()
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "replenishments:replenishment_detail",
+                args=[
+                    replenishment.pk,
+                ],
+            ),
+        )
+
+        self.assertEqual(
+            replenishment.status,
+            Replenishment.Status.DRAFT,
+        )
+
+        self.assertEqual(
+            replenishment.lines.count(),
+            0,
+        )
+
 
 class ReplenishmentConcurrencyTests(TransactionTestCase):
     def setUp(self):
