@@ -1,4 +1,4 @@
-from inventory.services import get_warehouse_stock
+from inventory.services import get_machine_stock, get_warehouse_stock
 from machines.services.layouts import get_machine_layout_at
 
 
@@ -10,7 +10,7 @@ def get_replenishment_stock_errors(replenishment):
     for line in lines:
         available_stock = get_warehouse_stock(line.product)
 
-        if line.quantity > available_stock:
+        if available_stock < 0 or line.quantity > available_stock:
             errors.append(
                 {
                     "product": line.product,
@@ -62,6 +62,32 @@ def get_replenishment_layout_errors(
                     "code": ("product_not_in_layout"),
                     "layout": layout,
                     "product": line.product,
+                }
+            )
+
+    return errors
+
+
+def get_replenishment_cancellation_stock_errors(replenishment):
+    errors = []
+
+    lines = replenishment.lines.select_related("product")
+
+    for line in lines:
+        current_stock = get_machine_stock(
+            line.product,
+            replenishment.machine,
+        )
+
+        resulting_stock = current_stock - line.quantity
+
+        if resulting_stock < 0:
+            errors.append(
+                {
+                    "product": line.product,
+                    "current_stock": current_stock,
+                    "replenishment_quantity": line.quantity,
+                    "resulting_stock": resulting_stock,
                 }
             )
 

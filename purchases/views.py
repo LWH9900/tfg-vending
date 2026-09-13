@@ -1,8 +1,11 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+
+from inventory.models import Product
 
 from .forms import (
     PurchaseFilterForm,
@@ -56,13 +59,19 @@ def purchase_list(request):
             )
 
     purchases = purchases.distinct()
+    paginator = Paginator(purchases, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
 
     return render(
         request,
         "purchases/purchase_list.html",
         {
-            "purchases": purchases,
+            "purchases": page_obj.object_list,
             "filter_form": filter_form,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
         },
     )
 
@@ -138,39 +147,52 @@ def purchase_create(request):
 
 
 def purchase_edit(request, pk):
-    purchase = get_object_or_404(
-        Purchase,
-        pk=pk,
-    )
-    if purchase.status != Purchase.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden editar compras en borrador.")
-
     if request.method == "POST":
-        form = PurchaseForm(
-            request.POST,
-            instance=purchase,
-        )
-        formset = PurchaseLineFormSet(
-            request.POST,
-            instance=purchase,
-        )
+        with transaction.atomic():
+            purchase = get_object_or_404(
+                Purchase.objects.select_for_update(),
+                pk=pk,
+            )
 
-        form_is_valid = form.is_valid()
-        formset_is_valid = formset.is_valid()
+            if purchase.status != Purchase.Status.DRAFT:
+                raise PermissionDenied("Solo se pueden editar compras en borrador.")
 
-        if form_is_valid and formset_is_valid:
-            with transaction.atomic():
+            form = PurchaseForm(
+                request.POST,
+                instance=purchase,
+            )
+            formset = PurchaseLineFormSet(
+                request.POST,
+                instance=purchase,
+            )
+
+            form_is_valid = form.is_valid()
+            formset_is_valid = formset.is_valid()
+
+            if form_is_valid and formset_is_valid:
                 form.save()
                 formset.save()
 
-            return redirect(
-                "purchases:purchase_detail",
-                pk=purchase.pk,
-            )
+                return redirect(
+                    "purchases:purchase_detail",
+                    pk=purchase.pk,
+                )
 
     else:
-        form = PurchaseForm(instance=purchase)
-        formset = PurchaseLineFormSet(instance=purchase)
+        purchase = get_object_or_404(
+            Purchase,
+            pk=pk,
+        )
+
+        if purchase.status != Purchase.Status.DRAFT:
+            raise PermissionDenied("Solo se pueden editar compras en borrador.")
+
+        form = PurchaseForm(
+            instance=purchase,
+        )
+        formset = PurchaseLineFormSet(
+            instance=purchase,
+        )
 
     return render(
         request,
@@ -186,19 +208,27 @@ def purchase_edit(request, pk):
 
 @require_POST
 def purchase_register(request, pk):
-    purchase = get_object_or_404(
-        Purchase,
-        pk=pk,
+    with transaction.atomic():
+        purchase = get_object_or_404(
+            Purchase.objects.select_for_update(),
+            pk=pk,
+        )
+
+        if purchase.status != Purchase.Status.DRAFT:
+            raise PermissionDenied("Solo se pueden registrar compras en borrador.")
+
+        if not purchase.lines.exists():
+            raise PermissionDenied("No se puede registrar una compra sin productos.")
+
+        purchase.status = Purchase.Status.REGISTERED
+        purchase.save(
+            update_fields=["status"],
+        )
+
+    messages.success(
+        request,
+        "La compra se ha registrado correctamente.",
     )
-
-    if purchase.status != Purchase.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden registrar compras en borrador.")
-
-    if not purchase.lines.exists():
-        raise PermissionDenied("No se puede registrar una compra sin productos.")
-
-    purchase.status = Purchase.Status.REGISTERED
-    purchase.save(update_fields=["status"])
 
     return redirect(
         "purchases:purchase_detail",
@@ -208,59 +238,82 @@ def purchase_register(request, pk):
 
 @require_POST
 def purchase_delete(request, pk):
-    purchase = get_object_or_404(
-        Purchase,
-        pk=pk,
+    with transaction.atomic():
+        purchase = get_object_or_404(
+            Purchase.objects.select_for_update(),
+            pk=pk,
+        )
+
+        if purchase.status != Purchase.Status.DRAFT:
+            raise PermissionDenied("Solo se pueden eliminar compras en borrador.")
+
+        purchase.delete()
+
+    messages.success(
+        request,
+        "La compra se ha eliminado correctamente.",
     )
-
-    if purchase.status != Purchase.Status.DRAFT:
-        raise PermissionDenied("Solo se pueden eliminar compras en borrador.")
-
-    purchase.delete()
 
     return redirect("purchases:purchase_list")
 
 
 @require_POST
 def purchase_cancel(request, pk):
-    purchase = get_object_or_404(
-        Purchase.objects.prefetch_related("lines__product"),
-        pk=pk,
-    )
-
-    if purchase.status != Purchase.Status.REGISTERED:
-        raise PermissionDenied("Solo se pueden anular compras registradas.")
-
-    stock_errors = get_purchase_cancellation_stock_errors(purchase)
-
-    if stock_errors:
-        details = "; ".join(
-            (
-                f"{error['product'].name}: "
-                f"{error['current_stock']} uds. disponibles, "
-                f"la compra aporta "
-                f"{error['purchase_quantity']} uds."
-            )
-            for error in stock_errors
-        )
-
-        messages.error(
-            request,
-            (
-                "No se puede anular la compra porque "
-                "el stock de almacén quedaría negativo. "
-                f"{details}"
-            ),
-        )
-
-        return redirect(
-            "purchases:purchase_detail",
-            pk=purchase.pk,
-        )
-
     with transaction.atomic():
+        purchase = get_object_or_404(
+            Purchase.objects.select_for_update().prefetch_related(
+                "lines__product",
+            ),
+            pk=pk,
+        )
+
+        if purchase.status != Purchase.Status.REGISTERED:
+            raise PermissionDenied("Solo se pueden anular compras registradas.")
+
+        product_ids = list(
+            purchase.lines.values_list(
+                "product_id",
+                flat=True,
+            )
+        )
+
+        list(
+            Product.objects.select_for_update()
+            .filter(pk__in=product_ids)
+            .order_by("pk")
+        )
+
+        stock_errors = get_purchase_cancellation_stock_errors(purchase)
+
+        if stock_errors:
+            details = "; ".join(
+                (
+                    f"{error['product'].name}: "
+                    f"{error['current_stock']} uds. disponibles, "
+                    f"la compra aporta "
+                    f"{error['purchase_quantity']} uds."
+                )
+                for error in stock_errors
+            )
+
+            messages.error(
+                request,
+                (
+                    "No se puede anular la compra porque "
+                    "el stock de almacén quedaría negativo. "
+                    f"{details}"
+                ),
+            )
+
+            return redirect(
+                "purchases:purchase_detail",
+                pk=purchase.pk,
+            )
+
         purchase.status = Purchase.Status.CANCELLED
-        purchase.save(update_fields=["status"])
+        purchase.save(
+            update_fields=["status"],
+        )
 
     return redirect(
         "purchases:purchase_detail",

@@ -666,3 +666,59 @@ class SaleHistoryViewTests(TestCase):
             response.status_code,
             404,
         )
+
+    def test_filters_are_restored_when_returning_to_history(self):
+        list_url = reverse("sales:sale_list")
+
+        self.client.get(
+            list_url,
+            {
+                "product": self.product_a.pk,
+                "status": Sale.Status.RESOLVED,
+            },
+        )
+
+        response = self.client.get(list_url)
+
+        self.assertRedirects(
+            response,
+            (f"{list_url}?product={self.product_a.pk}&status=resolved"),
+            fetch_redirect_response=False,
+        )
+
+    def test_clear_filters_removes_saved_filters(self):
+        list_url = reverse("sales:sale_list")
+
+        self.client.get(
+            list_url,
+            {
+                "product": self.product_a.pk,
+            },
+        )
+
+        response = self.client.get(
+            list_url,
+            {
+                "clear_filters": "1",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            list_url,
+        )
+
+        response = self.client.get(list_url)
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertNotIn(
+            "sales_filter_query",
+            self.client.session,
+        )
+        self.assertEqual(
+            list(response.context["sales"]),
+            list(Sale.objects.all()),
+        )

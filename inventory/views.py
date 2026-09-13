@@ -1,5 +1,11 @@
 from decimal import Decimal
 
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Count
+from django.db.models.deletion import ProtectedError
+from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 
 from inventory.services import (
@@ -13,17 +19,99 @@ from inventory.services import (
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
 
-from .forms import ProductForm
+from .forms import CategoryForm, ProductForm
 from .models import Category, Product
+
+
+def category_list(request):
+    categories = Category.objects.annotate(product_count=Count("products")).order_by(
+        "name"
+    )
+
+    return render(
+        request,
+        "inventory/category_list.html",
+        {"categories": categories},
+    )
+
+
+def category_create(request):
+    form = CategoryForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "La categoría se ha creado correctamente.")
+        return redirect("inventory:category_list")
+
+    return render(
+        request,
+        "inventory/category_form.html",
+        {"form": form, "is_editing": False},
+    )
+
+
+def category_update(request, pk):
+    category = get_object_or_404(Category, pk=pk)
+    previous_vat_rate = category.default_vat_rate
+    form = CategoryForm(request.POST or None, instance=category)
+
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            category = form.save()
+
+            if category.default_vat_rate != previous_vat_rate:
+                category.products.filter(uses_category_vat=True).update(
+                    vat_rate=category.default_vat_rate
+                )
+
+        messages.success(request, "La categoría se ha actualizado correctamente.")
+        return redirect("inventory:category_list")
+
+    return render(
+        request,
+        "inventory/category_form.html",
+        {
+            "form": form,
+            "category": category,
+            "is_editing": True,
+        },
+    )
+
+
+def category_delete(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    category = get_object_or_404(Category, pk=pk)
+
+    try:
+        category.delete()
+    except ProtectedError:
+        messages.error(
+            request,
+            "No se puede eliminar la categoría porque tiene productos asociados.",
+        )
+    else:
+        messages.success(request, "La categoría se ha eliminado correctamente.")
+
+    return redirect("inventory:category_list")
 
 
 def product_list(request):
     products = Product.objects.filter(is_active=True).order_by("name")
+    paginator = Paginator(products, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
 
     return render(
         request,
         "inventory/product_list.html",
-        {"products": products},
+        {
+            "products": page_obj.object_list,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
+        },
     )
 
 

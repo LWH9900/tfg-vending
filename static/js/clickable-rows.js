@@ -4,15 +4,43 @@ document.addEventListener("DOMContentLoaded", function () {
     );
 
     clickableElements.forEach(function (element) {
-        element.addEventListener("click", function () {
-            window.location.href = element.dataset.href;
-        });
+        const destination = element.dataset.href;
+
+        if (!destination) {
+            return;
+        }
+
+        const linkContainer = element.matches("tr")
+            ? element.querySelector("td")
+            : element;
+
+        if (linkContainer) {
+            const nativeLink = document.createElement("a");
+
+            nativeLink.href = destination;
+            nativeLink.className = "clickable-element-native-link";
+            nativeLink.setAttribute("aria-label", "Abrir detalle");
+
+            linkContainer.appendChild(nativeLink);
+        }
 
         element.addEventListener("keydown", function (event) {
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                window.location.href = element.dataset.href;
+            if (event.key !== "Enter" && event.key !== " ") {
+                return;
             }
+
+            event.preventDefault();
+
+            if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                window.open(
+                    destination,
+                    "_blank",
+                    "noopener,noreferrer"
+                );
+                return;
+            }
+
+            window.location.href = destination;
         });
     });
 });

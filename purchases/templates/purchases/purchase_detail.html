@@ -18,9 +18,7 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'purchases:purchase_list' %}">
-                    Compras
-                </a>
+                <a href="{% url 'purchases:purchase_list' %}">Compras</a>
                 /
                 #{{ purchase.pk }}
             </div>
@@ -78,7 +76,9 @@
                     method="post"
                     action="{% url 'purchases:purchase_delete' purchase.pk %}"
                     class="d-inline"
-                    onsubmit="return confirm('¿Seguro que quieres eliminar este borrador?');"
+                    data-confirm-message="¿Seguro que quieres eliminar este borrador?"
+                    data-confirm-label="Eliminar"
+                    data-confirm-danger
                 >
                     {% csrf_token %}
 
@@ -94,7 +94,8 @@
                     method="post"
                     action="{% url 'purchases:purchase_register' purchase.pk %}"
                     class="d-inline"
-                    onsubmit="return confirm('Una vez registrada, la compra dejará de poder editarse. ¿Quieres continuar?');"
+                    data-confirm-message="Una vez registrada, la compra dejará de poder editarse. ¿Quieres continuar?"
+                    data-confirm-label="Registrar"
                 >
                     {% csrf_token %}
 
@@ -113,7 +114,9 @@
                     method="post"
                     action="{% url 'purchases:purchase_cancel' purchase.pk %}"
                     class="d-inline"
-                    onsubmit="return confirm('¿Seguro que quieres anular esta compra?');"
+                    data-confirm-message="¿Seguro que quieres anular esta compra?"
+                    data-confirm-label="Anular"
+                    data-confirm-danger
                 >
                     {% csrf_token %}
 
@@ -423,19 +426,13 @@
 
             <dd>
                 {% if purchase.status == "DRAFT" %}
-                    <span class="badge text-bg-secondary">
-                        Borrador
-                    </span>
+                    {% include "components/status_indicator.html" with label="Borrador" tone="neutral" %}
 
                 {% elif purchase.status == "REGISTERED" %}
-                    <span class="badge text-bg-success">
-                        Registrada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Registrada" tone="positive" %}
 
                 {% elif purchase.status == "CANCELLED" %}
-                    <span class="badge text-bg-danger">
-                        Anulada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Anulada" tone="negative" %}
                 {% endif %}
             </dd>
         </div>

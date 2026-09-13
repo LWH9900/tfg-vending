@@ -56,6 +56,10 @@
         rel="stylesheet"
         href="{% static 'css/components/tables.css' %}"
     >
+    <link
+        rel="stylesheet"
+        href="{% static 'css/components/pagination.css' %}"
+    >
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -111,7 +115,13 @@
 
             <nav class="nav flex-column">
 
-                <a class="sidebar-link" href="#">
+                <a
+                    class="sidebar-link
+                    {% if request.resolver_match.app_name == 'dashboard' %}
+                        active
+                    {% endif %}"
+                    href="{% url 'dashboard:home' %}"
+                >
                     Resumen
                 </a>
 
@@ -151,9 +161,15 @@
                                 Stock
                             </a>
 
-                            <span class="sidebar-link sidebar-sublink disabled-link">
+                            <a
+                                class="sidebar-link sidebar-sublink
+                                {% if request.resolver_match.url_name == 'category_list' or request.resolver_match.url_name == 'category_create' or request.resolver_match.url_name == 'category_update' %}
+                                    active
+                                {% endif %}"
+                                href="{% url 'inventory:category_list' %}"
+                            >
                                 Categorías
-                            </span>
+                            </a>
 
                         </div>
                     </div>
@@ -199,13 +215,15 @@
 
                             <a
                                 class="sidebar-link sidebar-sublink
-                                {% if request.resolver_match.app_name == 'sales' %}
+                                {% if request.resolver_match.app_name == 'sales' and request.resolver_match.url_name != 'sales_projection' %}
                                     active
                                 {% endif %}"
                                 href="{% url 'sales:sale_list' %}"
                             >
                                 Ventas
                             </a>
+
+
 
                         </div>
                     </div>
@@ -221,10 +239,15 @@
                 >
                     Máquinas
                 </a>
-
-                <span class="sidebar-link disabled-link">
-                    Proyección de ventas
-                </span>
+                <a
+                        class="sidebar-link
+                        {% if request.resolver_match.url_name == 'sales_projection' %}
+                            active
+                        {% endif %}"
+                        href="{% url 'sales:sales_projection' %}"
+                    >
+                        Proyección de ventas
+                </a>
 
             </nav>
             <script>
@@ -326,19 +349,44 @@
 
         <main class="app-content">
 
+            <div
+                id="app-feedback"
+                class="app-feedback"
+                aria-live="polite"
+                aria-atomic="false"
+            >
+
             {% if messages %}
 
                 {% for message in messages %}
 
                     {% if message.tags == "error" %}
 
-                        <div class="alert alert-danger">
+                        <div
+                            class="alert alert-danger app-feedback-message"
+                            role="alert"
+                            data-feedback-dismissible
+                        >
+                            {{ message }}
+                        </div>
+
+                    {% elif message.tags == "info" %}
+
+                        <div
+                            class="alert alert-warning app-feedback-message"
+                            role="alert"
+                            data-feedback-dismissible
+                        >
                             {{ message }}
                         </div>
 
                     {% else %}
 
-                        <div class="alert alert-{{ message.tags }}">
+                        <div
+                            class="alert alert-{{ message.tags|default:'warning' }} app-feedback-message"
+                            role="alert"
+                            data-feedback-dismissible
+                        >
                             {{ message }}
                         </div>
 
@@ -348,6 +396,8 @@
 
             {% endif %}
 
+            </div>
+
 
             {% block content %}
             {% endblock %}
@@ -356,12 +406,51 @@
 
     </div>
 
+    <div
+        class="modal fade"
+        id="appConfirmationModal"
+        tabindex="-1"
+        aria-labelledby="appConfirmationModalLabel"
+        aria-describedby="appConfirmationModalMessage"
+        aria-hidden="true"
+    >
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="appConfirmationModalLabel">
+                        Confirmar acción
+                    </h2>
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <p id="appConfirmationModalMessage" class="mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="appConfirmationAccept">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
         crossorigin="anonymous"
     ></script>
 
-<script src="{% static 'js/clickable-rows.js' %}"></script>
+    <script src="{% static 'js/product-select.js' %}?v=1"></script>
+<script src="{% static 'js/clickable-rows.js' %}?v=4"></script>
+<script src="{% static 'js/app-feedback.js' %}?v=1"></script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

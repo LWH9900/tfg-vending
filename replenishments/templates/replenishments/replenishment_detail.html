@@ -18,9 +18,7 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'replenishments:replenishment_list' %}">
-                    Reposiciones
-                </a>
+                <a href="{% url 'replenishments:replenishment_list' %}">Reposiciones</a>
                 /
                 #{{ replenishment.pk }}
             </div>
@@ -79,7 +77,9 @@
                     method="post"
                     action="{% url 'replenishments:replenishment_delete' replenishment.pk %}"
                     class="d-inline"
-                    onsubmit="return confirm('¿Seguro que quieres eliminar este borrador?');"
+                    data-confirm-message="¿Seguro que quieres eliminar este borrador?"
+                    data-confirm-label="Eliminar"
+                    data-confirm-danger
                 >
                     {% csrf_token %}
 
@@ -95,7 +95,8 @@
                     method="post"
                     action="{% url 'replenishments:replenishment_register' replenishment.pk %}"
                     class="d-inline"
-                    onsubmit="return confirm('Una vez registrada, la reposición dejará de poder editarse. ¿Quieres continuar?');"
+                    data-confirm-message="Una vez registrada, la reposición dejará de poder editarse. ¿Quieres continuar?"
+                    data-confirm-label="Registrar"
                 >
                     {% csrf_token %}
 
@@ -114,7 +115,9 @@
                     method="post"
                     action="{% url 'replenishments:replenishment_cancel' replenishment.pk %}"
                     class="d-inline"
-                    onsubmit="return confirm('¿Seguro que quieres anular esta reposición?');"
+                    data-confirm-message="¿Seguro que quieres anular esta reposición?"
+                    data-confirm-label="Anular"
+                    data-confirm-danger
                 >
                     {% csrf_token %}
 
@@ -152,18 +155,21 @@
 {% endif %}
 
 
-{% if stock_warnings and not is_edit %}
+{% if not is_edit and stock_warnings or not is_edit and layout_warnings %}
 
     <div
         class="alert
-        {% if stock_error %}
+        {% if stock_error or layout_error %}
             alert-danger
         {% else %}
             alert-warning
         {% endif %}"
     >
 
-        <strong>
+        {% if stock_warnings %}
+
+        <div>
+            <strong>
             {% if stock_error %}
                 No se puede registrar la reposición porque no hay
                 stock suficiente para algunos productos.
@@ -171,9 +177,9 @@
                 El borrador contiene cantidades superiores
                 al stock disponible.
             {% endif %}
-        </strong>
+            </strong>
 
-        <ul class="mb-0 mt-2">
+            <ul class="mb-0 mt-2">
 
             {% for warning in stock_warnings %}
                 <li>
@@ -183,23 +189,16 @@
                 </li>
             {% endfor %}
 
-        </ul>
+            </ul>
+        </div>
 
-    </div>
+        {% endif %}
 
-{% endif %}
-{% if layout_warnings and not is_edit %}
+        {% if layout_warnings %}
 
-    <div
-        class="alert
-        {% if layout_error %}
-            alert-danger
-        {% else %}
-            alert-warning
-        {% endif %}"
-    >
+        <div{% if stock_warnings %} class="mt-3"{% endif %}>
 
-        <strong>
+            <strong>
             {% if layout_error %}
                 No se puede registrar la reposición porque
                 no es compatible con la disposición de la
@@ -209,9 +208,9 @@
                 compatibles con la disposición histórica
                 de la máquina.
             {% endif %}
-        </strong>
+            </strong>
 
-        <ul class="mb-0 mt-2">
+            <ul class="mb-0 mt-2">
 
             {% for warning in layout_warnings %}
 
@@ -254,7 +253,10 @@
 
             {% endfor %}
 
-        </ul>
+            </ul>
+        </div>
+
+        {% endif %}
 
     </div>
 
@@ -267,6 +269,7 @@
     method="post"
     id="replenishment-edit-form"
     novalidate
+    data-active-products-url="{% url 'replenishments:active_products' 0 %}"
 >
     {% csrf_token %}
 
@@ -368,7 +371,7 @@
 
                     <a
                         href="{% url 'machines:machine_detail' replenishment.machine.pk %}"
-                        class="text-decoration-none"
+                        class="machine-link"
                     >
                         {{ replenishment.machine.identifier }}
                         ·
@@ -416,19 +419,13 @@
 
             <dd>
                 {% if replenishment.status == "DRAFT" %}
-                    <span class="badge text-bg-secondary">
-                        Borrador
-                    </span>
+                    {% include "components/status_indicator.html" with label="Borrador" tone="neutral" %}
 
                 {% elif replenishment.status == "REGISTERED" %}
-                    <span class="badge text-bg-success">
-                        Registrada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Registrada" tone="positive" %}
 
                 {% elif replenishment.status == "CANCELLED" %}
-                    <span class="badge text-bg-danger">
-                        Anulada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Anulada" tone="negative" %}
                 {% endif %}
             </dd>
 
@@ -716,6 +713,17 @@ document.addEventListener("DOMContentLoaded", function () {
         `id_${prefix}-TOTAL_FORMS`
     );
 
+    const machineSelect = document.getElementById("id_machine");
+
+    const replenishedAtInput = document.getElementById(
+        "id_replenished_at"
+    );
+
+    const activeProductsUrl = document.querySelector(
+        "form[data-active-products-url]"
+    )?.dataset.activeProductsUrl;
+    let activeProductsRequestId = 0;
+
     if (
         !linesContainer ||
         !addButton ||
@@ -768,10 +776,113 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
+    async function updateActiveProductLabels() {
+        if (!machineSelect || !activeProductsUrl) {
+            return;
+        }
+
+        const requestId = ++activeProductsRequestId;
+
+        const activeProductIds = new Set();
+
+        const machineId = machineSelect.value;
+        const moment = replenishedAtInput?.value || "";
+
+        if (machineId) {
+            const url = new URL(
+                activeProductsUrl.replace(
+                    "/0/",
+                    `/${machineId}/`
+                ),
+                window.location.origin
+            );
+
+            if (moment) {
+                url.searchParams.set(
+                    "moment",
+                    moment
+                );
+            }
+
+            const response = await fetch(url);
+
+            if (requestId !== activeProductsRequestId) {
+                return;
+            }
+
+            if (response.ok) {
+                const data = await response.json();
+
+                if (requestId !== activeProductsRequestId) {
+                    return;
+                }
+
+                data.product_ids.forEach((productId) => {
+                    activeProductIds.add(
+                        String(productId)
+                    );
+                });
+            }
+        }
+
+        if (requestId !== activeProductsRequestId) {
+            return;
+        }
+
+        const productSelects = [
+            ...document.querySelectorAll(
+                "#replenishment-lines select[name$='-product']"
+            ),
+            ...emptyTemplate.content.querySelectorAll(
+                "select[name$='-product']"
+            ),
+        ];
+
+        productSelects.forEach((select) => {
+            Array.from(select.options).forEach((option) => {
+                if (!option.value) {
+                    return;
+                }
+
+                const baseLabel = option.textContent.replace(
+                    / · Activo$/,
+                    ""
+                );
+
+                const activeLabel =
+                    activeProductIds.has(option.value)
+                        ? " · Activo"
+                        : "";
+
+                option.textContent =
+                    `${baseLabel}${activeLabel}`;
+            });
+        });
+    }
+
+
     addButton.addEventListener(
         "click",
         addLine
     );
+
+
+    if (machineSelect) {
+        machineSelect.addEventListener(
+            "change",
+            updateActiveProductLabels
+        );
+
+        updateActiveProductLabels();
+    }
+
+
+    if (replenishedAtInput) {
+        replenishedAtInput.addEventListener(
+            "change",
+            updateActiveProductLabels
+        );
+    }
 
 
     linesContainer.addEventListener(

@@ -1,6 +1,6 @@
 {% if product %}
-    <div>
-        <div class="fw-medium">
+    <div class="product-label">
+        <div>
             {{ product.name }}
         </div>
 
@@ -11,7 +11,7 @@
         </small>
     </div>
 {% else %}
-    <span class="text-secondary">
+    <div class="product-label product-label--empty text-secondary">
         —
-    </span>
+    </div>
 {% endif %}

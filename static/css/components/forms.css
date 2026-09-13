@@ -12,6 +12,10 @@
     border-radius: 10px;
 }
 
+.form-card:has(.product-select) {
+    overflow: visible;
+}
+
 .form-card-header {
     padding: 18px 24px;
 
@@ -46,6 +50,119 @@
 .form-select:focus {
     border-color: var(--app-primary);
     box-shadow: 0 0 0 0.2rem rgba(108, 99, 255, 0.12);
+}
+
+.product-search-select--native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+.product-select {
+    position: relative;
+}
+
+.product-select__control {
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+    color: var(--app-text);
+    text-align: left;
+    background-color: var(--app-white);
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+}
+
+.product-select__control::after {
+    content: "";
+    position: absolute;
+    right: 0.85rem;
+    width: 0;
+    height: 0;
+    border-top: 5px solid currentColor;
+    border-right: 4px solid transparent;
+    border-left: 4px solid transparent;
+    pointer-events: none;
+}
+
+.product-select__control:focus-visible {
+    border-color: var(--app-primary);
+    box-shadow: 0 0 0 0.2rem rgba(108, 99, 255, 0.12);
+    outline: none;
+}
+
+.product-select__control-title,
+.product-select__option-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.product-select__control-details,
+.product-select__option-details {
+    color: var(--app-muted);
+    font-size: 0.875em;
+    white-space: nowrap;
+}
+
+.product-select__menu {
+    position: fixed;
+    z-index: 1050;
+    padding: 8px;
+    background: var(--app-white);
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+    box-shadow: 0 8px 20px rgba(4, 5, 13, 0.14);
+}
+
+.product-select__menu--up {
+    bottom: auto;
+}
+
+.product-select__search {
+    min-height: 38px;
+}
+
+.product-select__options {
+    max-height: 240px;
+    margin-top: 8px;
+    overflow-y: auto;
+}
+
+.product-select__option {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 8px 10px;
+    color: var(--app-text);
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+}
+
+.product-select__option:hover,
+.product-select__option:focus-visible {
+    background-color: color-mix(in srgb, var(--app-primary) 8%, transparent);
+    outline: none;
+}
+
+.product-select__options.is-empty::after {
+    content: "No se encontraron productos";
+    display: block;
+    padding: 10px;
+    color: var(--app-muted);
+    font-size: 0.9rem;
 }
 
 .form-actions {

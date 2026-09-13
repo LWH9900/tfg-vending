@@ -15,8 +15,10 @@ from machines.models import (
 )
 from machines.services.layouts import (
     activate_machine_layout,
+    deactivate_machine_layout,
     get_current_machine_layout_activation,
     get_machine_layout_at,
+    get_machine_layout_resolution_candidates,
     get_product_for_selection,
 )
 
@@ -432,3 +434,418 @@ class MachineLayoutServiceTests(TestCase):
         )
 
         self.assertIsNone(product)
+
+    def test_active_layout_cannot_be_activated_again(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            9,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Esta disposición ya está activa.",
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        self.assertEqual(
+            MachineLayoutActivation.objects.filter(
+                layout=self.layout_a,
+            ).count(),
+            1,
+        )
+
+    def test_resolution_candidates_are_empty_without_activations(self):
+        moment = self.make_datetime(
+            2026,
+            9,
+            5,
+            12,
+            0,
+        )
+
+        candidates = get_machine_layout_resolution_candidates(
+            self.machine,
+            moment,
+        )
+
+        self.assertEqual(
+            candidates,
+            [],
+        )
+
+    def test_resolution_candidates_identify_exact_and_future_layouts(self):
+        first_activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            10,
+            0,
+        )
+        second_activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            12,
+            0,
+        )
+        moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            11,
+            0,
+        )
+        current_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=current_time,
+        ):
+            candidates = get_machine_layout_resolution_candidates(
+                self.machine,
+                moment,
+            )
+
+        candidates_by_layout = {
+            candidate["layout"].pk: candidate for candidate in candidates
+        }
+
+        candidate_a = candidates_by_layout[self.layout_a.pk]
+        candidate_b = candidates_by_layout[self.layout_b.pk]
+
+        self.assertEqual(
+            candidate_a["relation"],
+            "exact",
+        )
+        self.assertEqual(
+            candidate_a["distance"],
+            timedelta(0),
+        )
+        self.assertTrue(
+            candidate_a["is_nearest"],
+        )
+        self.assertFalse(
+            candidate_a["is_current"],
+        )
+
+        self.assertEqual(
+            candidate_b["relation"],
+            "after",
+        )
+        self.assertEqual(
+            candidate_b["distance"],
+            timedelta(hours=1),
+        )
+        self.assertFalse(
+            candidate_b["is_nearest"],
+        )
+        self.assertTrue(
+            candidate_b["is_current"],
+        )
+
+    def test_resolution_candidates_identify_past_layout(self):
+        first_activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            10,
+            0,
+        )
+        second_activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            12,
+            0,
+        )
+        moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            13,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=moment,
+        ):
+            candidates = get_machine_layout_resolution_candidates(
+                self.machine,
+                moment,
+            )
+
+        candidates_by_layout = {
+            candidate["layout"].pk: candidate for candidate in candidates
+        }
+
+        candidate_a = candidates_by_layout[self.layout_a.pk]
+        candidate_b = candidates_by_layout[self.layout_b.pk]
+
+        self.assertEqual(
+            candidate_a["relation"],
+            "before",
+        )
+        self.assertEqual(
+            candidate_a["distance"],
+            timedelta(hours=1),
+        )
+        self.assertFalse(
+            candidate_a["is_current"],
+        )
+
+        self.assertEqual(
+            candidate_b["relation"],
+            "exact",
+        )
+        self.assertEqual(
+            candidate_b["distance"],
+            timedelta(0),
+        )
+        self.assertTrue(
+            candidate_b["is_nearest"],
+        )
+        self.assertTrue(
+            candidate_b["is_current"],
+        )
+
+    def test_resolution_candidates_group_repeated_layout_activations(self):
+        first_moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            10,
+            0,
+        )
+        second_moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            12,
+            0,
+        )
+        third_moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            14,
+            0,
+        )
+        resolution_moment = self.make_datetime(
+            2026,
+            9,
+            1,
+            11,
+            0,
+        )
+        current_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            15,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=first_moment,
+        ):
+            first_activation_a = activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=second_moment,
+        ):
+            activate_machine_layout(
+                self.layout_b,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=third_moment,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=current_time,
+        ):
+            candidates = get_machine_layout_resolution_candidates(
+                self.machine,
+                resolution_moment,
+            )
+
+        self.assertEqual(
+            len(candidates),
+            2,
+        )
+
+        candidates_by_layout = {
+            candidate["layout"].pk: candidate for candidate in candidates
+        }
+
+        candidate_a = candidates_by_layout[self.layout_a.pk]
+
+        self.assertEqual(
+            candidate_a["activation"].pk,
+            first_activation_a.pk,
+        )
+        self.assertEqual(
+            candidate_a["relation"],
+            "exact",
+        )
+        self.assertEqual(
+            candidate_a["distance"],
+            timedelta(0),
+        )
+
+        self.assertTrue(
+            candidate_a["is_current"],
+        )
+        self.assertTrue(
+            candidate_a["is_nearest"],
+        )
+
+    def test_active_layout_can_be_deactivated(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            10,
+            0,
+        )
+        deactivation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            12,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activation = activate_machine_layout(
+                self.layout_a,
+            )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=deactivation_time,
+        ):
+            deactivated_activation = deactivate_machine_layout(
+                self.layout_a,
+            )
+
+        activation.refresh_from_db()
+
+        self.assertEqual(
+            deactivated_activation.pk,
+            activation.pk,
+        )
+        self.assertEqual(
+            activation.effective_to,
+            deactivation_time,
+        )
+        self.assertIsNone(
+            get_current_machine_layout_activation(
+                self.machine,
+            )
+        )
+
+        self.assertIsNone(
+            get_machine_layout_at(
+                self.machine,
+                deactivation_time,
+            )
+        )
+
+    def test_layout_cannot_be_deactivated_without_active_layout(self):
+        with self.assertRaisesMessage(
+            ValidationError,
+            "La máquina no tiene ninguna disposición activa.",
+        ):
+            deactivate_machine_layout(
+                self.layout_a,
+            )
+
+    def test_inactive_layout_cannot_be_deactivated(self):
+        activation_time = self.make_datetime(
+            2026,
+            9,
+            1,
+            10,
+            0,
+        )
+
+        with patch(
+            "django.utils.timezone.now",
+            return_value=activation_time,
+        ):
+            activate_machine_layout(
+                self.layout_a,
+            )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Esta disposición no está activa.",
+        ):
+            deactivate_machine_layout(
+                self.layout_b,
+            )

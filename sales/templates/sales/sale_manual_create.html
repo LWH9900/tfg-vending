@@ -12,9 +12,7 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'sales:sale_list' %}">
-                    Ventas
-                </a>
+                <a href="{% url 'sales:sale_list' %}">Ventas</a>
                 /
                 Registro manual
             </div>
@@ -54,7 +52,10 @@
 
     <div class="form-card-body">
 
-        <form method="post">
+        <form
+            method="post"
+            data-product-status-url="{% url 'sales:manual_sale_product_status' 0 %}"
+        >
 
             {% csrf_token %}
 
@@ -107,12 +108,16 @@
             <hr class="my-4">
 
 
-            <h3 class="h6 mb-3">
+            <h3 class="h6 mb-3" id="economic-data-heading">
                 Datos económicos
             </h3>
 
 
-            <div class="row g-3">
+            <div
+                class="row g-3"
+                id="economic-data-fields"
+                aria-labelledby="economic-data-heading"
+            >
 
                 <div class="col-md-4">
                     {% include "components/form_field.html" with field=form.unit_price %}
@@ -152,5 +157,114 @@
     </div>
 
 </section>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.querySelector("form[data-product-status-url]");
+    const machineSelect = document.getElementById("id_machine");
+    const productSelect = document.getElementById("id_product");
+    const occurredAtInput = document.getElementById("id_occurred_at");
+    const dispenseTypeSelect = document.getElementById("id_dispense_type");
+    const unitPriceInput = document.getElementById("id_unit_price");
+    const amountReceivedInput = document.getElementById("id_amount_received");
+    const paymentMethodSelect = document.getElementById("id_payment_method");
+    const economicDataHeading = document.getElementById("economic-data-heading");
+    const economicDataFields = document.getElementById("economic-data-fields");
+
+    if (!form || !machineSelect || !productSelect) {
+        return;
+    }
+
+    const productStatusUrl = form.dataset.productStatusUrl;
+    let requestId = 0;
+
+    Array.from(productSelect.options).forEach((option) => {
+        option.dataset.baseLabel = option.textContent.trim();
+    });
+
+    function resetProductLabels() {
+        Array.from(productSelect.options).forEach((option) => {
+            option.textContent = option.dataset.baseLabel;
+        });
+    }
+
+    async function updateProductStatus() {
+        const currentRequestId = ++requestId;
+        const machineId = machineSelect.value;
+
+        resetProductLabels();
+
+        if (!machineId) {
+            return;
+        }
+
+        const url = new URL(
+            productStatusUrl.replace("/0/", `/${machineId}/`),
+            window.location.origin
+        );
+
+        if (occurredAtInput?.value) {
+            url.searchParams.set("moment", occurredAtInput.value);
+        }
+
+        try {
+            const response = await fetch(url);
+
+            if (!response.ok || currentRequestId !== requestId) {
+                return;
+            }
+
+            const data = await response.json();
+            const statusByProduct = new Map(
+                data.products.map((product) => [String(product.id), product])
+            );
+
+            Array.from(productSelect.options).forEach((option) => {
+                const status = statusByProduct.get(option.value);
+
+                if (!status) {
+                    return;
+                }
+
+                const activeLabel = status.is_active ? " · Activo" : "";
+                option.textContent =
+                    `${option.dataset.baseLabel} · Stock máquina: ` +
+                    `${status.machine_stock} uds.${activeLabel}`;
+            });
+        } catch (error) {
+            if (currentRequestId === requestId) {
+                resetProductLabels();
+            }
+        }
+    }
+
+    machineSelect.addEventListener("change", updateProductStatus);
+    occurredAtInput?.addEventListener("change", updateProductStatus);
+
+    function updateEconomicFields() {
+        const isPaid = dispenseTypeSelect?.value === "paid";
+
+        economicDataHeading?.classList.toggle("d-none", !isPaid);
+        economicDataFields?.classList.toggle("d-none", !isPaid);
+
+        [unitPriceInput, amountReceivedInput, paymentMethodSelect]
+            .filter(Boolean)
+            .forEach((field) => {
+                field.required = isPaid;
+                field.disabled = !isPaid;
+            });
+
+        if (!isPaid) {
+            unitPriceInput.value = "";
+            amountReceivedInput.value = "";
+            paymentMethodSelect.value = "";
+        }
+    }
+
+    dispenseTypeSelect?.addEventListener("change", updateEconomicFields);
+    updateEconomicFields();
+    updateProductStatus();
+});
+</script>
 
 {% endblock %}

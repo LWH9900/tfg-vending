@@ -1,7 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from decimal import Decimal
+from threading import Barrier
+from unittest.mock import patch
 
-from django.test import TestCase
+from django.db import close_old_connections
+from django.db.models.query import QuerySet
+from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -738,3 +743,104 @@ class PurchaseViewTests(TestCase):
             response,
             "Posible pérdida de rentabilidad",
         )
+
+
+class PurchaseConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.category = Category.objects.create(
+            name="Bebidas concurrencia compras",
+            default_vat_rate=Decimal("21.00"),
+        )
+
+        self.product = Product.objects.create(
+            name="VimaCola Purchase Concurrency",
+            category=self.category,
+            format_unit="330 ml",
+            vat_rate=Decimal("21.00"),
+            default_sale_price=Decimal("1.50"),
+        )
+
+        self.purchase = Purchase.objects.create(
+            supplier="Proveedor concurrencia",
+            status=Purchase.Status.DRAFT,
+        )
+
+        PurchaseLine.objects.create(
+            purchase=self.purchase,
+            product=self.product,
+            quantity=10,
+            unit_price_excl_vat=Decimal("1.00"),
+        )
+
+    def test_register_and_delete_cannot_both_win_concurrently(self):
+        barrier = Barrier(2)
+
+        original_select_for_update = QuerySet.select_for_update
+
+        def synchronized_select_for_update(queryset, *args, **kwargs):
+            if queryset.model is Purchase:
+                barrier.wait(timeout=5)
+
+            return original_select_for_update(
+                queryset,
+                *args,
+                **kwargs,
+            )
+
+        register_url = reverse(
+            "purchases:purchase_register",
+            args=[self.purchase.pk],
+        )
+
+        delete_url = reverse(
+            "purchases:purchase_delete",
+            args=[self.purchase.pk],
+        )
+
+        def worker(url):
+            close_old_connections()
+
+            try:
+                client = Client()
+
+                response = client.post(url)
+
+                return response.status_code
+
+            finally:
+                close_old_connections()
+
+        with patch(
+            "django.db.models.query.QuerySet.select_for_update",
+            new=synchronized_select_for_update,
+        ):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                register_future = executor.submit(
+                    worker,
+                    register_url,
+                )
+
+                delete_future = executor.submit(
+                    worker,
+                    delete_url,
+                )
+
+                status_codes = [
+                    register_future.result(timeout=10),
+                    delete_future.result(timeout=10),
+                ]
+
+        self.assertEqual(
+            status_codes.count(302),
+            1,
+        )
+
+        self.assertTrue(any(status_code in (403, 404) for status_code in status_codes))
+
+        if Purchase.objects.filter(pk=self.purchase.pk).exists():
+            purchase = Purchase.objects.get(pk=self.purchase.pk)
+
+            self.assertEqual(
+                purchase.status,
+                Purchase.Status.REGISTERED,
+            )

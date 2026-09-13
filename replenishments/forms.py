@@ -3,7 +3,7 @@ from django.forms.models import BaseInlineFormSet, inlineformset_factory
 
 from inventory.forms import ProductChoiceField
 from inventory.models import Product
-from inventory.services import get_warehouse_stock
+from inventory.services import get_products_with_warehouse_stock
 from machines.models import Machine
 from replenishments.models import Replenishment, ReplenishmentLine
 
@@ -128,17 +128,20 @@ class ReplenishmentForm(forms.ModelForm):
 
 
 class ReplenishmentProductChoiceField(ProductChoiceField):
-    # Si el número de productos aumenta y se detectan problemas de
-    # rendimiento,convendría optimizar este selector obteniendo los stocks de todos los
-    # productos en una única consulta agregada, evitando una consulta adicional por
-    # producto.
-
     def label_from_instance(self, product):
         base_label = super().label_from_instance(product)
 
-        warehouse_stock = get_warehouse_stock(product)
+        stock = product.warehouse_stock
 
-        return f"{base_label} · Stock: {warehouse_stock} uds."
+        active_product_ids = getattr(
+            self,
+            "active_product_ids",
+            set(),
+        )
+
+        active_label = " · Activo" if product.pk in active_product_ids else ""
+
+        return f"{base_label} · Stock: {stock} uds.{active_label}"
 
 
 class ReplenishmentLineForm(forms.ModelForm):
@@ -152,14 +155,23 @@ class ReplenishmentLineForm(forms.ModelForm):
         ),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        active_product_ids=None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
-        self.fields["product"].queryset = (
+        products = (
             Product.objects.select_related("category")
             .filter(is_active=True)
             .order_by("name")
         )
+
+        self.fields["product"].queryset = get_products_with_warehouse_stock(products)
+
+        self.fields["product"].active_product_ids = set(active_product_ids or [])
 
     class Meta:
         model = ReplenishmentLine

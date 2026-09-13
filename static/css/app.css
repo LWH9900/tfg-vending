@@ -47,6 +47,25 @@ body {
     overflow: auto;
 }
 
+.app-feedback {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.app-feedback:empty {
+    display: none;
+}
+
+.app-feedback-message {
+    margin-bottom: 12px;
+    border-left-width: 4px;
+    box-shadow: 0 4px 14px rgb(4 5 13 / 8%);
+}
+
+.app-feedback-message:last-child {
+    margin-bottom: 0;
+}
+
 .sidebar-brand {
     padding: 0 12px 28px;
 
@@ -191,6 +210,20 @@ body {
     font-size: 0.9rem;
     font-weight: 500;
 }
+.page-breadcrumb a {
+    color: var(--app-primary);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--app-primary);
+    --bs-btn-border-color: var(--app-primary);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--app-primary);
+    --bs-btn-hover-border-color: var(--app-primary);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--app-primary);
+    --bs-btn-active-border-color: var(--app-primary);
+}
 
 .page-title {
     margin: 0;
@@ -205,6 +238,46 @@ body {
 
     color: var(--app-muted);
     font-size: 0.95rem;
+}
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    color: var(--app-text);
+    font-size: inherit;
+    font-weight: 400;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.status-indicator__icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+
+    fill: var(--status-color);
+}
+
+.status-indicator--neutral {
+    --status-color: #525252;
+}
+
+.status-indicator--info {
+    --status-color: #0f62fe;
+}
+
+.status-indicator--positive {
+    --status-color: #198038;
+}
+
+.status-indicator--warning {
+    --status-color: #f1c21b;
+}
+
+.status-indicator--negative {
+    --status-color: #da1e28;
 }
 
 
@@ -316,4 +389,38 @@ body {
         color: var(--sidebar-text);
         background-color: var(--sidebar-background) !important;
     }
+}
+.clickable-row,
+.clickable-card {
+    position: relative;
+}
+
+.clickable-element-native-link::after {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    content: "";
+}
+
+.clickable-row a:not(.clickable-element-native-link),
+.clickable-row button,
+.clickable-row input,
+.clickable-row select,
+.clickable-row textarea,
+.clickable-card a:not(.clickable-element-native-link),
+.clickable-card button,
+.clickable-card input,
+.clickable-card select,
+.clickable-card textarea {
+    position: relative;
+    z-index: 2;
+}
+
+.clickable-row:not(tr):hover,
+.clickable-row:not(tr):focus-visible {
+    background-color: color-mix(
+        in srgb,
+        var(--app-primary) 8%,
+        transparent
+    );
 }

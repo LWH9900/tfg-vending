@@ -12,19 +12,19 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'sales:sale_list' %}">
-                    Ventas
-                </a>
+                <a href="{% url 'sales:sale_list' %}">Ventas</a>
                 /
-                <a href="{% url 'sales:sale_detail' sale.pk %}">
-                    #{{ sale.pk }}
-                </a>
+                <a href="{% url 'sales:sale_detail' sale.pk %}">#{{ sale.pk }}</a>
                 /
                 Resolver
             </div>
 
-            <h1 class="page-title">
-                Resolver venta pendiente
+           <h1 class="page-title">
+                {% if sale.status == "conflict" %}
+                    Resolver recepción conflictiva
+                {% else %}
+                    Resolver venta pendiente
+                {% endif %}
             </h1>
 
             <p class="page-description">
@@ -42,7 +42,14 @@
 <div class="alert alert-warning">
     <strong>Resolución manual.</strong>
     Los datos recibidos originalmente se conservarán sin cambios.
-    Al resolver la venta, comenzará a afectar al inventario.
+
+    {% if sale.status == "conflict" %}
+        Resolver la máquina y el producto no hará efectiva esta recepción.
+        Después deberás volver a la revisión del conflicto y decidir
+        si debe aceptarse.
+    {% else %}
+        Al resolver la venta, comenzará a afectar al inventario.
+    {% endif %}
 </div>
 
 
@@ -459,7 +466,10 @@
                 </div>
 
 
-                <form method="post">
+                <form
+                    method="post"
+                    class="js-resolution-ajax-form"
+                >
 
                     {% csrf_token %}
 
@@ -623,7 +633,10 @@
                     </div>
 
 
-                    <form method="post">
+                    <form
+                        method="post"
+                        class="js-resolution-ajax-form"
+                    >
 
                         {% csrf_token %}
 
@@ -734,39 +747,50 @@ document.addEventListener("submit", async function (event) {
         submitButton.innerHTML = "Cargando...";
     }
 
-    const params = new URLSearchParams(
-        new FormData(form)
-    );
-
     const url = new URL(
         window.location.href
     );
 
-    url.search = "";
+    const formData = new FormData(form);
+    const method = form.method.toUpperCase();
+    const fetchOptions = {
+        method: method,
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+        },
+    };
 
-    for (const [key, value] of params.entries()) {
-        if (value !== "") {
-            url.searchParams.append(
-                key,
-                value
-            );
+    if (method === "GET") {
+        url.search = "";
+
+        for (const [key, value] of formData.entries()) {
+            if (value !== "") {
+                url.searchParams.append(
+                    key,
+                    value
+                );
+            }
         }
+
+    } else {
+        fetchOptions.body = formData;
     }
 
     try {
         const response = await fetch(
             url.toString(),
-            {
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                },
-            }
+            fetchOptions
         );
 
         if (!response.ok) {
             throw new Error(
                 `HTTP ${response.status}`
             );
+        }
+
+        if (response.redirected) {
+            window.location.href = response.url;
+            return;
         }
 
         const html = await response.text();
@@ -794,14 +818,20 @@ document.addEventListener("submit", async function (event) {
             newWorkspace
         );
 
-        window.history.replaceState(
-            {},
-            "",
-            url.toString()
-        );
+        if (method === "GET") {
+            window.history.replaceState(
+                {},
+                "",
+                url.toString()
+            );
+        }
 
     } catch (error) {
-        window.location.href = url.toString();
+        if (method === "GET") {
+            window.location.href = url.toString();
+        } else {
+            form.submit();
+        }
 
     } finally {
         if (

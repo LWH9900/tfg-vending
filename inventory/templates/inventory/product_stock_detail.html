@@ -22,13 +22,9 @@
 
             <div class="page-breadcrumb">
                 Inventario /
-                <a href="{% url 'inventory:product_list' %}">
-                    Productos
-                </a>
+                <a href="{% url 'inventory:product_list' %}">Productos</a>
                 /
-                <a href="{% url 'inventory:product_detail' product.pk %}">
-                    {{ product.name }}
-                </a>
+                <a href="{% url 'inventory:product_detail' product.pk %}">{{ product.name }}</a>
                 /
                 Stock
             </div>

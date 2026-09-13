@@ -19,9 +19,7 @@
         <div class="page-header-content">
 
             <div class="page-breadcrumb">
-                <a href="{% url 'machines:machine_list' %}">
-                    Máquinas
-                </a>
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
                 /
                 Tarifas
             </div>
@@ -65,16 +63,15 @@
                     <th>Nombre</th>
                     <th>Variación (%)</th>
                     <th>Máquinas asignadas</th>
-                    <th class="price-actions-column"></th>
+                    <th class="text-end">Acciones</th>
+
                 </tr>
             </thead>
 
             <tbody>
 
                 {% for profile in pricing_profiles %}
-
-                    <tr class="pricing-profile-row">
-
+                    <tr>
                         <td>
                             {{ profile.name }}
                         </td>
@@ -87,13 +84,12 @@
                             {{ profile.machines.count }}
                         </td>
 
-                        <td class="price-actions-column">
-
-                            <div class="pricing-profile-actions">
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-2 align-items-center">
 
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-outline-danger"
+                                    class="btn btn-outline-danger btn-sm"
                                     data-bs-toggle="modal"
                                     data-bs-target="#deletePricingProfileModal"
                                     data-delete-url="{% url 'machines:pricing_profile_delete' profile.pk %}"
@@ -104,13 +100,9 @@
                                 </button>
 
                             </div>
-
                         </td>
-
                     </tr>
-
                 {% endfor %}
-
             </tbody>
 
         </table>

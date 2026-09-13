@@ -1,13 +1,18 @@
 import json
+from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import (
     get_object_or_404,
     redirect,
     render,
 )
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -22,16 +27,20 @@ from machines.services.pricing import (
     get_product_price_for_machine,
 )
 from sales.forms import (
+    PROJECTION_MODE_DATES,
+    PROJECTION_MODE_DAYS,
     ManualSaleForm,
     ResolvePendingMachineForm,
     ResolvePendingSaleForm,
     SaleFilterForm,
+    SalesProjectionForm,
     VoidSaleForm,
 )
 from sales.models import Sale
 from sales.services import (
     accept_sale_conflict,
     create_manual_sale,
+    get_sales_projection,
     receive_sale,
     reject_sale_conflict,
     resolve_pending_sale,
@@ -39,9 +48,131 @@ from sales.services import (
 )
 
 
+def _get_projection_data(request):
+    initial_data = {
+        "mode": PROJECTION_MODE_DAYS,
+        "history_days": 30,
+        "forecast_days": 7,
+    }
+
+    form = SalesProjectionForm(request.GET or initial_data)
+    projections = []
+    periods = {}
+
+    if not form.is_valid():
+        return form, projections, periods
+
+    if form.cleaned_data["mode"] == PROJECTION_MODE_DATES:
+        history_start = form.cleaned_data["history_start"]
+        history_end = form.cleaned_data["history_end"]
+        forecast_start = form.cleaned_data["forecast_start"]
+        forecast_end = form.cleaned_data["forecast_end"]
+    else:
+        today = timezone.localdate()
+
+        history_end = today
+        history_start = today - timedelta(days=form.cleaned_data["history_days"] - 1)
+
+        forecast_start = today + timedelta(days=1)
+        forecast_end = forecast_start + timedelta(
+            days=form.cleaned_data["forecast_days"] - 1
+        )
+
+    periods = {
+        "history_start": history_start,
+        "history_end": history_end,
+        "forecast_start": forecast_start,
+        "forecast_end": forecast_end,
+        "history_days": (history_end - history_start).days + 1,
+        "forecast_days": (forecast_end - forecast_start).days + 1,
+    }
+
+    projections = get_sales_projection(
+        history_start,
+        history_end,
+        forecast_start,
+        forecast_end,
+    )
+
+    return form, projections, periods
+
+
+def sales_projection(request):
+    form, projections, periods = _get_projection_data(request)
+
+    context = {
+        "form": form,
+        "projections": projections,
+        "periods": periods,
+        "query_string": request.GET.urlencode(),
+    }
+
+    return render(
+        request,
+        "sales/sales_projection.html",
+        context,
+    )
+
+
+def sales_projection_detail(request, pk):
+    product = get_object_or_404(
+        Product,
+        pk=pk,
+        is_active=True,
+    )
+
+    form, projections, periods = _get_projection_data(request)
+
+    projection = next(
+        (item for item in projections if item["product"].pk == product.pk),
+        None,
+    )
+
+    sales_history_query = ""
+
+    if periods:
+        sales_history_query = urlencode(
+            {
+                "product": product.pk,
+                "date_from": (f"{periods['history_start'].isoformat()}T00:00"),
+                "date_to": (f"{periods['history_end'].isoformat()}T23:59"),
+            }
+        )
+
+    context = {
+        "form": form,
+        "product": product,
+        "projection": projection,
+        "periods": periods,
+        "query_string": request.GET.urlencode(),
+        "sales_history_query": sales_history_query,
+    }
+
+    return render(
+        request,
+        "sales/sales_projection_detail.html",
+        context,
+    )
+
+
 def sale_list(
     request,
 ):
+    session_key = "sales_filter_query"
+
+    if request.GET.get("clear_filters") == "1":
+        request.session.pop(session_key, None)
+        return redirect("sales:sale_list")
+
+    if request.GET:
+        filter_query = request.GET.copy()
+        filter_query.pop("page", None)
+        request.session[session_key] = filter_query.urlencode()
+    else:
+        saved_query = request.session.get(session_key)
+        if saved_query:
+            return redirect(f"{request.path}?{saved_query}")
+
     sales = Sale.objects.select_related(
         "machine",
         "product",
@@ -95,12 +226,19 @@ def sale_list(
         if dispense_type:
             sales = sales.filter(dispense_type=dispense_type)
 
+    paginator = Paginator(sales, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+
     return render(
         request,
         "sales/sale_list.html",
         {
-            "sales": sales,
+            "sales": page_obj.object_list,
             "filter_form": filter_form,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
         },
     )
 
@@ -162,17 +300,20 @@ def sale_resolve(
         pk=pk,
     )
 
-    if sale.status != Sale.Status.PENDING:
+    if sale.status not in (
+        Sale.Status.PENDING,
+        Sale.Status.CONFLICT,
+    ):
         messages.error(
             request,
-            "Solo se pueden resolver ventas pendientes.",
+            "Solo se pueden resolver ventas pendientes o en conflicto.",
         )
 
         return redirect(
             "sales:sale_detail",
             pk=sale.pk,
         )
-
+    is_conflict = sale.status == Sale.Status.CONFLICT
     formatted_payload = None
 
     if sale.raw_payload is not None:
@@ -365,9 +506,24 @@ def sale_resolve(
                     )
 
             else:
+                if is_conflict:
+                    messages.success(
+                        request,
+                        (
+                            "Los datos de la recepción conflictiva se han resuelto. "
+                            "Ahora puedes decidir si debe sustituir a la venta "
+                            "efectiva."
+                        ),
+                    )
+
+                    return redirect(
+                        "sales:sale_conflict_review",
+                        pk=resolved_sale.pk,
+                    )
+
                 messages.success(
                     request,
-                    ("La venta se ha resuelto correctamente."),
+                    "La venta se ha resuelto correctamente.",
                 )
 
                 return redirect(
@@ -431,11 +587,6 @@ def sale_void(
             )
 
         else:
-            messages.success(
-                request,
-                "La venta se ha anulado correctamente.",
-            )
-
             return redirect(
                 "sales:sale_detail",
                 pk=voided_sale.pk,
@@ -531,11 +682,6 @@ def sale_conflict_reject(
         )
 
     else:
-        messages.success(
-            request,
-            ("La recepción conflictiva se ha descartado."),
-        )
-
         return redirect(
             "sales:sale_detail",
             pk=rejected_sale.pk,
@@ -703,6 +849,52 @@ def sale_receive(
     )
 
 
+def manual_sale_product_status(request, machine_pk):
+    machine = get_object_or_404(
+        Machine,
+        pk=machine_pk,
+    )
+
+    moment = parse_datetime(request.GET.get("moment", ""))
+
+    if moment is None:
+        moment = timezone.now()
+    elif timezone.is_naive(moment):
+        moment = timezone.make_aware(moment)
+
+    layout = get_machine_layout_at(
+        machine,
+        moment,
+    )
+
+    active_product_ids = set()
+
+    if layout is not None:
+        active_product_ids = set(
+            layout.positions.filter(
+                product__isnull=False,
+            ).values_list(
+                "product_id",
+                flat=True,
+            )
+        )
+
+    products = Product.objects.filter(is_active=True).order_by("name")
+
+    return JsonResponse(
+        {
+            "products": [
+                {
+                    "id": product.pk,
+                    "machine_stock": get_machine_stock(product, machine),
+                    "is_active": product.pk in active_product_ids,
+                }
+                for product in products
+            ],
+        }
+    )
+
+
 def sale_manual_create(
     request,
 ):
@@ -726,15 +918,18 @@ def sale_manual_create(
         except ValidationError as error:
             if hasattr(
                 error,
-                "message_dict",
+                "error_dict",
             ):
-                for field, messages_list in error.message_dict.items():
-                    target_field = field if field in form.fields else None
+                for field, field_errors in error.error_dict.items():
+                    for field_error in field_errors:
+                        target_field = field if field in form.fields else None
 
-                    for message in messages_list:
+                        if field_error.code == "insufficient_stock":
+                            target_field = None
+
                         form.add_error(
                             target_field,
-                            message,
+                            field_error,
                         )
 
             else:

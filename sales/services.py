@@ -1,20 +1,256 @@
 import hashlib
 import json
+import re
 from copy import deepcopy
-from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from datetime import datetime, time
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
+from django.db.models import Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from machines.models import Machine, MachineLayoutActivation
+from inventory.models import Product
+from inventory.services import get_machine_stock, get_total_stock, get_warehouse_stock
+from machines.models import Machine, MachineLayoutActivation, MachinePosition
 from machines.services.layouts import (
     get_machine_layout_at,
     get_product_for_selection,
 )
 from sales.models import Sale
+
+
+def _validate_sale_stock(machine, product, quantity, replaced_sale=None):
+    Machine.objects.select_for_update().get(pk=machine.pk)
+    Product.objects.select_for_update().get(pk=product.pk)
+
+    machine_stock = get_machine_stock(product, machine)
+
+    if (
+        replaced_sale is not None
+        and replaced_sale.status == Sale.Status.RESOLVED
+        and replaced_sale.machine_id == machine.pk
+        and replaced_sale.product_id == product.pk
+    ):
+        machine_stock += replaced_sale.quantity
+
+    if machine_stock < quantity:
+        raise ValidationError(
+            {
+                "quantity": ValidationError(
+                    (
+                        "Stock insuficiente para registrar la venta. "
+                        f"La máquina dispone de {machine_stock} unidades "
+                        f"y se han solicitado {quantity}."
+                    ),
+                    code="insufficient_stock",
+                )
+            }
+        )
+
+
+def _calculate_estimated_consumption(historical_sales, history_days, forecast_days):
+    daily_average = Decimal(historical_sales) / Decimal(history_days)
+
+    estimated_consumption = int(
+        (daily_average * Decimal(forecast_days)).to_integral_value(
+            rounding=ROUND_CEILING
+        )
+    )
+
+    return daily_average, estimated_consumption
+
+
+def _get_projection_history_bounds(history_start, history_end):
+    current_timezone = timezone.get_current_timezone()
+
+    history_from = timezone.make_aware(
+        datetime.combine(history_start, time.min),
+        current_timezone,
+    )
+    history_until = timezone.make_aware(
+        datetime.combine(history_end, time.max),
+        current_timezone,
+    )
+
+    return history_from, history_until
+
+
+def _get_historical_sales_by_machine_product(history_from, history_until):
+    return {
+        (row["machine_id"], row["product_id"]): row["total"]
+        for row in (
+            Sale.objects.filter(
+                status=Sale.Status.RESOLVED,
+                machine__isnull=False,
+                product__isnull=False,
+                occurred_at__gte=history_from,
+                occurred_at__lte=history_until,
+            )
+            .values("machine_id", "product_id")
+            .annotate(total=Sum("quantity"))
+        )
+    }
+
+
+def _get_active_machine_product_pairs():
+    now = timezone.now()
+
+    return set(
+        MachinePosition.objects.filter(
+            product__isnull=False,
+            layout__activations__effective_from__lte=now,
+            layout__activations__effective_to__isnull=True,
+        ).values_list(
+            "layout__machine_id",
+            "product_id",
+        )
+    )
+
+
+def get_sales_projection(
+    history_start,
+    history_end,
+    forecast_start,
+    forecast_end,
+):
+    if history_start > history_end or forecast_start > forecast_end:
+        raise ValueError("Las fechas finales no pueden preceder a las iniciales.")
+
+    history_days = (history_end - history_start).days + 1
+    forecast_days = (forecast_end - forecast_start).days + 1
+
+    history_from, history_until = _get_projection_history_bounds(
+        history_start,
+        history_end,
+    )
+
+    historical_sales_by_pair = _get_historical_sales_by_machine_product(
+        history_from,
+        history_until,
+    )
+
+    active_pairs = _get_active_machine_product_pairs()
+    all_pairs = active_pairs | set(historical_sales_by_pair)
+
+    machine_ids = {machine_id for machine_id, _product_id in all_pairs}
+
+    machines = {
+        machine.pk: machine
+        for machine in Machine.objects.filter(pk__in=machine_ids).order_by("identifier")
+    }
+
+    products = list(
+        Product.objects.filter(is_active=True)
+        .select_related("category")
+        .order_by("name", "pk")
+    )
+
+    products_by_id = {product.pk: product for product in products}
+
+    details_by_product = {}
+
+    for machine_id, product_id in all_pairs:
+        product = products_by_id.get(product_id)
+
+        if product is None:
+            continue
+
+        machine = machines[machine_id]
+
+        historical_sales = historical_sales_by_pair.get(
+            (machine_id, product_id),
+            0,
+        )
+
+        daily_average, estimated_consumption = _calculate_estimated_consumption(
+            historical_sales,
+            history_days,
+            forecast_days,
+        )
+
+        machine_stock = get_machine_stock(product, machine)
+        usable_machine_stock = max(machine_stock, 0)
+
+        is_in_active_layout = (
+            machine_id,
+            product_id,
+        ) in active_pairs
+
+        if is_in_active_layout:
+            machine_need = max(
+                estimated_consumption - usable_machine_stock,
+                0,
+            )
+        else:
+            machine_need = 0
+
+        details_by_product.setdefault(
+            product_id,
+            [],
+        ).append(
+            {
+                "machine": machine,
+                "historical_sales": historical_sales,
+                "daily_average": daily_average,
+                "estimated_consumption": estimated_consumption,
+                "machine_stock": machine_stock,
+                "usable_machine_stock": usable_machine_stock,
+                "has_stock_incident": machine_stock < 0,
+                "machine_need": machine_need,
+                "is_in_active_layout": is_in_active_layout,
+            }
+        )
+
+    projections = []
+
+    for product in products:
+        machine_details = sorted(
+            details_by_product.get(product.pk, []),
+            key=lambda item: item["machine"].identifier,
+        )
+
+        historical_sales = sum(item["historical_sales"] for item in machine_details)
+
+        daily_average = Decimal(historical_sales) / Decimal(history_days)
+
+        estimated_consumption = sum(
+            item["estimated_consumption"]
+            for item in machine_details
+            if item["is_in_active_layout"]
+        )
+
+        total_stock = get_total_stock(product)
+        warehouse_stock = get_warehouse_stock(product)
+        usable_warehouse_stock = max(warehouse_stock, 0)
+
+        total_machine_need = sum(item["machine_need"] for item in machine_details)
+
+        suggested_purchase = max(
+            total_machine_need - usable_warehouse_stock,
+            0,
+        )
+
+        projections.append(
+            {
+                "product": product,
+                "historical_sales": historical_sales,
+                "daily_average": daily_average,
+                "total_stock": total_stock,
+                "has_total_stock_incident": total_stock < 0,
+                "warehouse_stock": warehouse_stock,
+                "usable_warehouse_stock": usable_warehouse_stock,
+                "has_warehouse_stock_incident": warehouse_stock < 0,
+                "estimated_consumption": estimated_consumption,
+                "total_machine_need": total_machine_need,
+                "suggested_purchase": suggested_purchase,
+                "warehouse_shortage": (usable_warehouse_stock < total_machine_need),
+                "machine_details": machine_details,
+            }
+        )
+
+    return projections
 
 
 def _get_payload_hash(payload):
@@ -36,6 +272,14 @@ def _get_payload_hash(payload):
         raise ValidationError("El contenido de la venta debe ser JSON válido.")
 
     return hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
+
+
+def _lock_sale_event(event_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s))",
+            [event_id],
+        )
 
 
 def _get_reference_sale(
@@ -90,11 +334,12 @@ def _parse_occurred_at(value):
     ):
         occurred_at = value
 
-    elif isinstance(
-        value,
-        str,
-    ):
-        occurred_at = parse_datetime(value)
+    elif isinstance(value, str):
+        valid_format = re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+            value,
+        )
+        occurred_at = parse_datetime(value) if valid_format else None
 
     else:
         occurred_at = None
@@ -121,13 +366,25 @@ def _parse_positive_integer(
     value,
     field,
 ):
-    try:
-        parsed_value = int(value)
+    if isinstance(value, bool):
+        raise ValidationError(
+            {field: (f"El campo '{field}' debe ser un número entero.")}
+        )
 
-    except (
-        TypeError,
-        ValueError,
-    ):
+    if isinstance(value, int):
+        parsed_value = value
+
+    elif isinstance(value, str):
+        stripped_value = value.strip()
+
+        if not stripped_value.isdigit():
+            raise ValidationError(
+                {field: (f"El campo '{field}' debe ser un número entero.")}
+            )
+
+        parsed_value = int(stripped_value)
+
+    else:
         raise ValidationError(
             {field: (f"El campo '{field}' debe ser un número entero.")}
         )
@@ -150,6 +407,10 @@ def _parse_optional_decimal(
 
     try:
         parsed_value = Decimal(str(value))
+        if not parsed_value.is_finite():
+            raise ValidationError(
+                {field: (f"El campo '{field}' debe contener un importe válido.")}
+            )
 
     except (
         InvalidOperation,
@@ -184,6 +445,8 @@ def receive_sale(
     ).strip()
 
     payload_hash = _get_payload_hash(payload)
+
+    _lock_sale_event(event_id)
 
     exact_sale = Sale.objects.filter(
         source=Sale.Source.TELEMETRY,
@@ -282,6 +545,17 @@ def receive_sale(
 
     else:
         status = Sale.Status.PENDING
+
+    if status == Sale.Status.RESOLVED:
+        _validate_sale_stock(machine, product, quantity)
+
+    elif status == Sale.Status.CONFLICT and machine is not None and product is not None:
+        _validate_sale_stock(
+            machine,
+            product,
+            quantity,
+            replaced_sale=reference_sale,
+        )
 
     sale_data = {
         "source": Sale.Source.TELEMETRY,
@@ -455,6 +729,12 @@ def accept_sale_conflict(
 
         current_sale.save()
 
+    _validate_sale_stock(
+        locked_sale.machine,
+        locked_sale.product,
+        locked_sale.quantity,
+    )
+
     locked_sale.status = Sale.Status.RESOLVED
 
     locked_sale.save()
@@ -483,8 +763,15 @@ def resolve_pending_sale(
 
     locked_sale = Sale.objects.select_for_update().get(pk=sale.pk)
 
-    if locked_sale.status != Sale.Status.PENDING:
-        raise ValidationError("Solo se puede resolver manualmente una venta pendiente.")
+    if locked_sale.status not in (
+        Sale.Status.PENDING,
+        Sale.Status.CONFLICT,
+    ):
+        raise ValidationError(
+            "Solo se pueden resolver manualmente ventas pendientes o en conflicto."
+        )
+
+    is_conflict = locked_sale.status == Sale.Status.CONFLICT
 
     if locked_sale.machine_id is not None and locked_sale.machine_id != machine.pk:
         raise ValidationError(
@@ -589,11 +876,28 @@ def resolve_pending_sale(
             }
         )
 
+    replaced_sale = None
+
+    if is_conflict and locked_sale.conflicts_with_id is not None:
+        replaced_sale = Sale.objects.select_for_update().get(
+            pk=locked_sale.conflicts_with_id,
+        )
+
+    _validate_sale_stock(
+        machine,
+        product,
+        locked_sale.quantity,
+        replaced_sale=replaced_sale,
+    )
+
     locked_sale.machine = machine
     locked_sale.product = product
     locked_sale.resolution_layout = resolution_layout
-    locked_sale.status = Sale.Status.RESOLVED
 
+    if is_conflict:
+        locked_sale.status = Sale.Status.CONFLICT
+    else:
+        locked_sale.status = Sale.Status.RESOLVED
     locked_sale.save()
 
     return locked_sale
@@ -616,13 +920,54 @@ def create_manual_sale(
     if machine is None:
         raise ValidationError({"machine": ("Debe seleccionarse una máquina.")})
 
-    if product is None:
-        raise ValidationError({"product": ("Debe seleccionarse un producto.")})
-
     if occurred_at is None:
         raise ValidationError(
             {"occurred_at": ("Debe indicarse la fecha y hora real de la venta.")}
         )
+
+    selection = str(selection or "").strip()
+
+    if product is None:
+        if not selection:
+            raise ValidationError(
+                {
+                    "product": (
+                        "Selecciona un producto o indica la selección "
+                        "de la máquina para identificarlo automáticamente."
+                    )
+                }
+            )
+
+        layout = get_machine_layout_at(
+            machine,
+            occurred_at,
+        )
+
+        if layout is None:
+            raise ValidationError(
+                {
+                    "selection": (
+                        "No había ninguna disposición activa para esta máquina "
+                        "en la fecha indicada."
+                    )
+                }
+            )
+
+        product = get_product_for_selection(
+            machine,
+            selection,
+            occurred_at,
+        )
+
+        if product is None:
+            raise ValidationError(
+                {
+                    "selection": (
+                        "La selección indicada no existe o no tiene un producto "
+                        "asignado en la disposición activa de esa fecha."
+                    )
+                }
+            )
 
     quantity = _parse_positive_integer(
         quantity,
@@ -647,14 +992,35 @@ def create_manual_sale(
         "amount_received",
     )
 
-    if dispense_type == Sale.DispenseType.FREE and amount_received is None:
+    payment_method = str(payment_method or "").strip()
+
+    if dispense_type == Sale.DispenseType.PAID:
+        economic_errors = {}
+
+        if unit_price is None:
+            economic_errors["unit_price"] = (
+                "Debe indicarse el precio unitario de una venta manual pagada."
+            )
+
+        if amount_received is None:
+            economic_errors["amount_received"] = (
+                "Debe indicarse el importe recibido de una venta manual pagada."
+            )
+
+        if not payment_method:
+            economic_errors["payment_method"] = (
+                "Debe indicarse el medio de pago de una venta manual pagada."
+            )
+
+        if economic_errors:
+            raise ValidationError(economic_errors)
+
+    else:
+        unit_price = None
         amount_received = Decimal("0.00")
+        payment_method = ""
 
     event_id = str(event_id).strip() if event_id else None
-
-    selection = str(selection or "").strip()
-
-    payment_method = str(payment_method or "").strip()
 
     if event_id:
         existing_sale = Sale.objects.filter(
@@ -672,6 +1038,8 @@ def create_manual_sale(
                     )
                 }
             )
+
+    _validate_sale_stock(machine, product, quantity)
 
     sale = Sale.objects.create(
         source=Sale.Source.MANUAL,

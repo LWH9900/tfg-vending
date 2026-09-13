@@ -12,13 +12,9 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'sales:sale_list' %}">
-                    Ventas
-                </a>
+                <a href="{% url 'sales:sale_list' %}">Ventas</a>
                 /
-                <a href="{% url 'sales:sale_detail' sale.pk %}">
-                    #{{ sale.pk }}
-                </a>
+                <a href="{% url 'sales:sale_detail' sale.pk %}">#{{ sale.pk }}</a>
                 /
                 Revisar conflicto
             </div>
@@ -79,7 +75,17 @@
                     <div class="detail-row">
                         <dt>Estado</dt>
                         <dd>
-                            {{ reference_sale.get_status_display }}
+                            {% if reference_sale.status == "resolved" %}
+                                {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
+                            {% elif reference_sale.status == "pending" %}
+                                {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
+                            {% elif reference_sale.status == "conflict" %}
+                                {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
+                            {% elif reference_sale.status == "rejected" %}
+                                {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
+                            {% elif reference_sale.status == "voided" %}
+                                {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
+                            {% endif %}
                         </dd>
                     </div>
 
@@ -198,7 +204,17 @@
                 <div class="detail-row">
                     <dt>Estado</dt>
                     <dd>
-                        {{ sale.get_status_display }}
+                            {% if sale.status == "resolved" %}
+                                {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
+                            {% elif sale.status == "pending" %}
+                                {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
+                            {% elif sale.status == "conflict" %}
+                                {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
+                            {% elif sale.status == "rejected" %}
+                                {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
+                            {% elif sale.status == "voided" %}
+                                {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
+                            {% endif %}
                     </dd>
                 </div>
 
@@ -309,7 +325,9 @@
         <button
             type="submit"
             class="btn btn-outline-danger"
-            onclick="return confirm('¿Seguro que deseas descartar esta recepción conflictiva? Esta decisión no podrá revertirse.')"
+            data-confirm-message="¿Seguro que deseas descartar esta recepción conflictiva? Esta decisión no podrá revertirse."
+            data-confirm-label="Descartar"
+            data-confirm-danger
 
         >
             Mantener original y descartar esta recepción
@@ -323,7 +341,9 @@
             method="post"
             action="{% url 'sales:sale_conflict_accept' sale.pk %}"
             class="d-inline"
-            onclick="return confirm('¿Seguro que deseas aceptar esta recepción como venta efectiva? La venta efectiva actual será anulada.')"
+            data-confirm-message="¿Seguro que deseas aceptar esta recepción como venta efectiva? La venta efectiva actual será anulada."
+            data-confirm-label="Aceptar recepción"
+            data-confirm-danger
         >
             {% csrf_token %}
 
@@ -337,14 +357,12 @@
 
     {% else %}
 
-        <button
-            type="button"
-            class="btn btn-danger"
-            disabled
-            title="La recepción debe tener máquina y producto resueltos."
+        <a
+            href="{% url 'sales:sale_resolve' sale.pk %}"
+            class="btn btn-primary"
         >
-            Aceptar esta recepción
-        </button>
+            Resolver datos de esta recepción
+        </a>
 
     {% endif %}
 
@@ -355,7 +373,8 @@
 
     <div class="alert alert-warning mt-3">
         Esta recepción no puede aceptarse todavía porque no tiene
-        máquina y producto resueltos.
+        máquina y producto resueltos. Resuelve primero esos datos
+        y después vuelve a revisar el conflicto.
     </div>
 
 {% endif %}

@@ -71,6 +71,56 @@ def get_warehouse_stock(product):
     return purchased_quantity - replenished_quantity
 
 
+def get_products_with_warehouse_stock(queryset=None):
+    if queryset is None:
+        queryset = Product.objects.all()
+
+    purchased_quantity_subquery = (
+        PurchaseLine.objects.filter(
+            product_id=OuterRef("pk"),
+            purchase__status=Purchase.Status.REGISTERED,
+        )
+        .values("product_id")
+        .annotate(
+            total=Sum("quantity"),
+        )
+        .values("total")
+    )
+
+    replenished_quantity_subquery = (
+        ReplenishmentLine.objects.filter(
+            product_id=OuterRef("pk"),
+            replenishment__status=Replenishment.Status.REGISTERED,
+        )
+        .values("product_id")
+        .annotate(
+            total=Sum("quantity"),
+        )
+        .values("total")
+    )
+
+    return queryset.annotate(
+        purchased_quantity=Coalesce(
+            Subquery(
+                purchased_quantity_subquery,
+                output_field=IntegerField(),
+            ),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+        replenished_quantity=Coalesce(
+            Subquery(
+                replenished_quantity_subquery,
+                output_field=IntegerField(),
+            ),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+    ).annotate(
+        warehouse_stock=(F("purchased_quantity") - F("replenished_quantity")),
+    )
+
+
 def get_machine_stock(
     product,
     machine,

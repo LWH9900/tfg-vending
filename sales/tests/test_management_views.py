@@ -191,6 +191,14 @@ class SaleManagementViewTests(TestCase):
             product=self.product_b,
         )
 
+        MachinePosition.objects.create(
+            layout=self.layout,
+            identifier="Z9",
+            row=1,
+            column=3,
+            product=None,
+        )
+
         self.layout.status = MachineLayout.Status.REGISTERED
         self.layout.save()
 
@@ -317,6 +325,8 @@ class SaleManagementViewTests(TestCase):
         )
 
     def test_pending_sale_can_be_resolved_from_view(self):
+        self.create_stock(self.product_a)
+
         url = reverse(
             "sales:sale_resolve",
             args=[
@@ -360,6 +370,8 @@ class SaleManagementViewTests(TestCase):
         )
 
     def test_resolving_pending_sale_from_view_preserves_original_data(self):
+        self.create_stock(self.product_a)
+
         original_payload = self.pending_sale.raw_payload.copy()
 
         url = reverse(
@@ -776,6 +788,8 @@ class SaleManagementViewTests(TestCase):
         )
 
     def test_conflict_can_be_accepted_from_view(self):
+        self.create_stock(self.product_b)
+
         url = reverse(
             "sales:sale_conflict_accept",
             args=[

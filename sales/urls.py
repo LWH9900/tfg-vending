@@ -7,6 +7,16 @@ app_name = "sales"
 
 urlpatterns = [
     path(
+        "projection/",
+        views.sales_projection,
+        name="sales_projection",
+    ),
+    path(
+        "projection/<int:pk>/",
+        views.sales_projection_detail,
+        name="sales_projection_detail",
+    ),
+    path(
         "",
         views.sale_list,
         name="sale_list",
@@ -55,5 +65,10 @@ urlpatterns = [
         "manual/new/",
         views.sale_manual_create,
         name="sale_manual_create",
+    ),
+    path(
+        "manual/product-status/<int:machine_pk>/",
+        views.manual_sale_product_status,
+        name="manual_sale_product_status",
     ),
 ]

@@ -15,13 +15,9 @@
 
         <div class="page-header-content">
             <div class="page-breadcrumb">
-                <a href="{% url 'machines:machine_list' %}">
-                    Máquinas
-                </a>
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
                 /
-                <a href="{% url 'machines:machine_detail' machine.pk %}">
-                    {{ machine.identifier }}
-                </a>
+                <a href="{% url 'machines:machine_detail' machine.pk %}">{{ machine.identifier }}</a>
                 /
                 Disposiciones
             </div>
@@ -85,18 +81,12 @@
 
                                         <div>
                                             {% if layout.status == "DRAFT" %}
-                                                <span class="badge text-bg-secondary">
-                                                    Borrador
-                                                </span>
+                                                {% include "components/status_indicator.html" with label="Borrador" tone="neutral" %}
                                             {% else %}
-                                                <span class="badge text-bg-primary">
-                                                    Registrada
-                                                </span>
+                                                {% include "components/status_indicator.html" with label="Registrada" tone="info" %}
                                             {% endif %}
                                             {% if layout.is_active %}
-                                                <span class="badge text-bg-success">
-                                                    Activa
-                                                </span>
+                                                {% include "components/status_indicator.html" with label="Activa" tone="positive" %}
                                             {% endif %}
                                         </div>
 

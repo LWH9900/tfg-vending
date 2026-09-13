@@ -26,17 +26,11 @@
         <div class="page-header-content">
 
             <div class="page-breadcrumb">
-                <a href="{% url 'machines:machine_list' %}">
-                    Máquinas
-                </a>
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
                 /
-                <a href="{% url 'machines:machine_detail' machine.pk %}">
-                    {{ machine.identifier }}
-                </a>
+                <a href="{% url 'machines:machine_detail' machine.pk %}">{{ machine.identifier }}</a>
                 /
-                <a href="{% url 'machines:machine_layout_list' machine.pk %}">
-                    Disposiciones
-                </a>
+                <a href="{% url 'machines:machine_layout_list' machine.pk %}">Disposiciones</a>
                 /
                 {% if is_editing %}
                     Editar disposición
@@ -233,23 +227,35 @@
 
                     <div class="layout-editor-grid">
 
-                        <div
-                            class="vending-machine-grid layout-edit-grid"
-                            data-rows="{{ machine.rows }}"
-                            data-columns="{{ machine.columns }}"
-                        >
+                        <div class="vending-machine">
 
-                            {% for cell in grid_cells %}
+                            <div class="vending-machine-header">
+                                <span>
+                                    {{ machine.identifier }}
+                                </span>
+                            </div>
 
-                                <button
-                                    type="button"
-                                    class="vending-grid-cell layout-edit-cell"
-                                    data-row="{{ cell.row }}"
-                                    data-column="{{ cell.column }}"
-                                    aria-label="Fila {{ cell.row }}, columna {{ cell.column }}"
-                                ></button>
+                            <div
+                                class="vending-machine-grid layout-edit-grid"
+                                data-rows="{{ machine.rows }}"
+                                data-columns="{{ machine.columns }}"
+                            >
 
-                            {% endfor %}
+                                {% for cell in grid_cells %}
+
+                                    <button
+                                        type="button"
+                                        class="vending-grid-cell layout-edit-cell"
+                                        data-row="{{ cell.row }}"
+                                        data-column="{{ cell.column }}"
+                                        aria-label="Fila {{ cell.row }}, columna {{ cell.column }}"
+                                    ></button>
+
+                                {% endfor %}
+
+                            </div>
+
+                            <div class="vending-machine-base"></div>
 
                         </div>
 

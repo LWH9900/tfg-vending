@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "purchases.apps.PurchasesConfig",
     "replenishments.apps.ReplenishmentsConfig",
     "sales.apps.SalesConfig",
+    "dashboard.apps.DashboardConfig",
 ]
 
 MIDDLEWARE = [
@@ -123,7 +124,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "es-es"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Europe/Madrid"
 
 USE_I18N = True
 

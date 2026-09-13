@@ -2,6 +2,7 @@ import json
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -85,11 +86,19 @@ def build_machine_inventory_items(
 
 def machine_list(request):
     machines = Machine.objects.all().order_by("identifier")
+    paginator = Paginator(machines, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
 
     return render(
         request,
         "machines/machine_list.html",
-        {"machines": machines},
+        {
+            "machines": page_obj.object_list,
+            "page_obj": page_obj,
+            "pagination_query": query_params.urlencode(),
+        },
     )
 
 

@@ -13,9 +13,7 @@
         <div class="page-header-content">
 
             <div class="page-breadcrumb">
-                <a href="{% url 'machines:machine_list' %}">
-                    Máquinas
-                </a>
+                <a href="{% url 'machines:machine_list' %}">Máquinas</a>
                 /
                 Histórico de activaciones
             </div>
@@ -183,11 +181,12 @@
 
                     {% for activation in activations %}
 
-                        <tr{% if activation.effective_to is None %} class="table-success"{% endif %}>
+                        <tr>
 
                             <td>
                                 <a
                                     href="{% url 'machines:machine_detail' activation.layout.machine.pk %}"
+                                    class="machine-link"
                                 >
                                     {{ activation.layout.machine.identifier }}
                                 </a>
@@ -196,6 +195,7 @@
                             <td>
                                 <a
                                     href="{% url 'machines:machine_layout_detail' activation.layout.pk %}"
+                                    class="machine-link"
                                 >
                                     {{ activation.layout.name }}
                                 </a>
@@ -217,13 +217,9 @@
 
                             <td>
                                 {% if activation.effective_to is None %}
-                                    <span class="badge text-bg-success">
-                                        Activa
-                                    </span>
+                                    {% include "components/status_indicator.html" with label="Activa" tone="positive" %}
                                 {% else %}
-                                    <span class="badge text-bg-secondary">
-                                        Finalizada
-                                    </span>
+                                    {% include "components/status_indicator.html" with label="Finalizada" tone="neutral" %}
                                 {% endif %}
                             </td>
 

@@ -21,6 +21,11 @@ urlpatterns = [
         name="replenishment_create",
     ),
     path(
+        "active-products/<int:machine_pk>/",
+        views.active_products,
+        name="active_products",
+    ),
+    path(
         "<int:pk>/edit/",
         views.replenishment_edit,
         name="replenishment_edit",

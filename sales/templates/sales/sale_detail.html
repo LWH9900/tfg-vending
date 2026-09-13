@@ -12,9 +12,7 @@
 
             <div class="page-breadcrumb">
                 Operaciones /
-                <a href="{% url 'sales:sale_list' %}">
-                    Ventas
-                </a>
+                <a href="{% url 'sales:sale_list' %}">Ventas</a>
                 /
                 #{{ sale.pk }}
             </div>
@@ -117,29 +115,19 @@
 
             <dd>
                 {% if sale.status == "resolved" %}
-                    <span class="badge text-bg-success">
-                        Resuelta
-                    </span>
+                    {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
 
                 {% elif sale.status == "pending" %}
-                    <span class="badge text-bg-warning">
-                        Pendiente
-                    </span>
+                    {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
 
                 {% elif sale.status == "conflict" %}
-                    <span class="badge text-bg-danger">
-                        En conflicto
-                    </span>
+                    {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
 
                 {% elif sale.status == "rejected" %}
-                    <span class="badge text-bg-secondary">
-                        Descartada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
 
                 {% elif sale.status == "voided" %}
-                    <span class="badge text-bg-dark">
-                        Anulada
-                    </span>
+                    {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
                 {% endif %}
             </dd>
         </div>
@@ -190,7 +178,9 @@
             <dd>
                 {% if sale.machine %}
 
-                    <a href="{% url 'machines:machine_detail' sale.machine.pk %}">
+                    <a href="{% url 'machines:machine_detail' sale.machine.pk %}"
+                    class="machine-link">
+                        
                         {{ sale.machine.identifier }}
                     </a>
 
@@ -294,6 +284,10 @@
             <dd>
                 {% if sale.unit_price is not None %}
                     {{ sale.unit_price|floatformat:2 }} €
+                {% elif sale.dispense_type == "free" %}
+                    <span class="text-secondary">
+                        No aplicable
+                    </span>
                 {% else %}
                     <span class="text-secondary">
                         No disponible
@@ -321,7 +315,19 @@
             <dt>Medio de pago</dt>
             <dd>
                 {% if sale.payment_method %}
-                    {{ sale.payment_method }}
+                    {% if sale.payment_method == "cash" %}
+                        Efectivo
+                    {% elif sale.payment_method == "card" %}
+                        Tarjeta
+                    {% elif sale.payment_method == "unknown" %}
+                        Desconocido
+                    {% else %}
+                        {{ sale.payment_method }}
+                    {% endif %}
+                {% elif sale.dispense_type == "free" %}
+                    <span class="text-secondary">
+                        No aplicable
+                    </span>
                 {% else %}
                     <span class="text-secondary">
                         No disponible
@@ -396,7 +402,17 @@
         <div class="detail-row">
             <dt>Estado de la referencia</dt>
             <dd>
-                {{ sale.conflicts_with.get_status_display }}
+                {% if sale.conflicts_with.status == "resolved" %}
+                    {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
+                {% elif sale.conflicts_with.status == "pending" %}
+                    {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
+                {% elif sale.conflicts_with.status == "conflict" %}
+                    {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
+                {% elif sale.conflicts_with.status == "rejected" %}
+                    {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
+                {% elif sale.conflicts_with.status == "voided" %}
+                    {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
+                {% endif %}
             </dd>
         </div>
 
@@ -472,7 +488,17 @@
                             </td>
 
                             <td>
-                                {{ conflicting_sale.get_status_display }}
+                                {% if conflicting_sale.status == "resolved" %}
+                                    {% include "components/status_indicator.html" with label="Resuelta" tone="positive" %}
+                                {% elif conflicting_sale.status == "pending" %}
+                                    {% include "components/status_indicator.html" with label="Pendiente" tone="warning" %}
+                                {% elif conflicting_sale.status == "conflict" %}
+                                    {% include "components/status_indicator.html" with label="En conflicto" tone="negative" %}
+                                {% elif conflicting_sale.status == "rejected" %}
+                                    {% include "components/status_indicator.html" with label="Descartada" tone="neutral" %}
+                                {% elif conflicting_sale.status == "voided" %}
+                                    {% include "components/status_indicator.html" with label="Anulada" tone="neutral" %}
+                                {% endif %}
                             </td>
 
                         </tr>
@@ -561,5 +587,16 @@
     </div>
 
 </section>
+
+<div class="detail-actions">
+
+    <a
+        href="{% url 'sales:sale_list' %}"
+        class="back-link"
+    >
+        ← Volver al histórico de ventas
+    </a>
+
+</div>
 
 {% endblock %}
