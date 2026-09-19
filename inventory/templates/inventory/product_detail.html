@@ -294,81 +294,51 @@
         </div>
 
 
-        <div class="product-costs-grid">
-
-            <div class="product-cost-card">
-
-                <div class="product-cost-label">
-                    Último coste de compra
-                </div>
-
-                <div class="product-cost-value">
-
-                    {% if product.latest_purchase_cost is not None %}
-
-                        {{ product.latest_purchase_cost|floatformat:2 }} €
-
-                    {% else %}
-
-                        <span class="product-cost-empty">
-                            Sin compras
-                        </span>
-
-                    {% endif %}
-
-                </div>
-
-            </div>
-
-
-            <div class="product-cost-card">
-
-                <div class="product-cost-label">
-                    Coste promedio de compra
-                </div>
-
-                <div class="product-cost-value">
-
-                    {% if product.average_purchase_cost is not None %}
-
-                        {{ product.average_purchase_cost|floatformat:2 }} €
-
-                    {% else %}
-
-                        <span class="product-cost-empty">
-                            Sin compras
-                        </span>
-
-                    {% endif %}
-
-                </div>
-
-            </div>
-
-        </div>
-
     </div>
 
+<div class="pricing-section-heading">
+    <h2>
+        Costes de compra
+    </h2>
 
-    <div class="product-image-card">
+    <div class="pricing-section-line"></div>
+</div>
 
-        <div class="product-image-placeholder">
+<div class="product-costs-grid">
 
-            <div class="product-image-icon">
-                🖼
-            </div>
+    <div class="summary-card">
+        <span class="summary-label">
+            Último coste de compra
+        </span>
 
-            <p>
-                Imagen del producto
-            </p>
-
-            <span>
-                Imagen no disponible
-            </span>
-
-        </div>
-
+        {% if product.latest_purchase_cost is not None %}
+            <strong>
+                {{ product.latest_purchase_cost|floatformat:2 }} €
+            </strong>
+        {% else %}
+            <strong class="text-secondary">
+                Sin compras
+            </strong>
+        {% endif %}
     </div>
+
+    <div class="summary-card">
+        <span class="summary-label">
+            Coste promedio de compra
+        </span>
+
+        {% if product.average_purchase_cost is not None %}
+            <strong>
+                {{ product.average_purchase_cost|floatformat:2 }} €
+            </strong>
+        {% else %}
+            <strong class="text-secondary">
+                Sin compras
+            </strong>
+        {% endif %}
+    </div>
+
+</div>
 
 </section>
 
@@ -447,14 +417,12 @@
     </div>
 
     <div class="summary-card">
-        <span class="summary-label">
+        <span class="summary-label summary-label-with-help">
             Valor potencial de venta
-            <span class="summary-help">
-                (IVA incluido)
-            </span>
+            <span class="summary-help">(IVA incluido)</span>
         </span>
 
-        <strong >
+        <strong>
             {{ potential_sale_value|floatformat:2 }} €
         </strong>
     </div>
@@ -466,22 +434,6 @@
 </form>
 {% endif %}
 
-
-<section class="product-related-card">
-
-    <div class="product-related-header">
-        <h2>Información relacionada</h2>
-    </div>
-
-    <div class="product-related-content">
-        <p>
-            En esta sección se podrá consultar en el futuro información
-            relacionada con el producto, como stock, ventas, operaciones
-            y estadísticas.
-        </p>
-    </div>
-
-</section>
 
 
 <div class="detail-actions">
