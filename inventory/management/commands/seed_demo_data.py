@@ -1,33 +1,18 @@
+from datetime import datetime
 from decimal import Decimal
-
-from django.core.management.base import BaseCommand
-from django.db import transaction
-
-from inventory.models import Category, Product
-from datetime import timedelta
 from unittest.mock import patch
 
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 from django.utils import timezone
-from purchases.models import Purchase, PurchaseLine
+
+from inventory.models import Category, Product
 from machines.models import (
     Machine,
     MachineLayout,
     MachinePosition,
     MachinePriceOverride,
     PricingProfile,
-)
-from machines.services.layouts import activate_machine_layout
-from datetime import datetime
-
-from django.core.management.base import BaseCommand, CommandError
-
-from replenishments.models import (
-    Replenishment,
-    ReplenishmentLine,
-)
-from replenishments.services import (
-    get_replenishment_layout_errors,
-    get_replenishment_stock_errors,
 )
 from machines.services.layouts import (
     activate_machine_layout,
@@ -36,7 +21,12 @@ from machines.services.layouts import (
 from machines.services.pricing import (
     get_product_price_for_machine,
 )
-
+from purchases.models import Purchase, PurchaseLine
+from replenishments.models import Replenishment, ReplenishmentLine
+from replenishments.services import (
+    get_replenishment_layout_errors,
+    get_replenishment_stock_errors,
+)
 from sales.models import Sale
 from sales.services import (
     create_manual_sale,
@@ -84,11 +74,7 @@ class Command(BaseCommand):
             machines,
         )
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                "Datos base creados correctamente."
-            )
-        )
+        self.stdout.write(self.style.SUCCESS("Datos base creados correctamente."))
 
     def create_categories(self):
         data = [
@@ -214,9 +200,7 @@ class Command(BaseCommand):
                 defaults={
                     "category": category,
                     "format_unit": item["format_unit"],
-                    "default_sale_price": (
-                        item["default_sale_price"]
-                    ),
+                    "default_sale_price": (item["default_sale_price"]),
                     "vat_rate": category.default_vat_rate,
                     "uses_category_vat": True,
                     "is_active": True,
@@ -249,9 +233,7 @@ class Command(BaseCommand):
             profile, _ = PricingProfile.objects.update_or_create(
                 name=item["name"],
                 defaults={
-                    "percentage_adjustment": (
-                        item["percentage_adjustment"]
-                    ),
+                    "percentage_adjustment": (item["percentage_adjustment"]),
                 },
             )
 
@@ -308,9 +290,7 @@ class Command(BaseCommand):
                     "name": item["name"],
                     "location": item["location"],
                     "serial_number": item["serial_number"],
-                    "pricing_profile": pricing_profiles[
-                        item["pricing_profile"]
-                    ],
+                    "pricing_profile": pricing_profiles[item["pricing_profile"]],
                     "rows": item["rows"],
                     "columns": item["columns"],
                 },
@@ -319,6 +299,7 @@ class Command(BaseCommand):
             machines[item["identifier"]] = machine
 
         return machines
+
     def create_price_overrides(
         self,
         products,
@@ -360,14 +341,10 @@ class Command(BaseCommand):
                 override = MachinePriceOverride(
                     machine=machine,
                     product=product,
-                    percentage_adjustment=(
-                        item["percentage_adjustment"]
-                    ),
+                    percentage_adjustment=(item["percentage_adjustment"]),
                 )
             else:
-                override.percentage_adjustment = (
-                    item["percentage_adjustment"]
-                )
+                override.percentage_adjustment = item["percentage_adjustment"]
 
             override.full_clean()
             override.save()
@@ -399,17 +376,14 @@ class Command(BaseCommand):
                 identifier=f"{row_letter}{column}",
                 row=row,
                 column=column,
-                product=(
-                    products[product_name]
-                    if product_name is not None
-                    else None
-                ),
+                product=(products[product_name] if product_name is not None else None),
             )
 
         layout.status = MachineLayout.Status.REGISTERED
         layout.save(update_fields=["status"])
 
         return layout
+
     def activate_layout_at(
         self,
         layout,
@@ -423,6 +397,7 @@ class Command(BaseCommand):
             return_value=moment,
         ):
             activate_machine_layout(layout)
+
     def demo_datetime(
         self,
         year,
@@ -440,12 +415,12 @@ class Command(BaseCommand):
                 minute,
             )
         )
+
     def create_layouts(
         self,
         products,
         machines,
     ):
-        
 
         layouts = {}
 
@@ -472,7 +447,6 @@ class Command(BaseCommand):
             ],
             products=products,
         )
-    
 
         vm001_current = self.create_layout(
             machine=machines["VM-001"],
@@ -632,6 +606,7 @@ class Command(BaseCommand):
         layouts["VM-004"] = {}
 
         return layouts
+
     def create_purchase(
         self,
         *,
@@ -665,6 +640,7 @@ class Command(BaseCommand):
             )
 
         return purchase
+
     def create_purchases(self, products):
         purchases = {}
 
@@ -827,6 +803,7 @@ class Command(BaseCommand):
         )
 
         return purchases
+
     def create_replenishment(
         self,
         *,
@@ -880,20 +857,16 @@ class Command(BaseCommand):
             )
 
         if status == Replenishment.Status.CANCELLED:
-            replenishment.status = (
-                Replenishment.Status.CANCELLED
-            )
+            replenishment.status = Replenishment.Status.CANCELLED
         else:
-            replenishment.status = (
-                Replenishment.Status.REGISTERED
-            )
+            replenishment.status = Replenishment.Status.REGISTERED
 
         replenishment.save(
             update_fields=["status"],
         )
 
         return replenishment
-    
+
     def create_replenishments(
         self,
         products,
@@ -955,8 +928,6 @@ class Command(BaseCommand):
             ],
         )
 
-
-
         replenishments["REP-004"] = self.create_replenishment(
             products=products,
             machine=machines["VM-001"],
@@ -993,7 +964,6 @@ class Command(BaseCommand):
                 ("VimaCappuccino", 8),
             ],
         )
-
 
         replenishments["REP-006"] = self.create_replenishment(
             products=products,
@@ -1052,25 +1022,22 @@ class Command(BaseCommand):
             ],
         )
 
-        replenishments["REP-CANCELLED"] = (
-            self.create_replenishment(
-                products=products,
-                machine=machines["VM-002"],
-                replenished_at=self.demo_datetime(
-                    2026,
-                    9,
-                    2,
-                    16,
-                    0,
-                ),
-                lines=[
-                    ("VimaAgua", 6),
-                    ("VimaBarrita", 5),
-                ],
-                status=Replenishment.Status.CANCELLED,
-            )
+        replenishments["REP-CANCELLED"] = self.create_replenishment(
+            products=products,
+            machine=machines["VM-002"],
+            replenished_at=self.demo_datetime(
+                2026,
+                9,
+                2,
+                16,
+                0,
+            ),
+            lines=[
+                ("VimaAgua", 6),
+                ("VimaBarrita", 5),
+            ],
+            status=Replenishment.Status.CANCELLED,
         )
-
 
         replenishments["REP-009"] = self.create_replenishment(
             products=products,
@@ -1126,8 +1093,6 @@ class Command(BaseCommand):
             ],
         )
 
-
-
         replenishments["REP-012"] = self.create_replenishment(
             products=products,
             machine=machines["VM-003"],
@@ -1166,8 +1131,6 @@ class Command(BaseCommand):
             ],
         )
 
-
-
         replenishments["REP-DRAFT"] = self.create_replenishment(
             products=products,
             machine=machines["VM-002"],
@@ -1185,25 +1148,24 @@ class Command(BaseCommand):
             status=Replenishment.Status.DRAFT,
         )
 
-        replenishments["REP-NO-LAYOUT"] = (
-            self.create_replenishment(
-                products=products,
-                machine=machines["VM-004"],
-                replenished_at=self.demo_datetime(
-                    2026,
-                    9,
-                    19,
-                    16,
-                    30,
-                ),
-                lines=[
-                    ("VimaAgua", 10),
-                ],
-                status=Replenishment.Status.DRAFT,
-            )
+        replenishments["REP-NO-LAYOUT"] = self.create_replenishment(
+            products=products,
+            machine=machines["VM-004"],
+            replenished_at=self.demo_datetime(
+                2026,
+                9,
+                19,
+                16,
+                30,
+            ),
+            lines=[
+                ("VimaAgua", 10),
+            ],
+            status=Replenishment.Status.DRAFT,
         )
 
         return replenishments
+
     def build_sale_payload(
         self,
         *,
@@ -1240,9 +1202,7 @@ class Command(BaseCommand):
                 product,
             )
 
-            amount_received = (
-                unit_price * Decimal(quantity)
-            )
+            amount_received = unit_price * Decimal(quantity)
 
         if dispense_type == Sale.DispenseType.FREE:
             payment_method = ""
@@ -1254,18 +1214,13 @@ class Command(BaseCommand):
             "occurred_at": occurred_at.isoformat(),
             "quantity": quantity,
             "dispense_type": dispense_type,
-            "unit_price": (
-                str(unit_price)
-                if unit_price is not None
-                else None
-            ),
+            "unit_price": (str(unit_price) if unit_price is not None else None),
             "amount_received": (
-                str(amount_received)
-                if amount_received is not None
-                else None
+                str(amount_received) if amount_received is not None else None
             ),
             "payment_method": payment_method,
         }
+
     def create_telemetry_sale(
         self,
         *,
@@ -1303,13 +1258,13 @@ class Command(BaseCommand):
         sale, _ = receive_sale(payload)
 
         return sale
+
     def create_sales(
         self,
         products,
         machines,
     ):
         sales_data = [
-
             (
                 "SALE-001",
                 "VM-001",
@@ -1358,8 +1313,6 @@ class Command(BaseCommand):
                 1,
                 "card",
             ),
-
-
             (
                 "SALE-007",
                 "VM-001",
@@ -1440,7 +1393,6 @@ class Command(BaseCommand):
                 2,
                 "card",
             ),
-
             (
                 "SALE-017",
                 "VM-002",
@@ -1521,7 +1473,6 @@ class Command(BaseCommand):
                 1,
                 "card",
             ),
-
             (
                 "SALE-027",
                 "VM-003",
@@ -1570,7 +1521,6 @@ class Command(BaseCommand):
                 1,
                 "card",
             ),
-
             (
                 "SALE-033",
                 "VM-003",
@@ -1659,6 +1609,7 @@ class Command(BaseCommand):
             products,
             machines,
         )
+
     def create_special_sales(
         self,
         products,
@@ -1681,7 +1632,6 @@ class Command(BaseCommand):
             dispense_type=Sale.DispenseType.FREE,
             payment_method="",
         )
-
 
         if not Sale.objects.filter(
             event_id="MANUAL-001",
@@ -1719,7 +1669,6 @@ class Command(BaseCommand):
                 amount_received=price,
                 payment_method="cash",
             )
-
 
         voided_sale = self.create_telemetry_sale(
             machines=machines,
@@ -1798,6 +1747,7 @@ class Command(BaseCommand):
             ),
             reject=True,
         )
+
     def create_demo_conflict(
         self,
         *,
@@ -1807,7 +1757,7 @@ class Command(BaseCommand):
         selection,
         occurred_at,
         reject=False,
-        ):
+    ):
         existing_sales = list(
             Sale.objects.filter(
                 event_id=event_id,
@@ -1840,32 +1790,24 @@ class Command(BaseCommand):
 
         if len(existing_sales) < 2:
             conflict_payload = self.build_sale_payload(
-            machines=machines,
-            event_id=event_id,
-            machine_identifier=machine_identifier,
-            selection=selection,
-            occurred_at=occurred_at,
-            quantity=1,
-            payment_method="card",
+                machines=machines,
+                event_id=event_id,
+                machine_identifier=machine_identifier,
+                selection=selection,
+                occurred_at=occurred_at,
+                quantity=1,
+                payment_method="card",
             )
 
-            original_price = Decimal(
-                conflict_payload["unit_price"]
-            )
+            original_price = Decimal(conflict_payload["unit_price"])
 
-            conflict_price = (
-                original_price - Decimal("0.10")
-            ).quantize(
+            conflict_price = (original_price - Decimal("0.10")).quantize(
                 Decimal("0.01")
             )
 
-            conflict_payload["unit_price"] = str(
-                conflict_price
-            )
+            conflict_payload["unit_price"] = str(conflict_price)
 
-            conflict_payload["amount_received"] = str(
-                conflict_price
-            )
+            conflict_payload["amount_received"] = str(conflict_price)
 
             conflict_sale, _ = receive_sale(
                 conflict_payload,
@@ -1874,14 +1816,9 @@ class Command(BaseCommand):
         else:
             conflict_sale = existing_sales[1]
 
-        if (
-            reject
-            and conflict_sale.status
-            == Sale.Status.CONFLICT
-        ):
+        if reject and conflict_sale.status == Sale.Status.CONFLICT:
             conflict_sale = reject_sale_conflict(
                 conflict_sale,
             )
 
         return original_sale, conflict_sale
-            

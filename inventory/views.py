@@ -314,9 +314,7 @@ def inventory_overview(request):
         machines_stock = get_machines_stock(product)
 
         inventory_value = get_inventory_cost_value(product)
-        display_inventory_value = inventory_value.quantize(
-            Decimal("0.01")
-        )
+        display_inventory_value = inventory_value.quantize(Decimal("0.01"))
         potential_sale_value = get_potential_sale_value(product)
 
         inventory_items.append(
