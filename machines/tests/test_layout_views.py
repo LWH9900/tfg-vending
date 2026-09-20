@@ -581,6 +581,27 @@ class MachineLayoutCreateViewTests(TestCase):
             ).exists()
         )
 
+    def test_positions_json_must_be_a_list_when_creating_layout(self):
+        for positions in ({"row": 1}, ["not-a-position"]):
+            with self.subTest(positions=positions):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "name": "Disposición inválida",
+                        "positions": json.dumps(positions),
+                        "source_layout": "",
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(
+                    MachineLayout.objects.filter(
+                        machine=self.machine,
+                        name="Disposición inválida",
+                    ).exists()
+                )
+                self.assertTrue(response.context["form"].non_field_errors())
+
     def test_invalid_position_rolls_back_entire_layout(self):
         positions = [
             {

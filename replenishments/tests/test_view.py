@@ -504,6 +504,35 @@ class ReplenishmentViewTests(TestCase):
             response.context["form"].errors,
         )
 
+    def test_malformed_machine_id_does_not_create_replenishment(self):
+        data = self.replenishment_post_data(
+            [
+                {
+                    "product": self.product,
+                    "quantity": 10,
+                }
+            ]
+        )
+        data["machine"] = "not-a-number"
+
+        response = self.client.post(
+            reverse("replenishments:replenishment_create"),
+            data,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Replenishment.objects.exists())
+        self.assertIn("machine", response.context["form"].errors)
+
+    def test_malformed_machine_query_parameter_is_ignored(self):
+        response = self.client.get(
+            reverse("replenishments:replenishment_create"),
+            {"machine": "not-a-number"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["form"].initial["machine"])
+
     def test_nonexistent_product_does_not_create_replenishment(self):
         prefix = ReplenishmentLineFormSet.get_default_prefix()
 

@@ -329,18 +329,11 @@ def sale_resolve(
     selected_machine = sale.machine
 
     if selected_machine is None:
-        machine_form = ResolvePendingMachineForm(request.GET or None)
+        machine_form_data = request.POST if request.method == "POST" else request.GET
+        machine_form = ResolvePendingMachineForm(machine_form_data or None)
 
         if machine_form.is_valid():
             selected_machine = machine_form.cleaned_data["machine"]
-
-        elif request.method == "POST":
-            machine_id = request.POST.get("machine")
-
-            if machine_id:
-                selected_machine = Machine.objects.filter(
-                    pk=machine_id,
-                ).first()
 
     historical_layout = None
     layout = None

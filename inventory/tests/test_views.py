@@ -52,6 +52,39 @@ class CategoryViewTests(TestCase):
             "Ya existe una categoría con este nombre.",
         )
 
+    def test_create_category_rejects_vat_outside_allowed_range(self):
+        for vat_rate, expected_message in (
+            ("-0.01", "El IVA no puede ser inferior al 0 %."),
+            ("100.01", "El IVA no puede ser superior al 100 %."),
+        ):
+            with self.subTest(vat_rate=vat_rate):
+                response = self.client.post(
+                    reverse("inventory:category_create"),
+                    {"name": f"Categoría {vat_rate}", "default_vat_rate": vat_rate},
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, expected_message)
+                self.assertFalse(
+                    Category.objects.filter(name=f"Categoría {vat_rate}").exists()
+                )
+
+    def test_create_category_accepts_vat_range_boundaries(self):
+        for vat_rate in ("0.00", "100.00"):
+            with self.subTest(vat_rate=vat_rate):
+                response = self.client.post(
+                    reverse("inventory:category_create"),
+                    {"name": f"Categoría {vat_rate}", "default_vat_rate": vat_rate},
+                )
+
+                self.assertEqual(response.status_code, 302)
+                self.assertTrue(
+                    Category.objects.filter(
+                        name=f"Categoría {vat_rate}",
+                        default_vat_rate=Decimal(vat_rate),
+                    ).exists()
+                )
+
     def test_update_category(self):
         response = self.client.post(
             reverse("inventory:category_update", args=[self.category.pk]),
@@ -113,6 +146,22 @@ class CategoryViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         other.refresh_from_db()
         self.assertEqual(other.name, "Aperitivos")
+
+    def test_update_category_rejects_vat_outside_allowed_range(self):
+        for vat_rate, expected_message in (
+            ("-0.01", "El IVA no puede ser inferior al 0 %."),
+            ("100.01", "El IVA no puede ser superior al 100 %."),
+        ):
+            with self.subTest(vat_rate=vat_rate):
+                response = self.client.post(
+                    reverse("inventory:category_update", args=[self.category.pk]),
+                    {"name": "Bebidas", "default_vat_rate": vat_rate},
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, expected_message)
+                self.category.refresh_from_db()
+                self.assertEqual(self.category.default_vat_rate, Decimal("21.00"))
 
     def test_delete_category_without_products(self):
         response = self.client.post(
@@ -275,6 +324,51 @@ class ProductViewTests(TestCase):
         self.assertIn("name", form.errors)
         self.assertIn("default_sale_price", form.errors)
 
+    def test_create_product_rejects_vat_outside_allowed_range(self):
+        for vat_rate, expected_message in (
+            ("-0.01", "El IVA no puede ser inferior al 0 %."),
+            ("100.01", "El IVA no puede ser superior al 100 %."),
+        ):
+            with self.subTest(vat_rate=vat_rate):
+                response = self.client.post(
+                    reverse("inventory:product_create"),
+                    {
+                        "name": f"Producto {vat_rate}",
+                        "category": self.category.pk,
+                        "format_unit": "1 ud.",
+                        "vat_rate": vat_rate,
+                        "default_sale_price": "1.00",
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, expected_message)
+                self.assertFalse(
+                    Product.objects.filter(name=f"Producto {vat_rate}").exists()
+                )
+
+    def test_create_product_accepts_vat_range_boundaries(self):
+        for vat_rate in ("0.00", "100.00"):
+            with self.subTest(vat_rate=vat_rate):
+                response = self.client.post(
+                    reverse("inventory:product_create"),
+                    {
+                        "name": f"Producto {vat_rate}",
+                        "category": self.category.pk,
+                        "format_unit": "1 ud.",
+                        "vat_rate": vat_rate,
+                        "default_sale_price": "1.00",
+                    },
+                )
+
+                self.assertEqual(response.status_code, 302)
+                self.assertTrue(
+                    Product.objects.filter(
+                        name=f"Producto {vat_rate}",
+                        vat_rate=Decimal(vat_rate),
+                    ).exists()
+                )
+
     def test_update_product(self):
         response = self.client.post(
             reverse(
@@ -339,6 +433,28 @@ class ProductViewTests(TestCase):
             self.product.default_sale_price,
             Decimal("2.50"),
         )
+
+    def test_update_product_rejects_vat_outside_allowed_range(self):
+        for vat_rate, expected_message in (
+            ("-0.01", "El IVA no puede ser inferior al 0 %."),
+            ("100.01", "El IVA no puede ser superior al 100 %."),
+        ):
+            with self.subTest(vat_rate=vat_rate):
+                response = self.client.post(
+                    reverse("inventory:product_update", args=[self.product.pk]),
+                    {
+                        "name": "VimaCola",
+                        "category": self.category.pk,
+                        "format_unit": "330 ml",
+                        "vat_rate": vat_rate,
+                        "default_sale_price": "2.50",
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, expected_message)
+                self.product.refresh_from_db()
+                self.assertEqual(self.product.vat_rate, Decimal("21.00"))
 
     def test_update_cannot_create_duplicate_product(self):
         other_product = Product.objects.create(

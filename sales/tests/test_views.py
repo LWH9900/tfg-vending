@@ -1143,6 +1143,24 @@ class SaleManagementViewTests(TestCase):
             response.context["selected_reference_layout"],
         )
 
+    def test_sale_resolve_handles_malformed_machine_id(self):
+        sale = self.create_sale(
+            event_id="evt-view-malformed-machine",
+        )
+        sale.machine = None
+        sale.save(update_fields=["machine"])
+
+        response = self.client.post(
+            reverse("sales:sale_resolve", args=[sale.pk]),
+            {"machine": "not-a-number"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["form"])
+        self.assertIn("machine", response.context["machine_form"].errors)
+        sale.refresh_from_db()
+        self.assertEqual(sale.status, Sale.Status.PENDING)
+
     def test_sale_resolve_adds_service_field_errors_to_form(self):
         sale = self.create_sale(
             event_id="evt-view-resolution-field-error",
