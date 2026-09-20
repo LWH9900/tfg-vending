@@ -35,3 +35,23 @@
     text-decoration: underline;
     text-underline-offset: 3px;
 }
+
+@media (max-width: 767.98px) {
+    .pricing-section-heading {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 24px;
+        margin-bottom: 16px;
+    }
+
+    .pricing-section-heading h2 {
+        flex: 0 0 100%;
+        white-space: normal;
+    }
+
+    .pricing-section-line {
+        display: none;
+    }
+
+}

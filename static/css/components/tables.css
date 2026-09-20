@@ -45,3 +45,95 @@
         transparent
     );
 }
+
+.table-responsive {
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-muted) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive:focus-visible {
+    outline: 2px solid var(--app-primary);
+    outline-offset: -2px;
+}
+
+@media (max-width: 767.98px) {
+    .table-responsive {
+        position: relative;
+        max-width: 100%;
+    }
+
+    .table-responsive > .table {
+        margin-bottom: 0;
+        font-size: 0.875rem;
+    }
+
+    .table-responsive > .table:has(th:nth-child(4)) {
+        min-width: 44rem;
+    }
+
+    .table-responsive > .table:has(th:nth-child(6)) {
+        min-width: 58rem;
+    }
+
+    .table-responsive > .table:has(th:nth-child(8)) {
+        min-width: 72rem;
+    }
+
+    .table-responsive > .table > thead > tr > th {
+        white-space: nowrap;
+    }
+
+    .table-responsive > .table > :is(thead, tbody) > tr >
+        :first-child:not([colspan]) {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        min-width: 9rem;
+        background-color: var(--app-white);
+        box-shadow: 1px 0 0 var(--app-border);
+    }
+
+    .table-responsive > .table > thead > tr >
+        :first-child:not([colspan]) {
+        z-index: 2;
+        background-color: var(--bs-table-bg, var(--app-white));
+    }
+
+    .table-responsive > .table .clickable-row:hover >
+        :first-child:not([colspan]),
+    .table-responsive > .table .clickable-row:focus-visible >
+        :first-child:not([colspan]) {
+        background-color: color-mix(
+            in srgb,
+            var(--app-primary) 8%,
+            var(--app-white)
+        );
+    }
+
+    .table-responsive > .table .btn-sm {
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .table-responsive.is-overflowing:not(.has-scrolled)::after {
+        position: sticky;
+        left: 50%;
+        bottom: 0.5rem;
+        z-index: 3;
+        display: table;
+        width: max-content;
+        margin: -2.25rem auto 0.5rem;
+        padding: 0.3rem 0.65rem;
+        content: "Desliza para ver más →";
+        color: var(--app-white);
+        background: rgb(4 5 13 / 78%);
+        border-radius: 999px;
+        box-shadow: 0 2px 8px rgb(4 5 13 / 18%);
+        font-size: 0.72rem;
+        pointer-events: none;
+    }
+}
