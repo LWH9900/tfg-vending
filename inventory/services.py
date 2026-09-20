@@ -15,11 +15,25 @@ from inventory.models import Product
 from machines.models import Machine
 from machines.services.pricing import (
     calculate_price_with_vat,
+    get_product_price_excl_vat_for_machine,
     get_product_price_for_machine,
 )
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
 from sales.models import Sale
+
+
+def _has_stock_inconsistency(product):
+    if get_warehouse_stock(product) < 0:
+        return True
+
+    return (
+        get_product_machine_stocks(product)
+        .filter(
+            product_stock__lt=0,
+        )
+        .exists()
+    )
 
 
 def _get_purchased_quantity(product):
@@ -316,3 +330,45 @@ def get_potential_sale_value(
         )
 
     return value.quantize(Decimal("0.01"))
+
+
+def get_potential_sale_value_excl_vat(product):
+    warehouse_stock = get_warehouse_stock(product)
+
+    value = Decimal(max(warehouse_stock, 0)) * product.default_sale_price
+
+    machine_stocks = get_product_machine_stocks(product)
+
+    for machine in machine_stocks:
+        price_excl_vat = get_product_price_excl_vat_for_machine(
+            machine,
+            product,
+        )
+
+        value += Decimal(max(machine.product_stock, 0)) * price_excl_vat
+
+    return value.quantize(Decimal("0.01"))
+
+
+def get_potential_profit_margin(product):
+    if product.average_purchase_cost is None:
+        return None
+
+    if _has_stock_inconsistency(product):
+        return None
+
+    if get_total_stock(product) <= 0:
+        return None
+
+    potential_sale_value_excl_vat = get_potential_sale_value_excl_vat(product)
+
+    if potential_sale_value_excl_vat <= 0:
+        return None
+
+    inventory_cost_value = get_inventory_cost_value(product)
+
+    profit = potential_sale_value_excl_vat - inventory_cost_value
+
+    return (profit / potential_sale_value_excl_vat * Decimal("100")).quantize(
+        Decimal("0.01")
+    )

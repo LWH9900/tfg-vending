@@ -62,11 +62,11 @@
         </span>
 
         {% if total_stock < 0 %}
-            <strong class="text-danger fw-semibold">
+            <strong class="summary-value text-danger fw-semibold">
                 {{ total_stock }} uds.
             </strong>
         {% else %}
-            <strong>
+            <strong class="summary-value">
                 {{ total_stock }} uds.
             </strong>
         {% endif %}
@@ -77,11 +77,11 @@
             Stock en almacén
         </span>
         {% if warehouse_stock < 0 %}
-            <strong class="text-danger fw-semibold">
+            <strong class="summary-value text-danger fw-semibold">
                 {{ warehouse_stock }} uds.
             </strong>
         {% else %}
-            <strong>
+            <strong class="summary-value">
                 {{ warehouse_stock }} uds.
             </strong>
         {% endif %}
@@ -92,15 +92,14 @@
             Stock en máquinas
         </span>
         {% if machines_stock < 0 %}
-            <strong class="text-danger fw-semibold">
+            <strong class="summary-value text-danger fw-semibold">
                 {{ machines_stock }} uds.
             </strong>
         {% else %}
-            <strong>
+            <strong class="summary-value">
                 {{ machines_stock }} uds.
             </strong>
         {% endif %}
-        
     </div>
 
     <div class="summary-card">
@@ -113,15 +112,33 @@
         </strong>
     </div>
 
+    <div class="summary-item">
+        <div class="summary-card">
+            <span class="summary-label">
+                Valor potencial de venta
+            </span>
+
+            <strong class="summary-value">
+                {{ potential_sale_value|floatformat:2 }} €
+            </strong>
+        </div>
+        <span class="summary-help">(IVA incluido)</span>
+    </div>
+
     <div class="summary-card">
-        <span class="summary-label summary-label-with-help">
-            Valor potencial de venta
-            <span class="summary-help">(IVA incluido)</span>
+        <span class="summary-label">
+            Margen bruto potencial
         </span>
 
-        <strong class="summary-value">
-            {{ potential_sale_value|floatformat:2 }} €
-        </strong>
+        {% if profit_margin is not None %}
+            <strong class="summary-value">
+                {{ profit_margin|floatformat:2 }} %
+            </strong>
+        {% else %}
+            <strong class="summary-value text-secondary">
+                —
+            </strong>
+        {% endif %}
     </div>
 
 </div>
@@ -200,7 +217,7 @@
     </div>
 
 </section><div class="pricing-section-heading">
-    <h2>Salidas por reposiciones</h2>
+    <h2>Salidas de almacén por reposicione</h2>
     <div class="pricing-section-line"></div>
 </div>
 
@@ -262,6 +279,84 @@
                             class="text-center py-5 text-secondary"
                         >
                             No hay reposiciones registradas de este producto.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+<div class="pricing-section-heading">
+    <h2>Salidas por ventas</h2>
+    <div class="pricing-section-line"></div>
+</div>
+
+<section class="section-card mb-4">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead>
+                <tr>
+                    <th>Fecha / hora</th>
+                    <th>Máquina</th>
+                    <th>Origen</th>
+                    <th>Cantidad</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for sale in sale_lines %}
+
+                    <tr
+                        class="clickable-row"
+                        data-href="{% url 'sales:sale_detail' sale.pk %}"
+                        tabindex="0"
+                        role="link"
+                    >
+
+                        <td>
+                            {{ sale.occurred_at|date:"d/m/Y H:i" }}
+                        </td>
+
+                        <td>
+                            {% if sale.machine %}
+                                {{ sale.machine.identifier }}
+                                ·
+                                {{ sale.machine.name }}
+                            {% else %}
+                                <span class="text-secondary">
+                                    Sin máquina
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ sale.get_source_display }}
+                        </td>
+
+                        <td>
+                            -{{ sale.quantity }} uds.
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center py-5 text-secondary"
+                        >
+                            No hay ventas registradas de este producto.
                         </td>
                     </tr>
 

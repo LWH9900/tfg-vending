@@ -364,28 +364,27 @@
             Stock total
         </span>
         {% if total_stock < 0 %}
-            <strong class="text-danger fw-semibold">
+            <strong class="summary-value text-danger fw-semibold">
                 {{ total_stock }} uds.
             </strong>
         {% else %}
-            <strong>
+            <strong class="summary-value">
                 {{ total_stock }} uds.
             </strong>
         {% endif %}
-        
     </div>
 
     <div class="summary-card">
         <span class="summary-label">
             Stock en almacén
         </span>
-        {% if  warehouse_stock < 0 %}
-            <strong class="text-danger fw-semibold">
-                {{  warehouse_stock }} uds.
+        {% if warehouse_stock < 0 %}
+            <strong class="summary-value text-danger fw-semibold">
+                {{ warehouse_stock }} uds.
             </strong>
         {% else %}
-            <strong>
-                {{  warehouse_stock }} uds.
+            <strong class="summary-value">
+                {{ warehouse_stock }} uds.
             </strong>
         {% endif %}
     </div>
@@ -395,15 +394,14 @@
             Stock en máquinas
         </span>
         {% if machines_stock < 0 %}
-            <strong class="text-danger fw-semibold">
-                {{  machines_stock }} uds.
+            <strong class="summary-value text-danger fw-semibold">
+                {{ machines_stock }} uds.
             </strong>
         {% else %}
-            <strong>
-                {{  machines_stock }} uds.
+            <strong class="summary-value">
+                {{ machines_stock }} uds.
             </strong>
         {% endif %}
-
     </div>
 
     <div class="summary-card">
@@ -411,20 +409,38 @@
             Valor de existencias
         </span>
 
-        <strong >
+        <strong class="summary-value">
             {{ inventory_value|floatformat:2 }} €
         </strong>
     </div>
 
+    <div class="summary-item">
+        <div class="summary-card">
+            <span class="summary-label">
+                Valor potencial de venta
+            </span>
+
+            <strong class="summary-value">
+                {{ potential_sale_value|floatformat:2 }} €
+            </strong>
+        </div>
+        <span class="summary-help">(IVA incluido)</span>
+    </div>
+
     <div class="summary-card">
-        <span class="summary-label summary-label-with-help">
-            Valor potencial de venta
-            <span class="summary-help">(IVA incluido)</span>
+        <span class="summary-label">
+            Margen bruto potencial
         </span>
 
-        <strong>
-            {{ potential_sale_value|floatformat:2 }} €
-        </strong>
+        {% if profit_margin is not None %}
+            <strong class="summary-value">
+                {{ profit_margin|floatformat:2 }} %
+            </strong>
+        {% else %}
+            <strong class="summary-value text-secondary">
+                —
+            </strong>
+        {% endif %}
     </div>
 
 </div>

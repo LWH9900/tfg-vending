@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from inventory.services import (
     get_inventory_cost_value,
     get_machines_stock,
+    get_potential_profit_margin,
     get_potential_sale_value,
     get_product_machine_stocks,
     get_total_stock,
@@ -18,6 +19,7 @@ from inventory.services import (
 )
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
+from sales.models import Sale
 
 from .forms import CategoryForm, ProductForm
 from .models import Category, Product
@@ -129,6 +131,8 @@ def product_detail(request, pk):
 
     potential_sale_value = get_potential_sale_value(product)
 
+    profit_margin = get_potential_profit_margin(product)
+
     return render(
         request,
         "inventory/product_detail.html",
@@ -140,6 +144,7 @@ def product_detail(request, pk):
             "machines_stock": machines_stock,
             "inventory_value": inventory_value,
             "potential_sale_value": (potential_sale_value),
+            "profit_margin": profit_margin,
         },
     )
 
@@ -184,6 +189,7 @@ def product_update(request, pk):
     inventory_value = get_inventory_cost_value(product)
 
     potential_sale_value = get_potential_sale_value(product)
+    profit_margin = get_potential_profit_margin(product)
 
     if request.method == "POST":
         form = ProductForm(
@@ -222,6 +228,7 @@ def product_update(request, pk):
             "machines_stock": machines_stock,
             "inventory_value": inventory_value,
             "potential_sale_value": potential_sale_value,
+            "profit_margin": profit_margin,
         },
     )
 
@@ -258,6 +265,17 @@ def product_stock_detail(request, pk):
             "-pk",
         )
     )
+    sale_lines = (
+        Sale.objects.filter(
+            product=product,
+            status=Sale.Status.RESOLVED,
+        )
+        .select_related("machine")
+        .order_by(
+            "-occurred_at",
+            "-pk",
+        )
+    )
 
     return render(
         request,
@@ -270,6 +288,8 @@ def product_stock_detail(request, pk):
             "machine_stocks": (get_product_machine_stocks(product)),
             "inventory_value": (get_inventory_cost_value(product)),
             "potential_sale_value": (get_potential_sale_value(product)),
+            "sale_lines": sale_lines,
+            "profit_margin": get_potential_profit_margin(product),
             "purchase_lines": purchase_lines,
             "replenishment_lines": replenishment_lines,
         },
@@ -294,7 +314,6 @@ def inventory_overview(request):
         machines_stock = get_machines_stock(product)
 
         inventory_value = get_inventory_cost_value(product)
-
         potential_sale_value = get_potential_sale_value(product)
 
         inventory_items.append(
@@ -303,10 +322,10 @@ def inventory_overview(request):
                 "total_stock": total_stock,
                 "warehouse_stock": warehouse_stock,
                 "machines_stock": machines_stock,
-                "average_cost": (product.average_purchase_cost),
-                "latest_cost": (product.latest_purchase_cost),
+                "average_cost": product.average_purchase_cost,
+                "latest_cost": product.latest_purchase_cost,
                 "inventory_value": inventory_value,
-                "potential_sale_value": (potential_sale_value),
+                "potential_sale_value": potential_sale_value,
             }
         )
 
@@ -325,7 +344,7 @@ def inventory_overview(request):
             "total_units": total_units,
             "warehouse_units": warehouse_units,
             "machines_units": machines_units,
-            "total_inventory_value": (total_inventory_value),
-            "total_potential_sale_value": (total_potential_sale_value),
+            "total_inventory_value": total_inventory_value,
+            "total_potential_sale_value": total_potential_sale_value,
         },
     )
