@@ -21,6 +21,14 @@ class CategoryViewTests(TestCase):
         self.assertTemplateUsed(response, "inventory/category_list.html")
         self.assertContains(response, "Bebidas")
 
+    def test_empty_category_list_keeps_table_and_shows_message(self):
+        Category.objects.all().delete()
+
+        response = self.client.get(reverse("inventory:category_list"))
+
+        self.assertContains(response, "<table", html=False)
+        self.assertContains(response, "No hay categorías registradas.")
+
     def test_create_category(self):
         response = self.client.post(
             reverse("inventory:category_create"),
@@ -189,6 +197,14 @@ class ProductViewTests(TestCase):
         self.assertContains(response, "VimaCola")
         self.assertContains(response, "Bebidas azucaradas")
         self.assertContains(response, "330 ml")
+
+    def test_empty_product_list_keeps_table_and_shows_message(self):
+        Product.objects.all().delete()
+
+        response = self.client.get(reverse("inventory:product_list"))
+
+        self.assertContains(response, "<table", html=False)
+        self.assertContains(response, "No hay productos registrados.")
 
     def test_product_detail_access(self):
         response = self.client.get(

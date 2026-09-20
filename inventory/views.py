@@ -314,6 +314,9 @@ def inventory_overview(request):
         machines_stock = get_machines_stock(product)
 
         inventory_value = get_inventory_cost_value(product)
+        display_inventory_value = inventory_value.quantize(
+            Decimal("0.01")
+        )
         potential_sale_value = get_potential_sale_value(product)
 
         inventory_items.append(
@@ -324,7 +327,7 @@ def inventory_overview(request):
                 "machines_stock": machines_stock,
                 "average_cost": product.average_purchase_cost,
                 "latest_cost": product.latest_purchase_cost,
-                "inventory_value": inventory_value,
+                "inventory_value": display_inventory_value,
                 "potential_sale_value": potential_sale_value,
             }
         )
@@ -333,7 +336,7 @@ def inventory_overview(request):
         warehouse_units += warehouse_stock
         machines_units += machines_stock
 
-        total_inventory_value += inventory_value
+        total_inventory_value += display_inventory_value
         total_potential_sale_value += potential_sale_value
 
     return render(
