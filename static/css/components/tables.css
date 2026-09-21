@@ -47,19 +47,22 @@
 }
 
 .table-responsive {
+    overflow-x: auto;
+
     overscroll-behavior-inline: contain;
     scrollbar-width: thin;
     scrollbar-color: var(--app-muted) transparent;
     -webkit-overflow-scrolling: touch;
 }
 
+
 .table-responsive > .table {
     width: 100%;
+    table-layout: auto;
 }
 
 .table-responsive > .table > :is(thead, tbody, tfoot) > tr > * {
-    min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
     word-break: normal;
 }
 
@@ -74,31 +77,7 @@
     max-width: 100%;
 }
 
-@media (min-width: 768px) {
-    .table-responsive > .table:not(.editable-table) {
-        table-layout: fixed;
-    }
 
-    .table-responsive > .table:not(.editable-table) >
-        :is(thead, tbody, tfoot) > tr > :is(th, td) {
-        overflow: hidden;
-        white-space: normal;
-    }
-
-    .table-responsive > .table:not(.editable-table)
-        .table-cell--nowrap {
-        width: clamp(6rem, 8vw, 9rem);
-        overflow-wrap: normal;
-        white-space: nowrap;
-    }
-
-    .table-responsive > .table:not(.editable-table)
-        .table-cell--format {
-        width: min(16rem, 20vw);
-        max-width: 16rem;
-        white-space: normal;
-    }
-}
 
 .table-cell--nowrap {
     overflow-wrap: normal !important;
