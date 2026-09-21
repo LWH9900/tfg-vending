@@ -5,7 +5,7 @@
 {% block extra_css %}
 <link
     rel="stylesheet"
-    href="{% static 'machines/css/machines.css' %}?v=2"
+    href="{% static 'machines/css/machines.css' %}?v=3"
 >
 {% endblock %}
 
@@ -246,7 +246,7 @@
 
                     <span class="text-muted">
                         {{ positions|length }}
-                        posición{{ positions|length|pluralize:"es" }}
+                        posici{{ positions|length|pluralize:"ón,ones" }}
                     </span>
                 </div>
 
@@ -281,13 +281,16 @@
 
                             {% if position.product %}
                                 <div class="layout-position-list-details">
-                                    <span>
+                                    <span class="layout-position-list-category">
                                         {{ position.product.category.name }}
                                     </span>
 
-                                    <span aria-hidden="true">·</span>
+                                    <span
+                                        class="layout-position-list-separator"
+                                        aria-hidden="true"
+                                    >·</span>
 
-                                    <span>
+                                    <span class="layout-position-list-format">
                                         {{ position.product.format_unit }}
                                     </span>
                                 </div>

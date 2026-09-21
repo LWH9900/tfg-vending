@@ -538,8 +538,9 @@
     text-overflow: ellipsis;
 }
 .layout-position-list-details {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 5rem);
+    align-items: start;
     gap: 4px;
 
     min-width: 0;
@@ -549,12 +550,31 @@
     font-size: 0.78rem;
 
     overflow: hidden;
-
 }
 
 .layout-position-list-details span {
     min-width: 0;
 }
+
+.layout-position-list-category {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.layout-position-list-separator {
+    line-height: 1.35;
+}
+
+.layout-position-list-format {
+    max-width: 5rem;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
 .layout-position-list-meta {
     margin-top: 2px;
 

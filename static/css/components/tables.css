@@ -53,6 +53,75 @@
     -webkit-overflow-scrolling: touch;
 }
 
+.table-responsive > .table {
+    width: 100%;
+}
+
+.table-responsive > .table > :is(thead, tbody, tfoot) > tr > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+.table-responsive > .table :is(.btn, .status-indicator, input, select) {
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.table-responsive > .table .product-label,
+.table-responsive > .table .product-label > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+@media (min-width: 768px) {
+    .table-responsive > .table:not(.editable-table) {
+        table-layout: fixed;
+    }
+
+    .table-responsive > .table:not(.editable-table) >
+        :is(thead, tbody, tfoot) > tr > :is(th, td) {
+        overflow: hidden;
+        white-space: normal;
+    }
+
+    .table-responsive > .table:not(.editable-table)
+        .table-cell--nowrap {
+        width: clamp(6rem, 8vw, 9rem);
+        overflow-wrap: normal;
+        white-space: nowrap;
+    }
+
+    .table-responsive > .table:not(.editable-table)
+        .table-cell--format {
+        width: min(16rem, 20vw);
+        max-width: 16rem;
+        white-space: normal;
+    }
+}
+
+.table-cell--nowrap {
+    overflow-wrap: normal !important;
+    white-space: nowrap;
+}
+
+.table-cell--format {
+    max-width: 16rem;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.table-cell__clamped-content {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
 .table-responsive:focus-visible {
     outline: 2px solid var(--app-primary);
     outline-offset: -2px;
