@@ -9,12 +9,13 @@ from inventory.services import (
     get_inventory_cost_value,
     get_machine_product_stocks,
     get_machine_stock,
+    get_potential_profit_margin,
     get_potential_sale_value,
     get_product_machine_stocks,
     get_total_stock,
     get_warehouse_stock,
 )
-from machines.models import Machine
+from machines.models import Machine, MachinePriceOverride, PricingProfile
 from machines.services.pricing import calculate_price_with_vat
 from purchases.models import Purchase, PurchaseLine
 from replenishments.models import Replenishment, ReplenishmentLine
@@ -62,6 +63,7 @@ class StockServiceTests(TestCase):
         product,
         quantity,
         status=Purchase.Status.REGISTERED,
+        unit_price=Decimal("1.00"),
     ):
         purchase = Purchase.objects.create(
             supplier="Proveedor",
@@ -72,7 +74,7 @@ class StockServiceTests(TestCase):
             purchase=purchase,
             product=product,
             quantity=quantity,
-            unit_price_excl_vat=Decimal("1.00"),
+            unit_price_excl_vat=unit_price,
         )
 
         return purchase
@@ -755,4 +757,213 @@ class StockServiceTests(TestCase):
         self.assertEqual(
             get_potential_sale_value(self.product),
             Decimal("0.00"),
+        )
+
+    def test_potential_profit_margin_uses_warehouse_stock(self):
+        self.product.default_sale_price = Decimal("2.00")
+        self.product.save(update_fields=["default_sale_price"])
+
+        self.create_purchase(
+            self.product,
+            10,
+        )
+
+        self.assertEqual(
+            get_potential_profit_margin(self.product),
+            Decimal("50.00"),
+        )
+
+    def test_potential_profit_margin_uses_machine_pricing_profile(
+        self,
+    ):
+        self.product.default_sale_price = Decimal("2.00")
+        self.product.save(update_fields=["default_sale_price"])
+
+        profile = PricingProfile.objects.create(
+            name="Premium",
+            percentage_adjustment=Decimal("50.00"),
+        )
+
+        self.machine.pricing_profile = profile
+        self.machine.save(update_fields=["pricing_profile"])
+
+        self.create_purchase(
+            self.product,
+            10,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            6,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product),
+            4,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            6,
+        )
+
+        self.assertEqual(
+            get_potential_profit_margin(self.product),
+            Decimal("61.54"),
+        )
+
+    def test_potential_profit_margin_uses_machine_price_override(
+        self,
+    ):
+        self.product.default_sale_price = Decimal("2.00")
+        self.product.save(update_fields=["default_sale_price"])
+
+        profile = PricingProfile.objects.create(
+            name="General",
+            percentage_adjustment=Decimal("10.00"),
+        )
+
+        self.machine.pricing_profile = profile
+        self.machine.save(update_fields=["pricing_profile"])
+
+        MachinePriceOverride.objects.create(
+            machine=self.machine,
+            product=self.product,
+            percentage_adjustment=Decimal("50.00"),
+        )
+
+        self.create_purchase(
+            self.product,
+            10,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            10,
+        )
+
+        self.assertEqual(
+            get_potential_profit_margin(self.product),
+            Decimal("66.67"),
+        )
+
+    def test_potential_profit_margin_uses_average_purchase_cost(
+        self,
+    ):
+        self.product.default_sale_price = Decimal("2.00")
+        self.product.save(update_fields=["default_sale_price"])
+
+        self.create_purchase(
+            self.product,
+            5,
+            unit_price=Decimal("1.00"),
+        )
+
+        self.create_purchase(
+            self.product,
+            5,
+            unit_price=Decimal("2.00"),
+        )
+
+        self.assertEqual(
+            self.product.average_purchase_cost,
+            Decimal("1.50"),
+        )
+
+        self.assertEqual(
+            get_potential_profit_margin(self.product),
+            Decimal("25.00"),
+        )
+
+    def test_potential_profit_margin_does_not_depend_on_vat(
+        self,
+    ):
+        self.product.default_sale_price = Decimal("1.50")
+        self.product.vat_rate = Decimal("10.00")
+        self.product.save(
+            update_fields=[
+                "default_sale_price",
+                "vat_rate",
+            ]
+        )
+
+        self.create_purchase(
+            self.product,
+            10,
+        )
+
+        margin_with_10_vat = get_potential_profit_margin(self.product)
+
+        self.product.vat_rate = Decimal("21.00")
+        self.product.save(update_fields=["vat_rate"])
+
+        margin_with_21_vat = get_potential_profit_margin(self.product)
+
+        self.assertEqual(
+            margin_with_10_vat,
+            Decimal("33.33"),
+        )
+
+        self.assertEqual(
+            margin_with_21_vat,
+            Decimal("33.33"),
+        )
+
+    def test_potential_profit_margin_is_none_without_current_stock(
+        self,
+    ):
+        self.create_purchase(
+            self.product,
+            10,
+        )
+
+        self.create_replenishment(
+            self.product,
+            self.machine,
+            10,
+        )
+
+        Sale.objects.create(
+            source=Sale.Source.MANUAL,
+            event_id=None,
+            machine_identifier=self.machine.identifier,
+            machine=self.machine,
+            selection="",
+            product=self.product,
+            occurred_at=timezone.now(),
+            quantity=10,
+            dispense_type=Sale.DispenseType.PAID,
+            status=Sale.Status.RESOLVED,
+            raw_payload=None,
+        )
+
+        self.assertEqual(
+            get_total_stock(self.product),
+            0,
+        )
+
+        self.assertIsNone(
+            get_potential_profit_margin(self.product),
+        )
+
+    def test_potential_profit_margin_can_be_negative(
+        self,
+    ):
+        self.product.default_sale_price = Decimal("2.00")
+        self.product.save(update_fields=["default_sale_price"])
+
+        self.create_purchase(
+            self.product,
+            10,
+            unit_price=Decimal("2.50"),
+        )
+
+        self.assertEqual(
+            get_potential_profit_margin(self.product),
+            Decimal("-25.00"),
         )

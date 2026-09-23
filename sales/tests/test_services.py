@@ -4163,3 +4163,104 @@ class SaleConcurrencyTests(TransactionTestCase):
             ),
             0,
         )
+
+    def test_distinct_concurrent_sales_cannot_oversell_last_unit(self):
+
+        self.create_stock(quantity=1)
+
+        first_payload = self.make_payload(
+            event_id="evt-stock-race-001",
+        )
+
+        second_payload = self.make_payload(
+            event_id="evt-stock-race-002",
+        )
+
+        barrier = Barrier(2)
+
+        original_validate_stock = sale_services._validate_sale_stock
+
+        def synchronized_validate_stock(
+            machine,
+            product,
+            quantity,
+            replaced_sale=None,
+        ):
+            barrier.wait(timeout=5)
+
+            return original_validate_stock(
+                machine,
+                product,
+                quantity,
+                replaced_sale=replaced_sale,
+            )
+
+        def worker(payload):
+            close_old_connections()
+
+            try:
+                sale, created = receive_sale(payload)
+
+                return (
+                    "accepted",
+                    sale.pk,
+                    created,
+                )
+
+            except ValidationError as exc:
+                return (
+                    "rejected",
+                    exc,
+                )
+
+            finally:
+                close_old_connections()
+
+        with patch(
+            "sales.services._validate_sale_stock",
+            side_effect=synchronized_validate_stock,
+        ):
+            with ThreadPoolExecutor(
+                max_workers=2,
+            ) as executor:
+                futures = [
+                    executor.submit(worker, first_payload),
+                    executor.submit(worker, second_payload),
+                ]
+
+                results = [future.result(timeout=10) for future in futures]
+
+        accepted = [result for result in results if result[0] == "accepted"]
+
+        rejected = [result for result in results if result[0] == "rejected"]
+
+        self.assertEqual(
+            len(accepted),
+            1,
+            f"results={results!r}",
+        )
+
+        self.assertEqual(
+            len(rejected),
+            1,
+            f"results={results!r}",
+        )
+
+        self.assertEqual(
+            Sale.objects.filter(
+                status=Sale.Status.RESOLVED,
+                event_id__in=[
+                    "evt-stock-race-001",
+                    "evt-stock-race-002",
+                ],
+            ).count(),
+            1,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            0,
+        )

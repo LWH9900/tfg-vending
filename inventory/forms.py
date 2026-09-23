@@ -20,8 +20,8 @@ class CategoryForm(forms.ModelForm):
             "default_vat_rate": {
                 "required": "Introduce el IVA por defecto.",
                 "invalid": "Introduce un IVA válido.",
-                "min_value": "El IVA no puede ser inferior al 0 %.",
-                "max_value": "El IVA no puede ser superior al 100 %.",
+                "min_value": "El IVA no puede ser inferior al 0 %%.",
+                "max_value": "El IVA no puede ser superior al 100 %%.",
             },
         }
         widgets = {
@@ -54,8 +54,8 @@ class ProductForm(forms.ModelForm):
         decimal_places=2,
         error_messages={
             "invalid": "Introduce un IVA válido.",
-            "min_value": "El IVA no puede ser inferior al 0 %.",
-            "max_value": "El IVA no puede ser superior al 100 %.",
+            "min_value": "El IVA no puede ser inferior al 0 %%.",
+            "max_value": "El IVA no puede ser superior al 100 %%.",
         },
         widget=forms.NumberInput(
             attrs={

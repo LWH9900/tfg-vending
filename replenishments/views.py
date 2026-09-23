@@ -48,6 +48,13 @@ def _get_active_product_ids(machine, moment):
     )
 
 
+def _get_machine_from_untrusted_id(machine_id):
+    if not machine_id or not str(machine_id).isdigit():
+        return None
+
+    return Machine.objects.filter(pk=machine_id).first()
+
+
 def replenishment_list(request):
     replenishments = (
         Replenishment.objects.select_related("machine")
@@ -141,9 +148,9 @@ def replenishment_create(request):
         elif timezone.is_naive(moment):
             moment = timezone.make_aware(moment)
 
-        selected_machine = Machine.objects.filter(
-            pk=request.POST.get("machine"),
-        ).first()
+        selected_machine = _get_machine_from_untrusted_id(
+            request.POST.get("machine"),
+        )
 
         active_product_ids = _get_active_product_ids(
             selected_machine,
@@ -183,9 +190,7 @@ def replenishment_create(request):
         machine_id = request.GET.get("machine")
 
         if machine_id:
-            initial_machine = Machine.objects.filter(
-                pk=machine_id,
-            ).first()
+            initial_machine = _get_machine_from_untrusted_id(machine_id)
 
         moment = replenishment.replenished_at or timezone.now()
 
@@ -258,9 +263,9 @@ def replenishment_edit(request, pk):
                     "Solo se pueden editar reposiciones en borrador."
                 )
 
-            selected_machine = Machine.objects.filter(
-                pk=request.POST.get("machine"),
-            ).first()
+            selected_machine = _get_machine_from_untrusted_id(
+                request.POST.get("machine"),
+            )
 
             moment = parse_datetime(request.POST.get("replenished_at", ""))
 

@@ -504,6 +504,35 @@ class ReplenishmentViewTests(TestCase):
             response.context["form"].errors,
         )
 
+    def test_malformed_machine_id_does_not_create_replenishment(self):
+        data = self.replenishment_post_data(
+            [
+                {
+                    "product": self.product,
+                    "quantity": 10,
+                }
+            ]
+        )
+        data["machine"] = "not-a-number"
+
+        response = self.client.post(
+            reverse("replenishments:replenishment_create"),
+            data,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Replenishment.objects.exists())
+        self.assertIn("machine", response.context["form"].errors)
+
+    def test_malformed_machine_query_parameter_is_ignored(self):
+        response = self.client.get(
+            reverse("replenishments:replenishment_create"),
+            {"machine": "not-a-number"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["form"].initial["machine"])
+
     def test_nonexistent_product_does_not_create_replenishment(self):
         prefix = ReplenishmentLineFormSet.get_default_prefix()
 
@@ -2085,3 +2114,155 @@ class ReplenishmentConcurrencyTests(TransactionTestCase):
                 get_warehouse_stock(self.product),
                 10,
             )
+
+    def test_two_concurrent_replenishments_cannot_overspend_warehouse_stock(
+        self,
+    ):
+
+        replenishment_time = self.replenishment.replenished_at
+
+        replenishment_a = Replenishment.objects.create(
+            machine=self.machine,
+            replenished_at=replenishment_time,
+            status=Replenishment.Status.DRAFT,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment_a,
+            product=self.product,
+            quantity=8,
+        )
+
+        replenishment_b = Replenishment.objects.create(
+            machine=self.machine,
+            replenished_at=replenishment_time,
+            status=Replenishment.Status.DRAFT,
+        )
+
+        ReplenishmentLine.objects.create(
+            replenishment=replenishment_b,
+            product=self.product,
+            quantity=8,
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product),
+            10,
+        )
+
+        barrier = Barrier(2)
+
+        original_select_for_update = QuerySet.select_for_update
+
+        def synchronized_select_for_update(
+            queryset,
+            *args,
+            **kwargs,
+        ):
+            if queryset.model is Product:
+                barrier.wait(timeout=5)
+
+            return original_select_for_update(
+                queryset,
+                *args,
+                **kwargs,
+            )
+
+        url_a = reverse(
+            "replenishments:replenishment_register",
+            args=[replenishment_a.pk],
+        )
+
+        url_b = reverse(
+            "replenishments:replenishment_register",
+            args=[replenishment_b.pk],
+        )
+
+        def worker(url):
+            close_old_connections()
+
+            try:
+                client = Client(
+                    raise_request_exception=False,
+                )
+
+                response = client.post(url)
+
+                return (
+                    response.status_code,
+                    response.get("Location", ""),
+                )
+
+            finally:
+                close_old_connections()
+
+        with patch(
+            "django.db.models.query.QuerySet.select_for_update",
+            new=synchronized_select_for_update,
+        ):
+            with ThreadPoolExecutor(
+                max_workers=2,
+            ) as executor:
+                future_a = executor.submit(
+                    worker,
+                    url_a,
+                )
+
+                future_b = executor.submit(
+                    worker,
+                    url_b,
+                )
+
+                results = [
+                    future_a.result(timeout=10),
+                    future_b.result(timeout=10),
+                ]
+
+        replenishment_a.refresh_from_db()
+        replenishment_b.refresh_from_db()
+
+        statuses = [
+            replenishment_a.status,
+            replenishment_b.status,
+        ]
+
+        self.assertEqual(
+            statuses.count(Replenishment.Status.REGISTERED),
+            1,
+            f"statuses={statuses!r}",
+        )
+
+        self.assertEqual(
+            statuses.count(Replenishment.Status.DRAFT),
+            1,
+            f"statuses={statuses!r}",
+        )
+
+        self.assertTrue(
+            all(status_code == 302 for status_code, _ in results),
+            f"results={results!r}",
+        )
+
+        self.assertEqual(
+            sum("stock_error=1" in location for _, location in results),
+            1,
+            f"results={results!r}",
+        )
+
+        self.assertEqual(
+            get_warehouse_stock(self.product),
+            2,
+        )
+
+        self.assertEqual(
+            get_machine_stock(
+                self.product,
+                self.machine,
+            ),
+            8,
+        )
+
+        self.assertGreaterEqual(
+            get_warehouse_stock(self.product),
+            0,
+        )

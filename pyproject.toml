@@ -18,6 +18,8 @@ omit = [
     "manage.py",
     "config/asgi.py",
     "config/wsgi.py",
+    "locustfile.py",
+    "*/management/commands/seed_demo_data.py",
 ]
 
 [tool.coverage.report]

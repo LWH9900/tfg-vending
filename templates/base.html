@@ -36,12 +36,12 @@
 
     <link
         rel="stylesheet"
-        href="{% static 'css/app.css' %}"
+        href="{% static 'css/app.css' %}?v=2"
     >
 
     <link
         rel="stylesheet"
-        href="{% static 'css/components/forms.css' %}"
+        href="{% static 'css/components/forms.css' %}?v=2"
     >
 
     <link
@@ -50,17 +50,22 @@
     >
     <link
         rel="stylesheet"
-        href="{% static 'css/components/sections.css' %}"
+        href="{% static 'css/components/sections.css' %}?v=2"
     >
     <link
         rel="stylesheet"
-        href="{% static 'css/components/tables.css' %}"
+        href="{% static 'css/components/tables.css' %}?v=4"
     >
     <link
         rel="stylesheet"
         href="{% static 'css/components/pagination.css' %}"
     >
-    {% block extra_css %}{% endblock %}
+    <link
+        rel="icon"
+        type="image/png"
+        href="{% static 'img/favicon.png' %}"
+    >
+{% block extra_css %}{% endblock %}
 </head>
 
 <body>
@@ -338,12 +343,6 @@
                 })();
             </script>
 
-            <div class="sidebar-footer">
-                <div class="sidebar-user">
-                    Administrador
-                </div>
-                <span>Cerrar sesión</span>
-            </div>
 
         </aside>
 
@@ -448,7 +447,8 @@
         crossorigin="anonymous"
     ></script>
 
-    <script src="{% static 'js/product-select.js' %}?v=1"></script>
+    <script src="{% static 'js/product-select.js' %}?v=2"></script>
+    <script src="{% static 'js/responsive-tables.js' %}?v=3"></script>
 <script src="{% static 'js/clickable-rows.js' %}?v=4"></script>
 <script src="{% static 'js/app-feedback.js' %}?v=1"></script>
 {% block extra_js %}{% endblock %}

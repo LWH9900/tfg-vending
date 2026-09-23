@@ -211,6 +211,15 @@ class MachinePriceOverrideViewsTest(TestCase):
             pricing_profile=self.pricing_profile,
         )
 
+    def test_price_override_modal_uses_searchable_product_select(self):
+        response = self.client.get(
+            reverse("machines:machine_detail", args=[self.machine.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="priceOverrideModal"')
+        self.assertContains(response, "product-search-select")
+
     def test_price_override_can_be_created(self):
         response = self.client.post(
             reverse(

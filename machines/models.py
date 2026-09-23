@@ -17,6 +17,9 @@ class PricingProfile(models.Model):
     percentage_adjustment = models.DecimalField(
         max_digits=6,
         decimal_places=2,
+        validators=[
+            MinValueValidator(-100),
+        ],
     )
 
     def __str__(self):
@@ -148,6 +151,9 @@ class MachinePriceOverride(models.Model):
     percentage_adjustment = models.DecimalField(
         max_digits=6,
         decimal_places=2,
+        validators=[
+            MinValueValidator(-100),
+        ],
     )
 
     def clean(self):

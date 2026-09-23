@@ -626,7 +626,17 @@ def machine_layout_create(
 
         try:
             positions_data = json.loads(positions_json)
-        except json.JSONDecodeError:
+
+            if not isinstance(
+                positions_data,
+                list,
+            ):
+                raise ValueError("La configuración de posiciones no es válida.")
+
+        except (
+            json.JSONDecodeError,
+            ValueError,
+        ):
             positions_data = None
 
             form.add_error(
@@ -647,6 +657,14 @@ def machine_layout_create(
                     layout.save()
 
                     for position_data in positions_data:
+                        if not isinstance(
+                            position_data,
+                            dict,
+                        ):
+                            raise ValidationError(
+                                "La configuración de una posición no es válida."
+                            )
+
                         position = MachinePosition(
                             layout=layout,
                             identifier=position_data.get(

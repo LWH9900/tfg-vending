@@ -294,81 +294,51 @@
         </div>
 
 
-        <div class="product-costs-grid">
-
-            <div class="product-cost-card">
-
-                <div class="product-cost-label">
-                    Último coste de compra
-                </div>
-
-                <div class="product-cost-value">
-
-                    {% if product.latest_purchase_cost is not None %}
-
-                        {{ product.latest_purchase_cost|floatformat:2 }} €
-
-                    {% else %}
-
-                        <span class="product-cost-empty">
-                            Sin compras
-                        </span>
-
-                    {% endif %}
-
-                </div>
-
-            </div>
-
-
-            <div class="product-cost-card">
-
-                <div class="product-cost-label">
-                    Coste promedio de compra
-                </div>
-
-                <div class="product-cost-value">
-
-                    {% if product.average_purchase_cost is not None %}
-
-                        {{ product.average_purchase_cost|floatformat:2 }} €
-
-                    {% else %}
-
-                        <span class="product-cost-empty">
-                            Sin compras
-                        </span>
-
-                    {% endif %}
-
-                </div>
-
-            </div>
-
-        </div>
-
     </div>
 
+<div class="pricing-section-heading">
+    <h2>
+        Costes de compra
+    </h2>
 
-    <div class="product-image-card">
+    <div class="pricing-section-line"></div>
+</div>
 
-        <div class="product-image-placeholder">
+<div class="product-costs-grid">
 
-            <div class="product-image-icon">
-                🖼
-            </div>
+    <div class="summary-card">
+        <span class="summary-label">
+            Último coste de compra
+        </span>
 
-            <p>
-                Imagen del producto
-            </p>
-
-            <span>
-                Imagen no disponible
-            </span>
-
-        </div>
-
+        {% if product.latest_purchase_cost is not None %}
+            <strong>
+                {{ product.latest_purchase_cost|floatformat:2 }} €
+            </strong>
+        {% else %}
+            <strong class="text-secondary">
+                Sin compras
+            </strong>
+        {% endif %}
     </div>
+
+    <div class="summary-card">
+        <span class="summary-label">
+            Coste promedio de compra
+        </span>
+
+        {% if product.average_purchase_cost is not None %}
+            <strong>
+                {{ product.average_purchase_cost|floatformat:2 }} €
+            </strong>
+        {% else %}
+            <strong class="text-secondary">
+                Sin compras
+            </strong>
+        {% endif %}
+    </div>
+
+</div>
 
 </section>
 
@@ -394,28 +364,27 @@
             Stock total
         </span>
         {% if total_stock < 0 %}
-            <strong class="text-danger fw-semibold">
+            <strong class="summary-value text-danger fw-semibold">
                 {{ total_stock }} uds.
             </strong>
         {% else %}
-            <strong>
+            <strong class="summary-value">
                 {{ total_stock }} uds.
             </strong>
         {% endif %}
-        
     </div>
 
     <div class="summary-card">
         <span class="summary-label">
             Stock en almacén
         </span>
-        {% if  warehouse_stock < 0 %}
-            <strong class="text-danger fw-semibold">
-                {{  warehouse_stock }} uds.
+        {% if warehouse_stock < 0 %}
+            <strong class="summary-value text-danger fw-semibold">
+                {{ warehouse_stock }} uds.
             </strong>
         {% else %}
-            <strong>
-                {{  warehouse_stock }} uds.
+            <strong class="summary-value">
+                {{ warehouse_stock }} uds.
             </strong>
         {% endif %}
     </div>
@@ -425,15 +394,14 @@
             Stock en máquinas
         </span>
         {% if machines_stock < 0 %}
-            <strong class="text-danger fw-semibold">
-                {{  machines_stock }} uds.
+            <strong class="summary-value text-danger fw-semibold">
+                {{ machines_stock }} uds.
             </strong>
         {% else %}
-            <strong>
-                {{  machines_stock }} uds.
+            <strong class="summary-value">
+                {{ machines_stock }} uds.
             </strong>
         {% endif %}
-
     </div>
 
     <div class="summary-card">
@@ -441,22 +409,38 @@
             Valor de existencias
         </span>
 
-        <strong >
+        <strong class="summary-value">
             {{ inventory_value|floatformat:2 }} €
         </strong>
     </div>
 
+    <div class="summary-item">
+        <div class="summary-card">
+            <span class="summary-label">
+                Valor potencial de venta
+            </span>
+
+            <strong class="summary-value">
+                {{ potential_sale_value|floatformat:2 }} €
+            </strong>
+        </div>
+        <span class="summary-help">(IVA incluido)</span>
+    </div>
+
     <div class="summary-card">
         <span class="summary-label">
-            Valor potencial de venta
-            <span class="summary-help">
-                (IVA incluido)
-            </span>
+            Margen bruto potencial
         </span>
 
-        <strong >
-            {{ potential_sale_value|floatformat:2 }} €
-        </strong>
+        {% if profit_margin is not None %}
+            <strong class="summary-value">
+                {{ profit_margin|floatformat:2 }} %
+            </strong>
+        {% else %}
+            <strong class="summary-value text-secondary">
+                —
+            </strong>
+        {% endif %}
     </div>
 
 </div>
@@ -466,22 +450,6 @@
 </form>
 {% endif %}
 
-
-<section class="product-related-card">
-
-    <div class="product-related-header">
-        <h2>Información relacionada</h2>
-    </div>
-
-    <div class="product-related-content">
-        <p>
-            En esta sección se podrá consultar en el futuro información
-            relacionada con el producto, como stock, ventas, operaciones
-            y estadísticas.
-        </p>
-    </div>
-
-</section>
 
 
 <div class="detail-actions">
