@@ -118,3 +118,41 @@ class PricingModelsTest(TestCase):
                 pk=pricing_profile.pk,
             ).exists()
         )
+
+    def test_pricing_profile_rejects_discount_below_minus_100(self):
+
+        profile = PricingProfile(
+            name="Tarifa negativa HYP-006",
+            percentage_adjustment=Decimal("-100.50"),
+        )
+
+        with self.assertRaises(ValidationError):
+            profile.full_clean()
+
+    def test_price_override_rejects_discount_below_minus_100(self):
+
+        override = MachinePriceOverride(
+            machine=self.machine,
+            product=self.product,
+            percentage_adjustment=Decimal("-100.50"),
+        )
+
+        with self.assertRaises(ValidationError):
+            override.full_clean()
+
+    def test_pricing_profile_accepts_exactly_minus_100(self):
+        profile = PricingProfile(
+            name="Tarifa límite HYP-006",
+            percentage_adjustment=Decimal("-100.00"),
+        )
+
+        profile.full_clean()
+
+    def test_price_override_accepts_exactly_minus_100(self):
+        override = MachinePriceOverride(
+            machine=self.machine,
+            product=self.product,
+            percentage_adjustment=Decimal("-100.00"),
+        )
+
+        override.full_clean()
