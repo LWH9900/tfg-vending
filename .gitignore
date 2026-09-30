@@ -231,3 +231,6 @@ Thumbs.db
 
 # Local logs
 logs/
+
+# Cosmic Ray generated files
+cosmic-ray.sqlite
