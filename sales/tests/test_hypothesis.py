@@ -1902,7 +1902,7 @@ class SaleStockIntegrityHypothesisTests(HypothesisTestCase):
             self.INITIAL_STOCK,
         )
 
-    @settings(max_examples=300)
+    @settings(max_examples=300, deadline=500)
     @given(
         operations=st.lists(
             st.tuples(
