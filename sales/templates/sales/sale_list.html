@@ -175,8 +175,12 @@
                             {% endif %}
                         </td>
 
-                        <td>
-                            {% include "components/product_label.html" with product=sale.product %}
+                        <td class="text-start">
+                            {% if sale.product %}
+                                {% include "components/product_label.html" with product=sale.product %}
+                            {% else %}
+                                <span class="text-secondary">—</span>
+                            {% endif %}
                         </td>
 
                         <td>

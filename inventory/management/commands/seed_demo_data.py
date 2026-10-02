@@ -58,12 +58,6 @@ class Command(BaseCommand):
         )
         self.create_purchases(products)
 
-        self.create_purchases(products)
-
-        self.create_replenishments(
-            products,
-            machines,
-        )
         self.create_replenishments(
             products,
             machines,
