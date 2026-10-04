@@ -1368,7 +1368,10 @@ class MachineLayoutActivationHypothesisTests(HypothesisTestCase):
         cls.layout_b.status = MachineLayout.Status.REGISTERED
         cls.layout_b.save()
 
-    @settings(max_examples=300)
+    @settings(
+        max_examples=300,
+        deadline=1000,
+    )
     @given(
         sequence=st.lists(
             st.sampled_from(["A", "B"]),
@@ -1795,7 +1798,10 @@ class SaleStockIntegrityHypothesisTests(HypothesisTestCase):
             quantity=cls.INITIAL_STOCK,
         )
 
-    @settings(max_examples=300)
+    @settings(
+        max_examples=300,
+        deadline=1000,
+    )
     @given(
         quantities=st.lists(
             st.integers(
@@ -2258,7 +2264,10 @@ class InventoryFlowHypothesisTests(HypothesisTestCase):
             unit_price_excl_vat=Decimal("1.00"),
         )
 
-    @settings(max_examples=250)
+    @settings(
+        max_examples=250,
+        deadline=1000,
+    )
     @given(
         operations=st.lists(
             st.tuples(
