@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -58,12 +58,6 @@ class Command(BaseCommand):
         )
         self.create_purchases(products)
 
-        self.create_purchases(products)
-
-        self.create_replenishments(
-            products,
-            machines,
-        )
         self.create_replenishments(
             products,
             machines,
@@ -406,11 +400,20 @@ class Command(BaseCommand):
         hour=8,
         minute=0,
     ):
+        original_date = date(year, month, day)
+
+        reference_date = date(2026, 9, 20)
+
+        target_date = timezone.localdate() - timedelta(days=1)
+
+        offset = target_date - reference_date
+        shifted_date = original_date + offset
+
         return timezone.make_aware(
             datetime(
-                year,
-                month,
-                day,
+                shifted_date.year,
+                shifted_date.month,
+                shifted_date.day,
                 hour,
                 minute,
             )

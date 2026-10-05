@@ -1,0 +1,40 @@
+[cosmic-ray]
+
+module-path = [
+    "inventory",
+    "machines",
+    "purchases",
+    "replenishments",
+    "sales",
+    "dashboard",
+]
+
+timeout = 180.0
+
+excluded-modules = [
+    "*/tests/*",
+    "*/tests.py",
+    "*/migrations/*",
+    "*/management/commands/seed_demo_data.py",
+]
+
+test-command = """
+python manage.py test
+inventory
+machines
+purchases
+replenishments
+dashboard
+sales.tests.test_history_views
+sales.tests.test_management_views
+sales.tests.test_manual_views
+sales.tests.test_models
+sales.tests.test_projections
+sales.tests.test_services
+sales.tests.test_views
+--keepdb
+--noinput
+"""
+
+[cosmic-ray.distributor]
+name = "local"

@@ -19,8 +19,7 @@
             </h1>
 
             <p class="page-description">
-                Consulta las ventas recibidas y localiza operaciones
-                por evento, máquina, producto, fecha o estado.
+                Consulta y filtra el histórico de ventas por evento, máquina, producto, fecha, origen o estado.
             </p>
 
         </div>
@@ -176,8 +175,12 @@
                             {% endif %}
                         </td>
 
-                        <td>
-                            {% include "components/product_label.html" with product=sale.product %}
+                        <td class="text-start">
+                            {% if sale.product %}
+                                {% include "components/product_label.html" with product=sale.product %}
+                            {% else %}
+                                <span class="text-secondary">—</span>
+                            {% endif %}
                         </td>
 
                         <td>
