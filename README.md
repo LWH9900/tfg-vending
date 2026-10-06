@@ -8,7 +8,7 @@ La aplicación permite gestionar en un mismo lugar las máquinas expendedoras, l
 
 - [Instalación y ejecución](#instalación-y-ejecución)
   - [Requisitos previos](#requisitos-previos)
-  - [Clonar el repositorio](#1-clonar-el-repositorio)
+  - [Obtener el proyecto](#1-obtener-el-proyecto)
   - [Crear el archivo `.env`](#2-crear-el-archivo-env)
   - [Levantar la aplicación](#3-levantar-la-aplicación)
   - [Cargar datos de demostración](#4-cargar-datos-de-demostración-opcional)
@@ -29,7 +29,7 @@ La aplicación permite gestionar en un mismo lugar las máquinas expendedoras, l
 
 Para ejecutar la aplicación es necesario tener instalado:
 
-- Git.
+- Git, en caso de clonar el repositorio.
 - Docker Desktop, iniciado y en ejecución.
 
 La aplicación se ha probado en Windows con Git 2.46.2.windows.1 y Docker Desktop 4.43.2 (199162). Es posible que funcione correctamente con otras versiones, aunque no se han verificado de forma específica.
@@ -45,7 +45,7 @@ El repositorio incluye un archivo `.env.example` con las variables necesarias. D
 El archivo `.env` debe contener una configuración similar a la siguiente:
 
 ```env
-POSTGRES_DB=vending_db
+POSTGRES_DB=vending
 POSTGRES_USER=vending_user
 POSTGRES_PASSWORD=change-me
 POSTGRES_HOST=db
