@@ -1,6 +1,27 @@
 # Vimach
 
-Vimach es una aplicación web desarrollada como parte de un Trabajo de Fin de Grado del Grado en Ingeniería Informática – Ingeniería del Software de la Escuela Técnica Superior de Ingeniería Informática (ETSII) de la Universidad de Sevilla. Vimach reúne en una única aplicación la gestión de las máquinas expendedoras y de las operaciones relacionadas con ellas. Permite controlar el inventario, registrar compras, reposiciones y ventas, organizar los productos dentro de cada máquina y gestionar los precios. También incluye una proyección de ventas para ayudar a prever futuras necesidades de compra y reposición.
+Vimach es una aplicación web desarrollada para el Trabajo de Fin de Grado del Grado en Ingeniería Informática - Ingeniería del Software de la Escuela Técnica Superior de Ingeniería Informática (ETSII) de la Universidad de Sevilla.
+
+La aplicación permite gestionar en un mismo lugar las máquinas expendedoras, los productos y las operaciones relacionadas con ellas. Incluye el control del inventario, el registro de compras, reposiciones y ventas, la organización de los productos dentro de cada máquina y la gestión de precios. También incorpora una proyección de ventas que ayuda a estimar futuras necesidades de compra y reposición.
+
+## Índice
+
+- [Instalación y ejecución](#instalación-y-ejecución)
+  - [Requisitos previos](#requisitos-previos)
+  - [Clonar el repositorio](#1-clonar-el-repositorio)
+  - [Crear el archivo `.env`](#2-crear-el-archivo-env)
+  - [Levantar la aplicación](#3-levantar-la-aplicación)
+  - [Cargar datos de demostración](#4-cargar-datos-de-demostración-opcional)
+  - [Acceder a la aplicación](#5-acceder-a-la-aplicación)
+- [Uso básico de la aplicación](#uso-básico-de-la-aplicación)
+- [Gestión de la base de datos](#gestión-de-la-base-de-datos)
+- [Ejecución de pruebas y comprobaciones](#ejecución-de-pruebas-y-comprobaciones)
+  - [1. Instalar las dependencias de desarrollo](#1-instalar-las-dependencias-de-desarrollo)
+  - [2. Ejecutar la suite de pruebas](#2-ejecutar-la-suite-de-pruebas)
+  - [3. Ejecutar la suite completa de pruebas](#3-ejecutar-la-suite-completa-de-pruebas)
+- [Herramientas adicionales de validación](#herramientas-adicionales-de-validación)
+  - [Mutation testing con Cosmic Ray](#mutation-testing-con-cosmic-ray)
+  - [Pruebas de carga con Locust](#pruebas-de-carga-con-locust)
 
 ## Instalación y ejecución
 
@@ -13,12 +34,9 @@ Para ejecutar la aplicación es necesario tener instalado:
 
 La aplicación se ha probado en Windows con Git 2.46.2.windows.1 y Docker Desktop 4.43.2 (199162). Es posible que funcione correctamente con otras versiones, aunque no se han verificado de forma específica.
 
-### 1. Clonar el repositorio
+### 1. Obtener el proyecto
 
-```bash
-git clone <URL_DEL_REPOSITORIO>
-cd tfg-vending
-```
+Clona el repositorio o descarga el código fuente y accede a la carpeta del proyecto.
 
 ### 2. Crear el archivo `.env`
 
@@ -210,7 +228,9 @@ docker compose exec web python manage.py flush
 ```
 
 Django solicitará confirmación antes de eliminar los datos.
+
 ## Ejecución de pruebas y comprobaciones
+
 Los siguientes pasos se incluyen únicamente para reproducir las pruebas y comprobaciones descritas en la memoria del Trabajo de Fin de Grado. No son necesarios para poner en marcha y utilizar la aplicación.
 
 ### 1. Instalar las dependencias de desarrollo
